@@ -1,0 +1,2756 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Amazon FBA - Pilotage Business</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Chart.js pour les graphiques -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Font Awesome pour les icônes -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* Styles personnalisés */
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+        }
+
+        .progress-bar {
+            height: 8px;
+            border-radius: 4px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #059669);
+            transition: width 0.5s ease;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .nav-item {
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(5px);
+        }
+
+        .nav-item.active {
+            background: rgba(255, 255, 255, 0.2);
+            border-left: 4px solid white;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+
+    <!-- ===========================
+         ECRAN DE CONNEXION
+         =========================== -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-800 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <!-- Header -->
+            <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white text-center">
+                <i class="fas fa-chart-line text-4xl mb-2"></i>
+                <h1 class="text-2xl font-bold">FBA Dashboard</h1>
+                <p class="text-purple-200 text-sm">Pilotage Business Amazon</p>
+            </div>
+
+            <!-- Formulaire Login -->
+            <div id="login-form" class="p-6">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Connexion</h2>
+                <form onsubmit="handleLogin(event)">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="login-email" required
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none transition"
+                                placeholder="votre@email.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                            <input type="password" id="login-password" required
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none transition"
+                                placeholder="••••••••">
+                        </div>
+                        <div id="login-error" class="hidden text-red-600 text-sm bg-red-50 p-3 rounded-lg"></div>
+                        <button type="submit" id="login-btn"
+                            class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                            <i class="fas fa-sign-in-alt mr-2"></i>Se connecter
+                        </button>
+                    </div>
+                </form>
+                <div class="mt-4 text-center text-sm">
+                    <button onclick="showForgotPassword()" class="text-purple-600 hover:underline">Mot de passe oublie ?</button>
+                </div>
+                <div class="mt-4 text-center text-sm text-gray-600">
+                    Pas de compte ? <button onclick="toggleAuthMode()" class="text-purple-600 font-semibold hover:underline">Creer un compte</button>
+                </div>
+            </div>
+
+            <!-- Formulaire Inscription -->
+            <div id="signup-form" class="p-6 hidden">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Creer un compte</h2>
+                <form onsubmit="handleSignup(event)">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="signup-email" required
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none transition"
+                                placeholder="votre@email.com">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mot de passe</label>
+                            <input type="password" id="signup-password" required
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none transition"
+                                placeholder="Minimum 6 caracteres">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Confirmer</label>
+                            <input type="password" id="signup-confirm" required
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none transition"
+                                placeholder="Retapez le mot de passe">
+                        </div>
+                        <div id="signup-error" class="hidden text-red-600 text-sm bg-red-50 p-3 rounded-lg"></div>
+                        <button type="submit" id="signup-btn"
+                            class="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                            <i class="fas fa-user-plus mr-2"></i>Creer mon compte
+                        </button>
+                    </div>
+                </form>
+                <div class="mt-4 text-center text-sm text-gray-600">
+                    Deja un compte ? <button onclick="toggleAuthMode()" class="text-purple-600 font-semibold hover:underline">Se connecter</button>
+                </div>
+            </div>
+
+            <!-- Formulaire Mot de passe oublie -->
+            <div id="forgot-form" class="p-6 hidden">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Mot de passe oublie</h2>
+                <form onsubmit="handleForgotPassword(event)">
+                    <div class="space-y-4">
+                        <p class="text-sm text-gray-600">Entrez votre email pour recevoir un lien de reinitialisation.</p>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                            <input type="email" id="forgot-email" required
+                                class="w-full px-4 py-3 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none transition"
+                                placeholder="votre@email.com">
+                        </div>
+                        <div id="forgot-error" class="hidden text-red-600 text-sm bg-red-50 p-3 rounded-lg"></div>
+                        <div id="forgot-success" class="hidden text-green-600 text-sm bg-green-50 p-3 rounded-lg"></div>
+                        <button type="submit" id="forgot-btn"
+                            class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                            <i class="fas fa-paper-plane mr-2"></i>Envoyer le lien
+                        </button>
+                    </div>
+                </form>
+                <div class="mt-4 text-center text-sm">
+                    <button onclick="backToLogin()" class="text-purple-600 hover:underline">
+                        <i class="fas fa-arrow-left mr-1"></i>Retour a la connexion
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===========================
+         APPLICATION PRINCIPALE
+         =========================== -->
+    <div id="app-container" class="hidden">
+    <div class="flex">
+        <!-- Menu Latéral -->
+        <aside class="sidebar w-64 p-6 text-white shadow-2xl">
+            <!-- Info utilisateur connecte -->
+            <div id="user-info" class="mb-4 p-3 bg-white/10 rounded-lg hidden">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span id="online-status"><i class="fas fa-wifi text-green-400"></i></span>
+                        <span class="text-xs truncate" id="user-email">user@email.com</span>
+                    </div>
+                    <button onclick="handleLogout()" class="text-white/70 hover:text-white" title="Deconnexion">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-8">
+                <h1 class="text-2xl font-bold flex items-center gap-2">
+                    <i class="fas fa-chart-line"></i>
+                    FBA Dashboard
+                </h1>
+                <p class="text-sm text-purple-200 mt-1">Pilotage Business</p>
+            </div>
+
+            <nav class="space-y-1">
+                <!-- Accueil -->
+                <div class="nav-item active p-3 rounded-lg" onclick="showSection('dashboard')">
+                    <i class="fas fa-home mr-3"></i>
+                    Tableau de bord
+                </div>
+
+                <!-- Separator: Suivi -->
+                <div class="pt-3 pb-1 px-3">
+                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Suivi</span>
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('suivi-hebdo')">
+                    <i class="fas fa-calendar-week mr-3"></i>
+                    Hebdomadaire
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('graphiques')">
+                    <i class="fas fa-chart-line mr-3"></i>
+                    Graphiques
+                </div>
+
+                <!-- Separator: Produits -->
+                <div class="pt-3 pb-1 px-3">
+                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Produits</span>
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('produits')">
+                    <i class="fas fa-box mr-3"></i>
+                    Mes Produits
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('stock')">
+                    <i class="fas fa-warehouse mr-3"></i>
+                    Stock
+                    <span id="stock-alert-badge" class="hidden ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">!</span>
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('sourcing')">
+                    <i class="fas fa-search-dollar mr-3"></i>
+                    Sourcing
+                </div>
+
+                <!-- Separator: Finances -->
+                <div class="pt-3 pb-1 px-3">
+                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Finances</span>
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('fiscalite')">
+                    <i class="fas fa-file-invoice-dollar mr-3"></i>
+                    Fiscalite
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('commissions')">
+                    <i class="fas fa-percent mr-3"></i>
+                    Commissions
+                </div>
+
+                <!-- Separator: Config -->
+                <div class="pt-3 pb-1 px-3">
+                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Config</span>
+                </div>
+                <div class="nav-item p-3 rounded-lg" onclick="showSection('parametres')">
+                    <i class="fas fa-cog mr-3"></i>
+                    Parametres
+                </div>
+            </nav>
+
+            <div class="mt-12 p-4 bg-white/10 rounded-lg">
+                <div class="text-xs text-purple-200 mb-1">Capital de Départ</div>
+                <div class="text-2xl font-bold" id="sidebar-capital">3 000 €</div>
+                <div class="text-xs text-purple-200 mt-2">Gain Total</div>
+                <div class="text-xl font-bold text-green-300" id="sidebar-gain">1 671 €</div>
+            </div>
+        </aside>
+
+        <!-- Contenu Principal -->
+        <main class="flex-1 p-8">
+
+            <!-- Section Dashboard -->
+            <section id="section-dashboard" class="content-section">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">Tableau de Bord</h2>
+                    <p class="text-gray-500">Vue d'ensemble de votre business Amazon FBA</p>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">Gain Total</span>
+                            <i class="fas fa-euro-sign text-green-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-gain">1 671 €</div>
+                        <div class="mt-2 text-sm text-green-600 font-semibold" id="kpi-gain-evolution">+27% ROI</div>
+                    </div>
+
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">Chiffre d'Affaires</span>
+                            <i class="fas fa-chart-line text-blue-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-ca">1 125 €</div>
+                        <div class="mt-2 text-sm text-blue-600 font-semibold" id="kpi-ca-evolution">Ce mois</div>
+                    </div>
+
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">Bénéfice Net</span>
+                            <i class="fas fa-coins text-yellow-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-benefice">290 €</div>
+                        <div class="mt-2 text-sm text-yellow-600 font-semibold" id="kpi-marge">26% Marge</div>
+                    </div>
+
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">ACOS</span>
+                            <i class="fas fa-bullseye text-purple-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-acos">11.02%</div>
+                        <div class="mt-2 text-sm text-purple-600 font-semibold">Objectif: 25%</div>
+                    </div>
+                </div>
+
+                <!-- Impact Fiscal & Tableau Comparatif -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <!-- Bloc Impact Fiscal -->
+                    <div class="bg-gradient-to-br from-orange-50 to-red-50 p-6 rounded-xl shadow-md border-2 border-orange-200">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-receipt text-orange-600"></i>
+                            Impact Fiscal sur vos Gains
+                        </h3>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-white rounded-lg">
+                                <span class="text-gray-700 font-medium">Bénéfice Brut</span>
+                                <span class="text-xl font-bold text-gray-800" id="impact-benefice-brut">290 €</span>
+                            </div>
+
+                            <div class="flex items-center justify-center py-1">
+                                <i class="fas fa-arrow-down text-red-500 text-xl"></i>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-100 rounded-lg border-2 border-red-300">
+                                <span class="text-red-800 font-medium">- Impôts <span id="impact-taux-impots">(13,3%)</span></span>
+                                <span class="text-xl font-bold text-red-600" id="impact-impots">-38.57 €</span>
+                            </div>
+
+                            <div class="border-t-2 border-orange-300 my-2"></div>
+
+                            <div class="flex justify-between items-center p-4 bg-gradient-to-r from-green-400 to-green-500 rounded-lg shadow-md">
+                                <div>
+                                    <div class="text-white text-sm font-medium">Gain Net "Poche"</div>
+                                    <div class="text-white text-xs opacity-90">Ce que vous gardez vraiment</div>
+                                </div>
+                                <span class="text-3xl font-bold text-white" id="impact-gain-net">140.70 €</span>
+                            </div>
+
+                            <div class="mt-4 grid grid-cols-2 gap-3">
+                                <div class="text-center p-3 bg-white rounded-lg">
+                                    <div class="text-xs text-gray-500 mb-1">ROI Brut → Net</div>
+                                    <div class="font-bold text-gray-800">
+                                        <span id="impact-roi-brut">26.89%</span>
+                                        <i class="fas fa-arrow-right text-orange-500 mx-1"></i>
+                                        <span class="text-green-600" id="impact-roi-net">6.97%</span>
+                                    </div>
+                                </div>
+
+                                <div class="text-center p-3 bg-white rounded-lg">
+                                    <div class="text-xs text-gray-500 mb-1">Marge Brute → Nette</div>
+                                    <div class="font-bold text-gray-800">
+                                        <span id="impact-marge-brute">25.81%</span>
+                                        <i class="fas fa-arrow-right text-orange-500 mx-1"></i>
+                                        <span class="text-green-600" id="impact-marge-nette">12.51%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tableau Comparatif -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-chart-line text-blue-600"></i>
+                            Performance Avant/Après Impôts
+                        </h3>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="border-b-2 border-gray-300">
+                                        <th class="text-left py-3 px-2 text-gray-600 font-semibold text-sm"></th>
+                                        <th class="text-center py-3 px-2 text-gray-600 font-semibold text-sm">AVANT</th>
+                                        <th class="text-center py-3 px-2 text-green-600 font-semibold text-sm">APRÈS ✓</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                                        <td class="py-3 px-2 font-medium text-gray-700">ROI</td>
+                                        <td class="py-3 px-2 text-center">
+                                            <span class="text-lg font-bold text-gray-600" id="table-roi-avant">26.89%</span>
+                                        </td>
+                                        <td class="py-3 px-2 text-center">
+                                            <span class="text-lg font-bold text-green-600" id="table-roi-apres">6.97%</span>
+                                        </td>
+                                    </tr>
+
+                                    <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
+                                        <td class="py-3 px-2 font-medium text-gray-700">Marge Nette</td>
+                                        <td class="py-3 px-2 text-center">
+                                            <span class="text-lg font-bold text-gray-600" id="table-marge-avant">25.81%</span>
+                                        </td>
+                                        <td class="py-3 px-2 text-center">
+                                            <span class="text-lg font-bold text-green-600" id="table-marge-apres">12.51%</span>
+                                        </td>
+                                    </tr>
+
+                                    <tr class="hover:bg-gray-50 transition">
+                                        <td class="py-3 px-2 font-medium text-gray-700">Gain Mensuel</td>
+                                        <td class="py-3 px-2 text-center">
+                                            <span class="text-lg font-bold text-gray-600" id="table-gain-avant">290 €</span>
+                                        </td>
+                                        <td class="py-3 px-2 text-center">
+                                            <span class="text-lg font-bold text-green-600" id="table-gain-apres">140.70 €</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                            <div class="flex items-start gap-2">
+                                <i class="fas fa-info-circle text-blue-600 mt-1"></i>
+                                <p class="text-sm text-blue-800">
+                                    Les valeurs <strong>"APRÈS"</strong> représentent ce que vous mettez réellement dans votre poche après paiement des impôts (<span id="table-info-taux">13,3%</span>).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Santé Financière -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-md card">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-heartbeat text-red-500"></i>
+                            Santé Financière
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between mb-2">
+                                    <span class="text-gray-600">Seuil de Sécurité</span>
+                                    <span class="font-bold" id="sante-seuil">66%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progress-seuil" style="width: 66%"></div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-green-50 rounded-lg">
+                                <span class="text-gray-700">Jours avant rupture</span>
+                                <span class="font-bold text-green-700" id="jours-stock">9 jours</span>
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600">Bénéfice Net d'Exploitation</span>
+                                <span class="font-bold text-gray-800" id="sante-benefice">1 671 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-600">ROI Global</span>
+                                <span class="font-bold text-green-600" id="sante-roi">26.89%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Objectifs vs Réalisé -->
+                    <div class="bg-white p-6 rounded-xl shadow-md card">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-target text-blue-500"></i>
+                            Objectifs vs Réalisé
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-gray-600 text-sm">CA</span>
+                                    <span class="text-sm"><span class="font-bold" id="obj-ca-realise">1 125 €</span> / <span class="text-gray-500" id="obj-ca-objectif">16 612 €</span></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progress-ca" style="width: 7%"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-gray-600 text-sm">Unités Vendues</span>
+                                    <span class="text-sm"><span class="font-bold" id="obj-unites-realise">25</span> / <span class="text-gray-500" id="obj-unites-objectif">369</span></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progress-unites" style="width: 7%"></div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <div class="flex justify-between mb-1">
+                                    <span class="text-gray-600 text-sm">ACOS</span>
+                                    <span class="text-sm"><span class="font-bold" id="obj-acos-realise">11.02%</span> / <span class="text-gray-500" id="obj-acos-objectif">25.00%</span></span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill bg-gradient-to-r from-green-500 to-green-600" id="progress-acos" style="width: 44%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Inputs caches pour les calculs (ancien pilotage) -->
+            <div class="hidden">
+                <input type="number" id="input-capital" value="3000" oninput="calculateAll()">
+                <input type="number" id="input-ca" value="1125" oninput="calculateAll()">
+                <input type="number" id="input-benefice" value="290" oninput="calculateAll()">
+                <input type="number" id="input-unites" value="25" oninput="calculateAll()">
+                <input type="number" id="input-acos" value="11.02" oninput="calculateAll()">
+                <input type="number" id="input-obj-ca" value="16612" oninput="calculateAll()">
+                <input type="number" id="input-obj-benefice" value="169" oninput="calculateAll()">
+                <input type="number" id="input-obj-unites" value="369" oninput="calculateAll()">
+                <input type="number" id="input-obj-acos" value="25.00" oninput="calculateAll()">
+                <input type="number" id="input-jours-stock" value="9" oninput="calculateAll()">
+            </div>
+
+            <!-- Section Produits -->
+            <section id="section-produits" class="content-section hidden">
+                <div class="mb-6 flex justify-between items-center">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">Gestion des Produits</h2>
+                        <p class="text-gray-500">Suivez les performances de chaque produit individuellement</p>
+                    </div>
+                    <button onclick="addProduct()" class="bg-gradient-to-r from-green-600 to-teal-600 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105">
+                        <i class="fas fa-plus mr-2"></i>Ajouter un Produit
+                    </button>
+                </div>
+
+                <div id="products-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Les produits seront ajoutés ici dynamiquement -->
+                </div>
+            </section>
+
+            <!-- Section Graphiques -->
+            <section id="section-graphiques" class="content-section hidden">
+                <div class="mb-6 flex flex-wrap justify-between items-center gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">Analytics & Tendances</h2>
+                        <p class="text-gray-500">Visualisez l'evolution de votre business en temps reel</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="exportGraphiques()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition">
+                            <i class="fas fa-download mr-2"></i>Exporter
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KPIs Tendances -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-gradient-to-br from-blue-500 to-blue-600 p-4 rounded-xl text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-blue-100 uppercase">CA Periode</div>
+                                <div class="text-2xl font-bold" id="graph-kpi-ca">0 EUR</div>
+                            </div>
+                            <div class="text-3xl opacity-50"><i class="fas fa-chart-line"></i></div>
+                        </div>
+                        <div class="mt-2 text-sm" id="graph-kpi-ca-trend">
+                            <span class="text-blue-200">--</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-xl text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-green-100 uppercase">Benefice</div>
+                                <div class="text-2xl font-bold" id="graph-kpi-benefice">0 EUR</div>
+                            </div>
+                            <div class="text-3xl opacity-50"><i class="fas fa-coins"></i></div>
+                        </div>
+                        <div class="mt-2 text-sm" id="graph-kpi-benefice-trend">
+                            <span class="text-green-200">--</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-purple-500 to-indigo-600 p-4 rounded-xl text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-purple-100 uppercase">Marge Moyenne</div>
+                                <div class="text-2xl font-bold" id="graph-kpi-marge">0%</div>
+                            </div>
+                            <div class="text-3xl opacity-50"><i class="fas fa-percentage"></i></div>
+                        </div>
+                        <div class="mt-2 text-sm" id="graph-kpi-marge-trend">
+                            <span class="text-purple-200">--</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-br from-orange-500 to-red-500 p-4 rounded-xl text-white">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-xs text-orange-100 uppercase">Meilleur Produit</div>
+                                <div class="text-lg font-bold truncate" id="graph-kpi-best">--</div>
+                            </div>
+                            <div class="text-3xl opacity-50"><i class="fas fa-trophy"></i></div>
+                        </div>
+                        <div class="mt-2 text-sm" id="graph-kpi-best-ca">
+                            <span class="text-orange-200">--</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filtres de periode -->
+                <div class="bg-white p-4 rounded-xl shadow-md mb-6">
+                    <div class="flex flex-wrap items-center gap-4">
+                        <span class="text-sm font-medium text-gray-700">Periode :</span>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="setGraphPeriode('7')" id="graph-periode-7" class="graph-periode-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                                7 jours
+                            </button>
+                            <button onclick="setGraphPeriode('30')" id="graph-periode-30" class="graph-periode-btn px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white transition">
+                                30 jours
+                            </button>
+                            <button onclick="setGraphPeriode('90')" id="graph-periode-90" class="graph-periode-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                                3 mois
+                            </button>
+                            <button onclick="setGraphPeriode('180')" id="graph-periode-180" class="graph-periode-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                                6 mois
+                            </button>
+                            <button onclick="setGraphPeriode('365')" id="graph-periode-365" class="graph-periode-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                                1 an
+                            </button>
+                            <button onclick="setGraphPeriode('all')" id="graph-periode-all" class="graph-periode-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                                Tout
+                            </button>
+                        </div>
+                        <div class="flex-1"></div>
+                        <div class="text-sm text-gray-500" id="graph-periode-info">
+                            Donnees des 30 derniers jours
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Graphiques Row 1 -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Evolution CA & Benefice -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-gray-800">
+                                <i class="fas fa-chart-line text-blue-500 mr-2"></i>
+                                Evolution CA & Benefice
+                            </h3>
+                            <div class="flex gap-2 text-xs">
+                                <span class="flex items-center gap-1"><span class="w-3 h-3 bg-blue-500 rounded"></span> CA</span>
+                                <span class="flex items-center gap-1"><span class="w-3 h-3 bg-green-500 rounded"></span> Benefice</span>
+                            </div>
+                        </div>
+                        <canvas id="chart-evolution-ca"></canvas>
+                    </div>
+
+                    <!-- Performance par Produit -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-bold text-gray-800">
+                                <i class="fas fa-trophy text-yellow-500 mr-2"></i>
+                                Performance par Produit
+                            </h3>
+                        </div>
+                        <canvas id="chart-produits-perf"></canvas>
+                    </div>
+                </div>
+
+                <!-- Graphiques Row 2 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <!-- Repartition des Couts -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-chart-pie text-purple-500 mr-2"></i>
+                            Repartition des Couts
+                        </h3>
+                        <canvas id="chart-couts-repartition"></canvas>
+                        <div id="chart-couts-legend" class="mt-4 grid grid-cols-2 gap-2 text-xs"></div>
+                    </div>
+
+                    <!-- Evolution Marge -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-percentage text-green-500 mr-2"></i>
+                            Evolution Marge %
+                        </h3>
+                        <canvas id="chart-evolution-marge"></canvas>
+                    </div>
+
+                    <!-- ACOS par Semaine -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-bullseye text-red-500 mr-2"></i>
+                            ACOS par Semaine
+                        </h3>
+                        <canvas id="chart-acos-semaine"></canvas>
+                    </div>
+                </div>
+
+                <!-- Graphiques Row 3 -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Objectifs vs Realise -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-bullseye text-indigo-500 mr-2"></i>
+                            Objectifs vs Realise
+                        </h3>
+                        <div class="space-y-4" id="chart-objectifs-container">
+                            <!-- Genere dynamiquement -->
+                        </div>
+                    </div>
+
+                    <!-- Comparaison Periodes -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">
+                            <i class="fas fa-exchange-alt text-teal-500 mr-2"></i>
+                            Comparaison Periodes
+                        </h3>
+                        <canvas id="chart-comparaison"></canvas>
+                        <div class="mt-4 grid grid-cols-2 gap-4 text-center text-sm">
+                            <div class="p-3 bg-blue-50 rounded-lg">
+                                <div class="text-gray-600">Periode actuelle</div>
+                                <div class="text-xl font-bold text-blue-600" id="compare-actuel">0 EUR</div>
+                            </div>
+                            <div class="p-3 bg-gray-50 rounded-lg">
+                                <div class="text-gray-600">Periode precedente</div>
+                                <div class="text-xl font-bold text-gray-600" id="compare-precedent">0 EUR</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message si pas de donnees -->
+                <div id="graph-no-data" class="hidden bg-yellow-50 border-2 border-yellow-200 p-8 rounded-xl text-center">
+                    <i class="fas fa-chart-bar text-yellow-400 text-5xl mb-4"></i>
+                    <h3 class="text-xl font-bold text-gray-800 mb-2">Pas encore de donnees</h3>
+                    <p class="text-gray-600 mb-4">Commencez a saisir vos ventes dans le <strong>Suivi Hebdomadaire</strong> pour voir vos graphiques.</p>
+                    <button onclick="showSection('suivi-hebdo')" class="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                        <i class="fas fa-plus mr-2"></i>Ajouter des donnees
+                    </button>
+                </div>
+            </section>
+
+            <!-- Section Fiscalité -->
+            <section id="section-fiscalite" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">Fiscalite & Declarations</h2>
+                    <p class="text-gray-500">Vos montants exacts a declarer aux impots - Micro-entreprise</p>
+                </div>
+
+                <!-- Bloc Principal: A DECLARER CE MOIS -->
+                <div class="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-xl shadow-lg text-white mb-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center">
+                            <i class="fas fa-file-invoice-dollar text-2xl"></i>
+                        </div>
+                        <div>
+                            <div class="text-sm text-blue-100">A DECLARER CE MOIS</div>
+                            <div class="text-xs text-blue-200" id="fiscal-mois-actuel">Fevrier 2026</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white/10 p-4 rounded-lg">
+                            <div class="text-sm text-blue-100 mb-1">Chiffre d'Affaires Encaisse</div>
+                            <div class="text-3xl font-bold" id="fiscal-ca-mois">0 EUR</div>
+                            <div class="text-xs text-blue-200 mt-1">Montant a reporter sur l'URSSAF</div>
+                        </div>
+                        <div class="bg-white/10 p-4 rounded-lg">
+                            <div class="text-sm text-blue-100 mb-1">Cotisations URSSAF a Payer</div>
+                            <div class="text-3xl font-bold text-yellow-300" id="fiscal-urssaf-mois">0 EUR</div>
+                            <div class="text-xs text-blue-200 mt-1">12.3% du CA (vente marchandises)</div>
+                        </div>
+                        <div class="bg-white/10 p-4 rounded-lg">
+                            <div class="text-sm text-blue-100 mb-1">Reste en Poche</div>
+                            <div class="text-3xl font-bold text-green-300" id="fiscal-net-mois">0 EUR</div>
+                            <div class="text-xs text-blue-200 mt-1">Apres cotisations + charges</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Selecteur de mois -->
+                <div class="bg-white p-4 rounded-xl shadow-md mb-6">
+                    <div class="flex flex-wrap items-center gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mois a analyser</label>
+                            <select id="fiscal-select-mois" onchange="updateFiscalite()" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500">
+                                <!-- Options generees dynamiquement -->
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mode de declaration</label>
+                            <select id="fiscal-mode" onchange="updateFiscalite()" class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500">
+                                <option value="mensuel">Mensuel</option>
+                                <option value="trimestriel">Trimestriel</option>
+                            </select>
+                        </div>
+                        <div class="flex-1"></div>
+                        <button onclick="copierDeclaration()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition">
+                            <i class="fas fa-copy mr-2"></i>Copier les montants
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Detail du mois -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <!-- Recap declaration -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-clipboard-list text-blue-500"></i>
+                            Recapitulatif Declaration
+                        </h3>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                                <div>
+                                    <span class="font-medium text-gray-800">CA a declarer</span>
+                                    <div class="text-xs text-gray-500">Ventes Amazon encaissees</div>
+                                </div>
+                                <span class="text-xl font-bold text-blue-700" id="fiscal-recap-ca">0 EUR</span>
+                            </div>
+
+                            <div class="text-center text-gray-400 text-sm py-1">
+                                <i class="fas fa-arrow-down"></i> Taux 12.3% (BIC Achat-Revente)
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-orange-50 rounded-lg border-l-4 border-orange-500">
+                                <div>
+                                    <span class="font-medium text-gray-800">Cotisations URSSAF</span>
+                                    <div class="text-xs text-gray-500">A payer avant le 30 du mois</div>
+                                </div>
+                                <span class="text-xl font-bold text-orange-600" id="fiscal-recap-urssaf">0 EUR</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-purple-50 rounded-lg border-l-4 border-purple-500">
+                                <div>
+                                    <span class="font-medium text-gray-800">Versement liberatoire IR</span>
+                                    <div class="text-xs text-gray-500">1% du CA (si option choisie)</div>
+                                </div>
+                                <span class="text-xl font-bold text-purple-600" id="fiscal-recap-ir">0 EUR</span>
+                            </div>
+
+                            <div class="border-t-2 border-gray-200 my-3"></div>
+
+                            <div class="flex justify-between items-center p-4 bg-red-50 rounded-lg border-2 border-red-300">
+                                <div>
+                                    <span class="font-bold text-gray-800">TOTAL A PAYER</span>
+                                    <div class="text-xs text-gray-500">Cotisations + IR liberatoire</div>
+                                </div>
+                                <span class="text-2xl font-bold text-red-600" id="fiscal-recap-total">0 EUR</span>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                            <div class="flex items-start gap-2">
+                                <i class="fas fa-info-circle text-yellow-600 mt-0.5"></i>
+                                <div class="text-sm text-yellow-800">
+                                    <strong>Rappel:</strong> Declarez votre CA sur <a href="https://www.autoentrepreneur.urssaf.fr" target="_blank" class="underline">autoentrepreneur.urssaf.fr</a> avant le dernier jour du mois suivant.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calcul benefice net -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-calculator text-green-500"></i>
+                            Ce qui reste en poche
+                        </h3>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-700">CA du mois</span>
+                                <span class="font-bold" id="fiscal-detail-ca">0 EUR</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-700">- Cout des marchandises</span>
+                                <span class="font-bold text-gray-600" id="fiscal-detail-cogs">0 EUR</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-700">- Frais Amazon (FBA, commissions)</span>
+                                <span class="font-bold text-gray-600" id="fiscal-detail-amazon">0 EUR</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-700">- Publicite PPC</span>
+                                <span class="font-bold text-gray-600" id="fiscal-detail-ppc">0 EUR</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
+                                <span class="text-gray-700">- Cotisations URSSAF</span>
+                                <span class="font-bold text-orange-600" id="fiscal-detail-urssaf">0 EUR</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-purple-50 rounded-lg">
+                                <span class="text-gray-700">- Versement liberatoire IR</span>
+                                <span class="font-bold text-purple-600" id="fiscal-detail-ir">0 EUR</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                                <span class="text-gray-700">- Charges fixes mensuelles</span>
+                                <span class="font-bold text-red-600" id="fiscal-detail-charges">0 EUR</span>
+                            </div>
+
+                            <div class="border-t-2 border-gray-300 my-2"></div>
+
+                            <div class="flex justify-between items-center p-4 bg-gradient-to-r from-green-400 to-emerald-500 rounded-lg">
+                                <div class="text-white">
+                                    <span class="font-bold text-lg">BENEFICE NET REEL</span>
+                                    <div class="text-xs text-green-100">Ce que vous gardez vraiment</div>
+                                </div>
+                                <span class="text-3xl font-bold text-white" id="fiscal-detail-net">0 EUR</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Historique des declarations -->
+                <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i class="fas fa-history text-indigo-500"></i>
+                        Historique des Declarations
+                    </h3>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="bg-gray-100 text-left text-sm">
+                                    <th class="p-3 font-semibold">Mois</th>
+                                    <th class="p-3 font-semibold text-right">CA Encaisse</th>
+                                    <th class="p-3 font-semibold text-right">URSSAF</th>
+                                    <th class="p-3 font-semibold text-right">IR Lib.</th>
+                                    <th class="p-3 font-semibold text-right">Total Paye</th>
+                                    <th class="p-3 font-semibold text-right">Benefice Net</th>
+                                    <th class="p-3 font-semibold text-center">Marge</th>
+                                </tr>
+                            </thead>
+                            <tbody id="fiscal-historique-body">
+                                <!-- Lignes generees dynamiquement -->
+                            </tbody>
+                            <tfoot class="bg-gray-50 font-bold">
+                                <tr>
+                                    <td class="p-3">TOTAL ANNEE</td>
+                                    <td class="p-3 text-right" id="fiscal-total-ca">0 EUR</td>
+                                    <td class="p-3 text-right" id="fiscal-total-urssaf">0 EUR</td>
+                                    <td class="p-3 text-right" id="fiscal-total-ir">0 EUR</td>
+                                    <td class="p-3 text-right text-red-600" id="fiscal-total-paye">0 EUR</td>
+                                    <td class="p-3 text-right text-green-600" id="fiscal-total-net">0 EUR</td>
+                                    <td class="p-3 text-center" id="fiscal-total-marge">0%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Parametres fiscaux -->
+                <div class="bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i class="fas fa-sliders-h text-gray-500"></i>
+                        Parametres Fiscaux
+                    </h3>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Taux cotisations URSSAF</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="fiscal-taux-urssaf" value="12.3" step="0.1" onchange="updateFiscalite()" class="flex-1 px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500">
+                                <span class="text-gray-500">%</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">BIC Achat-Revente = 12.3%</div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Versement liberatoire IR</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="fiscal-taux-ir" value="1.0" step="0.1" onchange="updateFiscalite()" class="flex-1 px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500">
+                                <span class="text-gray-500">%</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">Option: 1% du CA (si eligible)</div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Option VFL activee ?</label>
+                            <select id="fiscal-option-vfl" onchange="updateFiscalite()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500">
+                                <option value="non">Non</option>
+                                <option value="oui">Oui</option>
+                            </select>
+                            <div class="text-xs text-gray-500 mt-1">Versement Forfaitaire Liberatoire</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section Paramètres -->
+            <section id="section-parametres" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">Paramètres</h2>
+                    <p class="text-gray-500">Configuration de vos paramètres fiscaux et charges</p>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Charges Fixes Mensuelles -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-receipt text-orange-500"></i>
+                            Charges Fixes Mensuelles
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-4">Ces charges sont fixes à vie, quel que soit le nombre de produits</p>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Compte Amazon Vendeur Pro (€)</label>
+                                <input type="number" step="0.01" id="charge-amazon-pro" value="39"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Helium 10 / Jungle Scout (€)</label>
+                                <input type="number" step="0.01" id="charge-helium10" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Canva Pro (€)</label>
+                                <input type="number" step="0.01" id="charge-canva" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Claude / ChatGPT (€)</label>
+                                <input type="number" step="0.01" id="charge-ia" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Expert-comptable (€)</label>
+                                <input type="number" step="0.01" id="charge-comptable" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Compte bancaire pro (€)</label>
+                                <input type="number" step="0.01" id="charge-banque" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Assurance professionnelle (€/mois)</label>
+                                <input type="number" step="0.01" id="charge-assurance" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Remboursement crédit (€/mois)</label>
+                                <input type="number" step="0.01" id="charge-credit" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Autres abonnements (€)</label>
+                                <input type="number" step="0.01" id="charge-autres-abonnements" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-orange-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div class="pt-3 border-t-2 border-orange-200 mt-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-gray-700">Total Mensuel</span>
+                                    <span class="text-xl font-bold text-orange-600" id="total-charges-fixes-mensuelles">39 €</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charges Fixes Annuelles/Ponctuelles -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-calendar-alt text-blue-500"></i>
+                            Charges Fixes Annuelles/Ponctuelles
+                        </h3>
+                        <p class="text-xs text-gray-500 mb-4">Montants lissés sur 12 mois</p>
+
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Frais GS1 (codes EAN) - Annuel (€)</label>
+                                <input type="number" step="0.01" id="charge-gs1" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                                <p class="text-xs text-gray-400 mt-1">~150€/an ÷ 12 = 12,50€/mois</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Frais INPI (marque) - Annuel (€)</label>
+                                <input type="number" step="0.01" id="charge-inpi" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                                <p class="text-xs text-gray-400 mt-1">~250€ tous les 10 ans ÷ 120 mois = 2,08€/mois</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Photos & Branding - Lissé (€/mois)</label>
+                                <input type="number" step="0.01" id="charge-photos" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                                <p class="text-xs text-gray-400 mt-1">Budget photo/design lissé sur l'année</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Formation & Coaching - Lissé (€/mois)</label>
+                                <input type="number" step="0.01" id="charge-formation" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Site web / Hébergement (€/mois)</label>
+                                <input type="number" step="0.01" id="charge-web" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Frais juridiques - Lissé (€/mois)</label>
+                                <input type="number" step="0.01" id="charge-juridique" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Autres charges fixes (€/mois)</label>
+                                <input type="number" step="0.01" id="charge-autres-fixes" value="0"
+                                    class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:border-blue-500 transition text-sm"
+                                    oninput="updateChargesFixes()">
+                            </div>
+
+                            <div class="pt-3 border-t-2 border-blue-200 mt-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-bold text-gray-700">Total Annuelles (lissé)</span>
+                                    <span class="text-xl font-bold text-blue-600" id="total-charges-fixes-annuelles">0 €</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paramètres Fiscaux -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-file-invoice-dollar text-purple-500"></i>
+                            Paramètres Fiscaux
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Taux de TVA (%)
+                                    <span class="text-gray-400 text-xs ml-2">Standard: 20%</span>
+                                </label>
+                                <input type="number" step="0.1" id="param-tva" value="20"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="saveParams()">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Taux d'impôts Micro-entreprise (%)
+                                    <span class="text-gray-400 text-xs ml-2">Standard: 13,3%</span>
+                                </label>
+                                <input type="number" step="0.1" id="param-impots" value="13.3"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="saveParams(); calculateAll()">
+                            </div>
+
+                            <div class="p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
+                                <div class="flex justify-between items-center mb-2">
+                                    <span class="font-bold text-gray-700">Total Charges Fixes</span>
+                                    <span class="text-2xl font-bold text-purple-600" id="total-global-charges-fixes">39 €</span>
+                                </div>
+                                <p class="text-xs text-gray-500">Mensuelles + Annuelles lissées</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Capital et Objectifs -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-piggy-bank text-green-500"></i>
+                            Capital & Objectifs
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Capital de départ (€)
+                                </label>
+                                <input type="number" id="param-capital" value="3000"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="saveParams(); syncCapital(); calculateAll()">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Objectif ROI annuel (%)
+                                </label>
+                                <input type="number" step="0.1" id="param-objectif-roi" value="30"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="saveParams()">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Objectif marge nette (%)
+                                </label>
+                                <input type="number" step="0.1" id="param-objectif-marge" value="25"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="saveParams()">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Stock de sécurité (jours)
+                                </label>
+                                <input type="number" id="param-stock-securite" value="15"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="saveParams()">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Récapitulatif des charges -->
+                <div class="mt-6 bg-gradient-to-r from-purple-50 to-indigo-50 p-6 rounded-xl border-2 border-purple-200">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Récapitulatif Mensuel des Charges</h3>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                            <div class="text-xs text-gray-500 mb-1">Charges Fixes</div>
+                            <div class="text-xl font-bold text-gray-800" id="recap-charges-fixes">0 €</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                            <div class="text-xs text-gray-500 mb-1">Charges Variables</div>
+                            <div class="text-xl font-bold text-gray-800" id="recap-charges-variables">0 €</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                            <div class="text-xs text-gray-500 mb-1">Impôts (13,3%)</div>
+                            <div class="text-xl font-bold text-gray-800" id="recap-impots">0 €</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm">
+                            <div class="text-xs text-gray-500 mb-1">Total Charges</div>
+                            <div class="text-xl font-bold text-red-600" id="recap-total-charges">0 €</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button onclick="saveParams(); showNotification('Paramètres sauvegardés !', 'success')"
+                    class="w-full mt-6 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105">
+                    <i class="fas fa-save mr-2"></i>Sauvegarder les paramètres
+                </button>
+            </section>
+
+            <!-- Section Commissions Amazon -->
+            <section id="section-commissions" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">Commissions Amazon FBA</h2>
+                    <p class="text-gray-500">Taux de commission par catégorie de produits</p>
+                </div>
+
+                <div class="mb-6 bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        Ces taux sont les commissions Amazon en France (2024). Vous pouvez les modifier selon vos besoins.
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Catégories Amazon avec leurs taux -->
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-purple-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Vêtements & Accessoires</h4>
+                                <p class="text-xs text-gray-500">Clothing & Accessories</p>
+                            </div>
+                            <span class="text-2xl font-bold text-purple-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-blue-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">High-Tech & Électronique</h4>
+                                <p class="text-xs text-gray-500">Electronics</p>
+                            </div>
+                            <span class="text-2xl font-bold text-blue-600">8%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-green-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Maison & Jardin</h4>
+                                <p class="text-xs text-gray-500">Home & Garden</p>
+                            </div>
+                            <span class="text-2xl font-bold text-green-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-yellow-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Sports & Loisirs</h4>
+                                <p class="text-xs text-gray-500">Sports & Outdoors</p>
+                            </div>
+                            <span class="text-2xl font-bold text-yellow-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-red-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Jouets & Jeux</h4>
+                                <p class="text-xs text-gray-500">Toys & Games</p>
+                            </div>
+                            <span class="text-2xl font-bold text-red-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-indigo-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Beauté & Santé</h4>
+                                <p class="text-xs text-gray-500">Beauty & Personal Care</p>
+                            </div>
+                            <span class="text-2xl font-bold text-indigo-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-pink-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Livres</h4>
+                                <p class="text-xs text-gray-500">Books</p>
+                            </div>
+                            <span class="text-2xl font-bold text-pink-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-teal-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Informatique</h4>
+                                <p class="text-xs text-gray-500">Computers</p>
+                            </div>
+                            <span class="text-2xl font-bold text-teal-600">8%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-orange-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Musique & Films</h4>
+                                <p class="text-xs text-gray-500">Music & Movies</p>
+                            </div>
+                            <span class="text-2xl font-bold text-orange-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-cyan-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Bagages & Sacs</h4>
+                                <p class="text-xs text-gray-500">Luggage & Bags</p>
+                            </div>
+                            <span class="text-2xl font-bold text-cyan-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-lime-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Cuisine & Maison</h4>
+                                <p class="text-xs text-gray-500">Kitchen & Home</p>
+                            </div>
+                            <span class="text-2xl font-bold text-lime-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-violet-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Animalerie</h4>
+                                <p class="text-xs text-gray-500">Pet Supplies</p>
+                            </div>
+                            <span class="text-2xl font-bold text-violet-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-gray-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Automobile & Moto</h4>
+                                <p class="text-xs text-gray-500">Automotive</p>
+                            </div>
+                            <span class="text-2xl font-bold text-gray-600">12%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-amber-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Bijoux</h4>
+                                <p class="text-xs text-gray-500">Jewelry</p>
+                            </div>
+                            <span class="text-2xl font-bold text-amber-600">20%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-rose-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Bébé & Puériculture</h4>
+                                <p class="text-xs text-gray-500">Baby Products</p>
+                            </div>
+                            <span class="text-2xl font-bold text-rose-600">15%</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-xl shadow-md border-l-4 border-emerald-500">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h4 class="font-bold text-gray-800">Fournitures de Bureau</h4>
+                                <p class="text-xs text-gray-500">Office Products</p>
+                            </div>
+                            <span class="text-2xl font-bold text-emerald-600">15%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">Informations supplémentaires</h3>
+                    <div class="space-y-3 text-sm text-gray-600">
+                        <p><i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            <strong>Frais de traitement minimal :</strong> 0,30 € par article vendu</p>
+                        <p><i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            <strong>Frais de stockage FBA :</strong> Variable selon la taille et la période (janvier-septembre : ~0,30-0,75 €/mois)</p>
+                        <p><i class="fas fa-check-circle text-green-500 mr-2"></i>
+                            <strong>Frais de préparation FBA :</strong> Variable selon le type de produit</p>
+                        <p><i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                            Ces taux peuvent varier. Consultez toujours la page officielle Amazon Seller Central pour les tarifs à jour.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section Sourcing Produits -->
+            <section id="section-sourcing" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">Sourcing & Analyse Produit</h2>
+                    <p class="text-gray-500">Analysez un produit avant de décider de le lancer</p>
+                </div>
+
+                <!-- Indicateur de Décision GO/NO-GO -->
+                <div id="sourcing-decision" class="mb-6 p-6 rounded-xl shadow-lg border-2 hidden">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-2xl font-bold mb-2" id="decision-titre">Décision: EN ATTENTE</h3>
+                            <p class="text-sm text-gray-600" id="decision-message">Remplissez les informations ci-dessous pour obtenir une recommandation</p>
+                        </div>
+                        <div class="text-6xl" id="decision-emoji">⚪</div>
+                    </div>
+                    <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div class="p-3 bg-white rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">Marge Calculée</div>
+                            <div class="font-bold text-lg" id="decision-marge">-</div>
+                        </div>
+                        <div class="p-3 bg-white rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">ROI Estimé</div>
+                            <div class="font-bold text-lg" id="decision-roi">-</div>
+                        </div>
+                        <div class="p-3 bg-white rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">Note Produit</div>
+                            <div class="font-bold text-lg" id="decision-note">-</div>
+                        </div>
+                        <div class="p-3 bg-white rounded-lg">
+                            <div class="text-xs text-gray-500 mb-1">Concurrent #1</div>
+                            <div class="font-bold text-lg" id="decision-concurrent">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Informations Produit -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-box text-purple-500"></i>
+                            Informations Produit
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Nom du produit</label>
+                                <input type="text" id="sourcing-nom"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    placeholder="Ex: Bouteille isotherme 500ml"
+                                    oninput="calculateSourcing()">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Date d'analyse</label>
+                                <input type="date" id="sourcing-date"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="calculateSourcing()">
+                            </div>
+
+                            <div class="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Long. (cm)</label>
+                                    <input type="number" step="0.1" id="sourcing-longueur"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                        placeholder="20"
+                                        oninput="calculateSourcing()">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Larg. (cm)</label>
+                                    <input type="number" step="0.1" id="sourcing-largeur"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                        placeholder="10"
+                                        oninput="calculateSourcing()">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Haut. (cm)</label>
+                                    <input type="number" step="0.1" id="sourcing-hauteur"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                        placeholder="5"
+                                        oninput="calculateSourcing()">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                                    <div class="text-xs text-blue-800 mb-1">Volume estimé</div>
+                                    <div class="font-bold text-blue-900" id="sourcing-volume">0 cm³</div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Poids (grammes)</label>
+                                    <input type="number" step="1" id="sourcing-poids"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                                        placeholder="250"
+                                        oninput="calculateSourcing()">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Catégorie Amazon (Frais)</label>
+                                <select id="sourcing-categorie"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    onchange="calculateSourcing()">
+                                    <option value="">Sélectionnez une catégorie...</option>
+                                    <option value="15">Vêtements & Accessoires (15%)</option>
+                                    <option value="8">High-Tech & Électronique (8%)</option>
+                                    <option value="15">Maison & Jardin (15%)</option>
+                                    <option value="15">Sports & Loisirs (15%)</option>
+                                    <option value="15">Jouets & Jeux (15%)</option>
+                                    <option value="15">Beauté & Santé (15%)</option>
+                                    <option value="15">Livres (15%)</option>
+                                    <option value="8">Informatique (8%)</option>
+                                    <option value="15">Musique & Films (15%)</option>
+                                    <option value="15">Bagages & Sacs (15%)</option>
+                                    <option value="15">Cuisine & Maison (15%)</option>
+                                    <option value="15">Animalerie (15%)</option>
+                                    <option value="12">Automobile & Moto (12%)</option>
+                                    <option value="20">Bijoux (20%)</option>
+                                    <option value="15">Bébé & Puériculture (15%)</option>
+                                    <option value="15">Fournitures de Bureau (15%)</option>
+                                </select>
+                            </div>
+
+                            <!-- Conversion USD/EUR -->
+                            <div class="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
+                                <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-dollar-sign text-blue-600"></i>
+                                    Conversion USD → EUR (+3% sécurité)
+                                </h4>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Prix en USD</label>
+                                        <input type="number" step="0.01" id="sourcing-prix-usd"
+                                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                                            placeholder="30.00"
+                                            oninput="calculateSourcing()">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Taux EUR/USD</label>
+                                        <input type="number" step="0.001" id="sourcing-taux-eur-usd" value="0.92"
+                                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                                            oninput="calculateSourcing()">
+                                    </div>
+                                </div>
+                                <div class="mt-2 p-2 bg-white rounded text-center border border-blue-300">
+                                    <span class="text-xs text-gray-600">Prix converti (+3%):</span>
+                                    <span class="font-bold text-blue-700 ml-2" id="sourcing-prix-converti">0.00 €</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Prix de vente Amazon (€)</label>
+                                <input type="number" step="0.01" id="sourcing-prix-vente"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    placeholder="29.99"
+                                    oninput="calculateSourcing()">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Coût d'achat unitaire (€)</label>
+                                <input type="number" step="0.01" id="sourcing-cout-achat"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    placeholder="8.50"
+                                    oninput="calculateSourcing()">
+                            </div>
+
+                            <!-- Transport Auto -->
+                            <div class="p-4 bg-gradient-to-r from-orange-50 to-red-50 rounded-lg border-2 border-orange-200">
+                                <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-truck text-orange-600"></i>
+                                    Transport (Calcul Auto)
+                                </h4>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Quantité commandée</label>
+                                        <input type="number" step="1" id="sourcing-qte-transport"
+                                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 transition"
+                                            placeholder="500"
+                                            oninput="calculateSourcing()">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Facture totale (€)</label>
+                                        <input type="number" step="0.01" id="sourcing-facture-transport"
+                                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 transition"
+                                            placeholder="1250.00"
+                                            oninput="calculateSourcing()">
+                                    </div>
+                                </div>
+                                <div class="mt-2 p-2 bg-white rounded text-center border border-orange-300">
+                                    <span class="text-xs text-gray-600">Coût unitaire:</span>
+                                    <span class="font-bold text-orange-700 ml-2" id="sourcing-frais-transport-calc">0.00 €/u</span>
+                                </div>
+                            </div>
+
+                            <!-- Contrôle Qualité Auto -->
+                            <div class="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border-2 border-purple-200">
+                                <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-check-circle text-purple-600"></i>
+                                    Contrôle Qualité (Calcul Auto)
+                                </h4>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Quantité contrôlée</label>
+                                        <input type="number" step="1" id="sourcing-qte-qc"
+                                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                            placeholder="500"
+                                            oninput="calculateSourcing()">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Facture totale (€)</label>
+                                        <input type="number" step="0.01" id="sourcing-facture-qc"
+                                            class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                            placeholder="250.00"
+                                            oninput="calculateSourcing()">
+                                    </div>
+                                </div>
+                                <div class="mt-2 p-2 bg-white rounded text-center border border-purple-300">
+                                    <span class="text-xs text-gray-600">Coût unitaire:</span>
+                                    <span class="font-bold text-purple-700 ml-2" id="sourcing-controle-qualite-calc">0.00 €/u</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Stockage FBA (€/mois)
+                                    <span class="text-xs text-gray-400">Lissé sur 6 mois - Sera calculé auto si poids renseigné</span>
+                                </label>
+                                <input type="number" step="0.01" id="sourcing-frais-stockage"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    placeholder="0.45"
+                                    oninput="calculateSourcing()">
+                            </div>
+
+                            <!-- ACOS PPC -->
+                            <div class="p-4 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border-2 border-yellow-300">
+                                <h4 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                                    <i class="fas fa-bullhorn text-yellow-600"></i>
+                                    ACOS Publicité (Amazon PPC)
+                                </h4>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                                        ACOS cible (%)
+                                        <span class="text-xs text-gray-400 ml-1">Advertising Cost of Sale</span>
+                                    </label>
+                                    <input type="number" step="0.1" min="0" max="100" id="sourcing-acos"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-yellow-500 transition"
+                                        placeholder="25.0"
+                                        oninput="calculateSourcing()">
+                                    <div class="text-xs text-gray-500 mt-1">
+                                        💡 Recommandé : 20-30% pour un nouveau produit
+                                    </div>
+                                </div>
+                                <div class="mt-2 p-2 bg-white rounded text-center border border-yellow-400">
+                                    <span class="text-xs text-gray-600">Coût PPC par vente:</span>
+                                    <span class="font-bold text-yellow-700 ml-2" id="sourcing-cout-ppc-calc">0.00 €</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analyse Concurrence -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-chart-line text-green-500"></i>
+                            Analyse Concurrence
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Revenus mensuels Top 5 (€/mois)
+                                    <span class="text-xs text-gray-400 ml-2">Estimations Helium10/JungleScout</span>
+                                </label>
+                                <div class="grid grid-cols-5 gap-2">
+                                    <input type="number" id="sourcing-top1" placeholder="#1"
+                                        class="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm focus:border-green-500 transition"
+                                        oninput="calculateSourcing()">
+                                    <input type="number" id="sourcing-top2" placeholder="#2"
+                                        class="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm focus:border-green-500 transition"
+                                        oninput="calculateSourcing()">
+                                    <input type="number" id="sourcing-top3" placeholder="#3"
+                                        class="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm focus:border-green-500 transition"
+                                        oninput="calculateSourcing()">
+                                    <input type="number" id="sourcing-top4" placeholder="#4"
+                                        class="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm focus:border-green-500 transition"
+                                        oninput="calculateSourcing()">
+                                    <input type="number" id="sourcing-top5" placeholder="#5"
+                                        class="w-full px-2 py-2 border border-gray-200 rounded-lg text-sm focus:border-green-500 transition"
+                                        oninput="calculateSourcing()">
+                                </div>
+                                <div class="mt-2 grid grid-cols-3 gap-2">
+                                    <div class="p-2 bg-green-50 rounded text-center border border-green-200">
+                                        <div class="text-xs text-gray-600 mb-1">Moyenne CA</div>
+                                        <div class="font-bold text-green-700" id="sourcing-moyenne-top5">0 €</div>
+                                    </div>
+                                    <div class="p-2 bg-blue-50 rounded text-center border border-blue-200">
+                                        <div class="text-xs text-gray-600 mb-1">Médiane CA</div>
+                                        <div class="font-bold text-blue-700" id="sourcing-mediane-top5">0 €</div>
+                                    </div>
+                                    <div class="p-2 bg-purple-50 rounded text-center border border-purple-200">
+                                        <div class="text-xs text-gray-600 mb-1">Prix moy.</div>
+                                        <div class="font-bold text-purple-700" id="sourcing-prix-moyen-top5">0 €</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Note moyenne (sur 5)</label>
+                                    <input type="number" step="0.1" min="0" max="5" id="sourcing-note-avis"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                        placeholder="4.5"
+                                        oninput="calculateSourcing()">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Nombre d'avis #1
+                                        <span class="text-xs text-gray-400">Concurrence</span>
+                                    </label>
+                                    <input type="number" id="sourcing-nb-reviews"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                        placeholder="850"
+                                        oninput="calculateSourcing()">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Lien du vendeur principal</label>
+                                <input type="url" id="sourcing-lien-vendeur"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    placeholder="https://amazon.fr/dp/...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analyse Qualitative -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-comments text-orange-500"></i>
+                            Analyse Clients
+                        </h3>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Plaintes & Points négatifs
+                                    <span class="text-xs text-gray-400 ml-2">Analyse des avis négatifs</span>
+                                </label>
+                                <textarea id="sourcing-plaintes" rows="5"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-500 transition resize-none"
+                                    placeholder="Ex:&#10;- Qualité plastique moyenne&#10;- Fuite après 3 mois&#10;- Taille plus petite qu'annoncé&#10;- Livraison lente"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Idées d'amélioration
+                                    <span class="text-xs text-gray-400 ml-2">Comment se différencier</span>
+                                </label>
+                                <textarea id="sourcing-ameliorations" rows="5"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500 transition resize-none"
+                                    placeholder="Ex:&#10;- Utiliser inox 316 premium&#10;- Garantie 2 ans au lieu de 1 an&#10;- Pack avec brosse de nettoyage&#10;- Packaging premium éco-responsable&#10;- Design moderne minimaliste"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Coûts de Lancement -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-rocket text-red-500"></i>
+                            Coûts de Lancement
+                        </h3>
+
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Photos produit (€)</label>
+                                    <input type="number" step="0.01" id="sourcing-cout-photos"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 transition"
+                                        placeholder="150.00"
+                                        oninput="calculateSourcing()">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Design packaging (€)</label>
+                                    <input type="number" step="0.01" id="sourcing-cout-design"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 transition"
+                                        placeholder="200.00"
+                                        oninput="calculateSourcing()">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Certifications (€)</label>
+                                    <input type="number" step="0.01" id="sourcing-cout-certif"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 transition"
+                                        placeholder="300.00"
+                                        oninput="calculateSourcing()">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Échantillons (€)</label>
+                                    <input type="number" step="0.01" id="sourcing-cout-echantillons"
+                                        class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 transition"
+                                        placeholder="100.00"
+                                        oninput="calculateSourcing()">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Marketing initial (PPC, promotions) (€)</label>
+                                <input type="number" step="0.01" id="sourcing-cout-marketing"
+                                    class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-red-500 transition"
+                                    placeholder="500.00"
+                                    oninput="calculateSourcing()">
+                            </div>
+
+                            <div class="mt-3 p-3 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border-2 border-red-200">
+                                <div class="text-xs text-gray-600 mb-1 text-center">Total Coûts Lancement</div>
+                                <div class="text-2xl font-bold text-red-700 text-center" id="sourcing-total-lancement">0.00 €</div>
+                            </div>
+
+                            <div class="mt-2 p-2 bg-purple-50 rounded-lg border border-purple-200">
+                                <div class="text-xs text-gray-600 mb-1 text-center">Coût lancement amorti par unité</div>
+                                <div class="font-bold text-purple-700 text-center" id="sourcing-cout-lancement-unitaire">0.00 €/u</div>
+                            </div>
+
+                            <div class="mt-3 p-3 bg-gradient-to-r from-yellow-50 to-amber-50 rounded-lg border-2 border-yellow-300">
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-600 mb-1">Quantité première commande</div>
+                                        <input type="number" step="1" id="sourcing-qte-commande"
+                                            class="w-full px-3 py-2 text-center border-2 border-gray-200 rounded-lg focus:border-yellow-500 transition font-bold"
+                                            placeholder="500"
+                                            oninput="calculateSourcing()">
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-600 mb-1">Break-even (unités)</div>
+                                        <div class="text-xl font-bold text-yellow-700" id="sourcing-breakeven">0 u</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="p-4 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg border-2 border-indigo-300">
+                                <div class="text-sm text-gray-800 mb-2 text-center font-semibold">💰 CAPITAL TOTAL NÉCESSAIRE</div>
+                                <div class="text-3xl font-bold text-indigo-900 text-center" id="sourcing-capital-total">0.00 €</div>
+                                <div class="text-xs text-gray-600 text-center mt-1">Stock initial + Frais de lancement</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Résumé Financier -->
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-calculator text-blue-500"></i>
+                            Calculs Financiers
+                        </h3>
+
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-700">Prix de vente</span>
+                                <span class="font-bold" id="calc-prix-vente">0 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                <span class="text-gray-700">Coût d'achat unitaire</span>
+                                <span class="font-bold text-red-600" id="calc-cout-achat">0 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg text-sm">
+                                <span class="text-gray-700">Transport</span>
+                                <span class="font-bold text-red-600" id="calc-frais-transport">-0 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg text-sm">
+                                <span class="text-gray-700">Contrôle qualité</span>
+                                <span class="font-bold text-red-600" id="calc-controle-qualite">-0 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg text-sm">
+                                <span class="text-gray-700">Stockage FBA (lissé)</span>
+                                <span class="font-bold text-red-600" id="calc-frais-stockage">-0 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                                <span class="text-gray-700">Commission Amazon <span class="text-xs" id="calc-taux-commission">(0%)</span></span>
+                                <span class="font-bold text-red-600" id="calc-commission">-0 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg">
+                                <span class="text-gray-700">Frais FBA (fulfillment)</span>
+                                <span class="font-bold text-red-600" id="calc-frais-fba">-3.50 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-yellow-50 rounded-lg border border-yellow-300">
+                                <span class="text-gray-700 flex items-center gap-2">
+                                    <i class="fas fa-bullhorn text-yellow-600 text-sm"></i>
+                                    PPC Amazon <span class="text-xs" id="calc-acos-pourcent">(ACOS 0%)</span>
+                                </span>
+                                <span class="font-bold text-yellow-700" id="calc-cout-ppc">-0 €</span>
+                            </div>
+
+                            <div class="flex justify-between items-center p-3 bg-red-50 rounded-lg text-sm">
+                                <span class="text-gray-700">Coûts lancement (amorti/u)</span>
+                                <span class="font-bold text-red-600" id="calc-cout-lancement-unitaire">-0 €</span>
+                            </div>
+
+                            <div class="border-t-2 border-gray-300 my-2"></div>
+
+                            <div class="flex justify-between items-center p-3 bg-gradient-to-r from-orange-100 to-red-100 rounded-lg border-2 border-orange-300">
+                                <span class="text-gray-800 font-bold">💰 COÛT TOTAL UNITAIRE</span>
+                                <span class="font-bold text-red-800 text-xl" id="calc-cout-total-unitaire">0 €</span>
+                            </div>
+
+                            <div class="border-t-2 border-gray-300 my-2"></div>
+
+                            <div class="flex justify-between items-center p-3 bg-blue-50 rounded-lg">
+                                <span class="text-gray-700 font-semibold">Bénéfice brut unitaire</span>
+                                <span class="font-bold text-blue-700 text-xl" id="calc-benefice-brut">0 €</span>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 mt-4">
+                                <div class="p-3 bg-purple-50 rounded-lg text-center">
+                                    <div class="text-xs text-gray-600 mb-1">Marge Nette</div>
+                                    <div class="text-2xl font-bold text-purple-700" id="calc-marge-nette">0%</div>
+                                </div>
+                                <div class="p-3 bg-green-50 rounded-lg text-center">
+                                    <div class="text-xs text-gray-600 mb-1">ROI Unitaire</div>
+                                    <div class="text-2xl font-bold text-green-700" id="calc-roi-unitaire">0%</div>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 p-4 bg-gradient-to-r from-yellow-50 to-orange-50 rounded-lg border-2 border-yellow-200">
+                                <div class="text-sm text-gray-700 mb-2 font-semibold">Comparaison Objectifs</div>
+                                <div class="space-y-2 text-sm">
+                                    <div class="flex justify-between">
+                                        <span>Objectif Marge:</span>
+                                        <span class="font-bold" id="objectif-marge-sourcing">25%</span>
+                                    </div>
+                                    <div class="flex justify-between">
+                                        <span>Objectif ROI:</span>
+                                        <span class="font-bold" id="objectif-roi-sourcing">30%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-6 space-y-3">
+                    <!-- Bouton Lancer Produit (Principal) -->
+                    <button onclick="lancerProduit()"
+                        class="w-full bg-gradient-to-r from-pink-600 to-red-600 text-white py-4 rounded-xl font-bold text-lg hover:shadow-2xl transition transform hover:scale-105 flex items-center justify-center gap-3">
+                        <i class="fas fa-rocket text-2xl"></i>
+                        <span>🚀 LANCER CE PRODUIT</span>
+                        <i class="fas fa-arrow-right"></i>
+                    </button>
+
+                    <div class="flex gap-4">
+                        <button onclick="addToComparison()"
+                            class="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105">
+                            <i class="fas fa-plus-circle mr-2"></i>Ajouter à la comparaison
+                        </button>
+                        <button onclick="saveSourcingAnalysis()"
+                            class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105">
+                            <i class="fas fa-save mr-2"></i>Sauvegarder l'analyse
+                        </button>
+                        <button onclick="resetSourcing()"
+                            class="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition">
+                            <i class="fas fa-redo mr-2"></i>Nouvelle analyse
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Section Comparaison Produits -->
+                <div id="comparaison-section" class="mt-8 hidden">
+                    <div class="mb-4 flex justify-between items-center">
+                        <h3 class="text-2xl font-bold text-gray-800">
+                            <i class="fas fa-balance-scale mr-2 text-blue-600"></i>
+                            Comparaison des Produits
+                        </h3>
+                        <button onclick="clearComparison()"
+                            class="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-600 transition text-sm">
+                            <i class="fas fa-trash mr-2"></i>Vider la comparaison
+                        </button>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-md overflow-x-auto">
+                        <table class="w-full text-sm" id="comparison-table">
+                            <thead>
+                                <tr class="border-b-2 border-gray-300">
+                                    <th class="text-left py-3 px-3 font-semibold text-gray-700 sticky left-0 bg-white">Critère</th>
+                                    <!-- Les colonnes de produits seront ajoutées dynamiquement -->
+                                </tr>
+                            </thead>
+                            <tbody id="comparison-tbody">
+                                <!-- Les lignes seront ajoutées dynamiquement -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section Gestion Stock -->
+            <section id="section-stock" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">Gestion du Stock</h2>
+                    <p class="text-gray-500">Suivez vos stocks, anticipez les ruptures et optimisez vos couts FBA</p>
+                </div>
+
+                <!-- KPIs Stock -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">Valeur Stock</span>
+                            <i class="fas fa-euro-sign text-blue-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-800" id="stock-kpi-valeur">0 EUR</div>
+                        <div class="mt-2 text-sm text-gray-500" id="stock-kpi-unites">0 unites totales</div>
+                    </div>
+
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">Cout Stockage/Mois</span>
+                            <i class="fas fa-warehouse text-orange-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-800" id="stock-kpi-cout">0 EUR</div>
+                        <div class="mt-2 text-sm text-orange-600" id="stock-kpi-cout-unite">0 EUR/unite</div>
+                    </div>
+
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">Alertes Stock</span>
+                            <i class="fas fa-exclamation-triangle text-red-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold" id="stock-kpi-alertes">0</div>
+                        <div class="mt-2 text-sm text-gray-500" id="stock-kpi-alertes-detail">Aucune alerte</div>
+                    </div>
+
+                    <div class="stat-card card">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-600 text-sm font-medium">Rotation Moyenne</span>
+                            <i class="fas fa-sync-alt text-green-500 text-xl"></i>
+                        </div>
+                        <div class="text-3xl font-bold text-gray-800" id="stock-kpi-rotation">0x</div>
+                        <div class="mt-2 text-sm text-green-600">par mois</div>
+                    </div>
+                </div>
+
+                <!-- Navigation Sous-sections -->
+                <div class="mb-6 flex flex-wrap gap-2">
+                    <button onclick="showStockTab('vue-ensemble')" id="stock-tab-vue-ensemble" class="stock-tab px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold transition">
+                        <i class="fas fa-th-list mr-2"></i>Vue d'ensemble
+                    </button>
+                    <button onclick="showStockTab('reappro')" id="stock-tab-reappro" class="stock-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                        <i class="fas fa-truck mr-2"></i>Reapprovisionnements
+                    </button>
+                    <button onclick="showStockTab('packaging')" id="stock-tab-packaging" class="stock-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                        <i class="fas fa-box-open mr-2"></i>Simulateur Packaging
+                    </button>
+                    <button onclick="showStockTab('graphiques')" id="stock-tab-graphiques" class="stock-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                        <i class="fas fa-chart-area mr-2"></i>Graphiques
+                    </button>
+                </div>
+
+                <!-- Sous-section: Vue d'ensemble -->
+                <div id="stock-content-vue-ensemble" class="stock-content">
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-gray-800">
+                                <i class="fas fa-boxes text-purple-500 mr-2"></i>
+                                Stock par Produit
+                            </h3>
+                            <div class="flex gap-2">
+                                <select id="stock-filtre-statut" onchange="renderStockTable()" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm">
+                                    <option value="">Tous les statuts</option>
+                                    <option value="critique">Critique</option>
+                                    <option value="attention">A surveiller</option>
+                                    <option value="ok">OK</option>
+                                    <option value="surstock">Surstock</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="bg-gray-100 text-left text-sm">
+                                        <th class="p-3 font-semibold">Produit</th>
+                                        <th class="p-3 font-semibold text-center">Stock Actuel</th>
+                                        <th class="p-3 font-semibold text-center">En Transit</th>
+                                        <th class="p-3 font-semibold text-center">Ventes/Sem</th>
+                                        <th class="p-3 font-semibold text-center">Jours Restants</th>
+                                        <th class="p-3 font-semibold text-center">Rupture Estimee</th>
+                                        <th class="p-3 font-semibold text-center">Statut</th>
+                                        <th class="p-3 font-semibold text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-table-body">
+                                    <!-- Lignes generees dynamiquement -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div id="stock-empty-message" class="hidden text-center py-8 text-gray-500">
+                            <i class="fas fa-box-open text-4xl mb-3"></i>
+                            <p>Aucun produit avec stock configure.</p>
+                            <p class="text-sm">Ajoutez des produits dans "Gestion Produits" puis configurez leur stock ici.</p>
+                        </div>
+                    </div>
+
+                    <!-- Modal Edition Stock -->
+                    <div id="stock-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-xl font-bold text-gray-800" id="stock-modal-title">Configurer le Stock</h3>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <input type="hidden" id="stock-edit-id">
+
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Stock Actuel (unites)</label>
+                                        <input type="number" id="stock-edit-actuel" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Stock En Transit</label>
+                                        <input type="number" id="stock-edit-transit" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Cout d'achat unitaire (EUR)</label>
+                                        <input type="number" id="stock-edit-cout" step="0.01" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Stock de securite (jours)</label>
+                                        <input type="number" id="stock-edit-securite" min="0" value="14" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-gray-200 pt-4 mt-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3">
+                                        <i class="fas fa-truck text-blue-500 mr-2"></i>
+                                        Informations Fournisseur
+                                    </h4>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Nom du Fournisseur</label>
+                                            <input type="text" id="stock-edit-fournisseur" placeholder="Ex: Ali Express, 1688..." class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Delai de livraison (jours)</label>
+                                            <input type="number" id="stock-edit-delai" min="1" value="21" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-4 mt-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">MOQ (Quantite min.)</label>
+                                            <input type="number" id="stock-edit-moq" min="1" value="100" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Contact / Notes</label>
+                                            <input type="text" id="stock-edit-contact" placeholder="WeChat, email..." class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="border-t border-gray-200 pt-4 mt-4">
+                                    <h4 class="font-semibold text-gray-800 mb-3">
+                                        <i class="fas fa-ruler-combined text-green-500 mr-2"></i>
+                                        Dimensions Produit (pour frais FBA)
+                                    </h4>
+                                    <div class="grid grid-cols-4 gap-4">
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Longueur (cm)</label>
+                                            <input type="number" id="stock-edit-longueur" step="0.1" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Largeur (cm)</label>
+                                            <input type="number" id="stock-edit-largeur" step="0.1" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Hauteur (cm)</label>
+                                            <input type="number" id="stock-edit-hauteur" step="0.1" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Poids (kg)</label>
+                                            <input type="number" id="stock-edit-poids" step="0.01" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="p-6 border-t border-gray-200 flex gap-3">
+                                <button onclick="saveStockConfig()" class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                                    <i class="fas fa-save mr-2"></i>Enregistrer
+                                </button>
+                                <button onclick="closeStockModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                                    Annuler
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sous-section: Reapprovisionnements -->
+                <div id="stock-content-reappro" class="stock-content hidden">
+                    <!-- Recommandations automatiques -->
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-robot text-blue-500 mr-2"></i>
+                            Recommandations de Commande
+                        </h3>
+                        <div id="stock-recommandations" class="space-y-3">
+                            <p class="text-gray-500">Aucune recommandation pour le moment.</p>
+                        </div>
+                    </div>
+
+                    <!-- Commandes en cours -->
+                    <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-xl font-bold text-gray-800">
+                                <i class="fas fa-shipping-fast text-green-500 mr-2"></i>
+                                Commandes en Cours
+                            </h3>
+                            <button onclick="openCommandeModal()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition">
+                                <i class="fas fa-plus mr-2"></i>Nouvelle Commande
+                            </button>
+                        </div>
+
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead>
+                                    <tr class="bg-gray-100 text-left text-sm">
+                                        <th class="p-3 font-semibold">Date Commande</th>
+                                        <th class="p-3 font-semibold">Produit</th>
+                                        <th class="p-3 font-semibold">Fournisseur</th>
+                                        <th class="p-3 font-semibold text-center">Quantite</th>
+                                        <th class="p-3 font-semibold text-right">Cout Total</th>
+                                        <th class="p-3 font-semibold text-center">Livraison Estimee</th>
+                                        <th class="p-3 font-semibold text-center">Statut</th>
+                                        <th class="p-3 font-semibold text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="stock-commandes-body">
+                                    <!-- Lignes generees dynamiquement -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div id="stock-commandes-empty" class="hidden text-center py-8 text-gray-500">
+                            <i class="fas fa-truck text-4xl mb-3"></i>
+                            <p>Aucune commande en cours.</p>
+                        </div>
+                    </div>
+
+                    <!-- Modal Nouvelle Commande -->
+                    <div id="commande-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
+                            <div class="p-6 border-b border-gray-200">
+                                <h3 class="text-xl font-bold text-gray-800">Nouvelle Commande Fournisseur</h3>
+                            </div>
+                            <div class="p-6 space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Produit</label>
+                                    <select id="commande-produit" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500" onchange="prefillCommandeInfo()">
+                                        <option value="">Selectionner un produit...</option>
+                                    </select>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Quantite</label>
+                                        <input type="number" id="commande-quantite" min="1" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Cout Total (EUR)</label>
+                                        <input type="number" id="commande-cout" step="0.01" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Date de livraison estimee</label>
+                                    <input type="date" id="commande-livraison" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                                    <input type="text" id="commande-notes" placeholder="Reference, tracking..." class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
+                                </div>
+                            </div>
+                            <div class="p-6 border-t border-gray-200 flex gap-3">
+                                <button onclick="saveCommande()" class="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                                    <i class="fas fa-save mr-2"></i>Enregistrer
+                                </button>
+                                <button onclick="closeCommandeModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                                    Annuler
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sous-section: Simulateur Packaging -->
+                <div id="stock-content-packaging" class="stock-content hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Formulaire Simulateur -->
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-xl font-bold text-gray-800 mb-4">
+                                <i class="fas fa-box-open text-purple-500 mr-2"></i>
+                                Simulateur de Frais FBA
+                            </h3>
+                            <p class="text-sm text-gray-500 mb-4">Calculez vos frais FBA et optimisez vos dimensions pour reduire les couts.</p>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Produit (optionnel)</label>
+                                    <select id="packaging-produit" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg" onchange="prefillPackagingDimensions()">
+                                        <option value="">Saisie manuelle...</option>
+                                    </select>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Longueur (cm)</label>
+                                        <input type="number" id="packaging-longueur" step="0.1" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Largeur (cm)</label>
+                                        <input type="number" id="packaging-largeur" step="0.1" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Hauteur (cm)</label>
+                                        <input type="number" id="packaging-hauteur" step="0.1" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-2">Poids (kg)</label>
+                                        <input type="number" id="packaging-poids" step="0.01" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Ventes estimees / mois</label>
+                                    <input type="number" id="packaging-ventes" min="0" value="100" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Resultats -->
+                        <div class="space-y-6">
+                            <!-- Tier Actuel -->
+                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200">
+                                <h4 class="font-bold text-gray-800 mb-3">Classification Amazon</h4>
+                                <div class="flex items-center gap-4">
+                                    <div class="text-4xl" id="packaging-tier-icon">📦</div>
+                                    <div>
+                                        <div class="text-2xl font-bold" id="packaging-tier-name">-</div>
+                                        <div class="text-sm text-gray-600" id="packaging-tier-dimensions">Entrez les dimensions</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Frais Estimes -->
+                            <div class="bg-white p-6 rounded-xl shadow-md">
+                                <h4 class="font-bold text-gray-800 mb-3">Frais FBA Estimes</h4>
+                                <div class="space-y-3">
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                        <span class="text-gray-600">Frais expedition/unite</span>
+                                        <span class="text-xl font-bold" id="packaging-frais-expedition">0 EUR</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                        <span class="text-gray-600">Stockage/unite/mois</span>
+                                        <span class="text-xl font-bold" id="packaging-frais-stockage">0 EUR</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-orange-50 rounded-lg border-2 border-orange-200">
+                                        <span class="text-orange-800 font-medium">Total mensuel estime</span>
+                                        <span class="text-2xl font-bold text-orange-600" id="packaging-frais-total">0 EUR</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Optimisation -->
+                            <div id="packaging-optimisation" class="hidden bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-200">
+                                <h4 class="font-bold text-gray-800 mb-3">
+                                    <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                                    Suggestion d'Optimisation
+                                </h4>
+                                <div id="packaging-suggestion" class="text-sm text-gray-700"></div>
+                                <div class="mt-3 p-3 bg-white rounded-lg">
+                                    <div class="flex justify-between items-center">
+                                        <span class="text-gray-600">Economie potentielle/mois</span>
+                                        <span class="text-xl font-bold text-green-600" id="packaging-economie">0 EUR</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Reference des Tiers Amazon -->
+                    <div class="mt-6 bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                            <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                            Reference des Tiers Amazon FBA (France)
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-gray-100">
+                                        <th class="p-3 text-left font-semibold">Tier</th>
+                                        <th class="p-3 text-left font-semibold">Dimensions Max</th>
+                                        <th class="p-3 text-left font-semibold">Poids Max</th>
+                                        <th class="p-3 text-right font-semibold">Frais Expedition</th>
+                                        <th class="p-3 text-right font-semibold">Stockage/m3/mois</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="border-b hover:bg-green-50">
+                                        <td class="p-3 font-medium text-green-700">Small Standard</td>
+                                        <td class="p-3">38 x 26 x 5 cm</td>
+                                        <td class="p-3">0.5 kg</td>
+                                        <td class="p-3 text-right font-semibold">2.50 EUR</td>
+                                        <td class="p-3 text-right">26 EUR</td>
+                                    </tr>
+                                    <tr class="border-b hover:bg-blue-50">
+                                        <td class="p-3 font-medium text-blue-700">Large Standard</td>
+                                        <td class="p-3">45 x 34 x 26 cm</td>
+                                        <td class="p-3">12 kg</td>
+                                        <td class="p-3 text-right font-semibold">3.50 - 5.50 EUR</td>
+                                        <td class="p-3 text-right">26 EUR</td>
+                                    </tr>
+                                    <tr class="border-b hover:bg-orange-50">
+                                        <td class="p-3 font-medium text-orange-700">Small Oversize</td>
+                                        <td class="p-3">61 x 46 x 46 cm</td>
+                                        <td class="p-3">2 kg</td>
+                                        <td class="p-3 text-right font-semibold">6.50 EUR</td>
+                                        <td class="p-3 text-right">36 EUR</td>
+                                    </tr>
+                                    <tr class="border-b hover:bg-red-50">
+                                        <td class="p-3 font-medium text-red-700">Large Oversize</td>
+                                        <td class="p-3">120 x 60 x 60 cm</td>
+                                        <td class="p-3">30 kg</td>
+                                        <td class="p-3 text-right font-semibold">9 - 15 EUR</td>
+                                        <td class="p-3 text-right">36 EUR</td>
+                                    </tr>
+                                    <tr class="hover:bg-purple-50">
+                                        <td class="p-3 font-medium text-purple-700">Special Oversize</td>
+                                        <td class="p-3">> 120 cm</td>
+                                        <td class="p-3">> 30 kg</td>
+                                        <td class="p-3 text-right font-semibold">Sur devis</td>
+                                        <td class="p-3 text-right">Sur devis</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sous-section: Graphiques Stock -->
+                <div id="stock-content-graphiques" class="stock-content hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Evolution du Stock</h3>
+                            <canvas id="chart-stock-evolution"></canvas>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Repartition Valeur Stock</h3>
+                            <canvas id="chart-stock-valeur"></canvas>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Previsions de Rupture</h3>
+                            <canvas id="chart-stock-rupture"></canvas>
+                        </div>
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">Couts de Stockage</h3>
+                            <canvas id="chart-stock-couts"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section Suivi Hebdomadaire -->
+            <section id="section-suivi-hebdo" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">📊 Suivi Hebdomadaire</h2>
+                    <p class="text-gray-500">Suivez vos performances semaine par semaine</p>
+                </div>
+
+                <!-- KPIs Semaine en Cours -->
+                <div class="mb-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border-2 border-blue-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">
+                            📅 Semaine en Cours : <span id="hebdo-semaine-actuelle">Semaine 5 (27/01 - 02/02/2025)</span>
+                        </h3>
+                        <button onclick="nouvelleSemaine()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition">
+                            <i class="fas fa-plus mr-2"></i>Nouvelle Semaine
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <div class="text-xs text-gray-500 mb-1">📈 CA TOTAL</div>
+                            <div class="text-2xl font-bold text-blue-700" id="hebdo-kpi-ca">0 €</div>
+                            <div class="text-xs mt-1" id="hebdo-kpi-ca-evolution">-</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <div class="text-xs text-gray-500 mb-1">💰 BÉNÉFICE</div>
+                            <div class="text-2xl font-bold text-green-700" id="hebdo-kpi-benefice">0 €</div>
+                            <div class="text-xs mt-1" id="hebdo-kpi-benefice-evolution">-</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <div class="text-xs text-gray-500 mb-1">🎯 ACOS MOY</div>
+                            <div class="text-2xl font-bold text-purple-700" id="hebdo-kpi-acos">0%</div>
+                            <div class="text-xs mt-1" id="hebdo-kpi-acos-evolution">-</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow">
+                            <div class="text-xs text-gray-500 mb-1">🎪 OBJECTIF</div>
+                            <div class="text-2xl font-bold text-orange-700" id="hebdo-kpi-objectif">0%</div>
+                            <div class="text-xs mt-1" id="hebdo-kpi-objectif-detail">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulaire de Saisie -->
+                <div id="hebdo-formulaire" class="hidden mb-8 bg-white p-6 rounded-xl shadow-md">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i class="fas fa-plus-circle text-green-500"></i>
+                        Ajouter une Semaine
+                    </h3>
+
+                    <div class="space-y-4">
+                        <!-- Date et Objectif -->
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">📅 Semaine du</label>
+                                <input type="date" id="hebdo-date-debut"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">🎯 Objectif CA semaine (€)</label>
+                                <input type="number" step="0.01" id="hebdo-objectif-ca"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                                    placeholder="2500.00">
+                            </div>
+                        </div>
+
+                        <!-- Liste des produits à saisir -->
+                        <div id="hebdo-produits-container" class="space-y-4">
+                            <!-- Les produits seront ajoutés dynamiquement ici -->
+                        </div>
+
+                        <button onclick="ajouterProduitHebdo()" class="text-blue-600 hover:text-blue-800 font-semibold">
+                            <i class="fas fa-plus-circle mr-2"></i>Ajouter un autre produit
+                        </button>
+
+                        <!-- Récapitulatif Total -->
+                        <div class="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg border-2 border-green-200">
+                            <h4 class="text-sm font-bold text-gray-800 mb-3">📊 TOTAL SEMAINE</h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                <div>
+                                    <span class="text-gray-600">CA Total:</span>
+                                    <div class="font-bold text-green-700" id="hebdo-form-total-ca">0 €</div>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600">Bénéfice Total:</span>
+                                    <div class="font-bold text-green-700" id="hebdo-form-total-benefice">0 €</div>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600">Marge Moyenne:</span>
+                                    <div class="font-bold text-green-700" id="hebdo-form-marge-moy">0%</div>
+                                </div>
+                                <div>
+                                    <span class="text-gray-600">ACOS Moyen:</span>
+                                    <div class="font-bold text-green-700" id="hebdo-form-acos-moy">0%</div>
+                                </div>
+                            </div>
+                            <div class="mt-3 pt-3 border-t border-green-300">
+                                <div class="text-sm text-gray-600">🎯 Objectif:</div>
+                                <div class="text-lg font-bold" id="hebdo-form-objectif-atteint">-</div>
+                            </div>
+                        </div>
+
+                        <!-- Boutons -->
+                        <div class="flex gap-3">
+                            <button onclick="sauvegarderSemaineHebdo()"
+                                class="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                                <i class="fas fa-save mr-2"></i>💾 Enregistrer la Semaine
+                            </button>
+                            <button onclick="annulerSemaineHebdo()"
+                                class="bg-gray-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-600 transition">
+                                <i class="fas fa-times mr-2"></i>Annuler
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tableau Historique -->
+                <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-gray-800">📜 Historique des Semaines</h3>
+                        <div class="flex gap-2">
+                            <select id="hebdo-filtre-produit" onchange="renderHistoriqueHebdo()"
+                                class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-blue-500">
+                                <option value="">Tous les produits</option>
+                                <!-- Options ajoutées dynamiquement -->
+                            </select>
+                            <select id="hebdo-filtre-periode" onchange="renderHistoriqueHebdo()"
+                                class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:border-blue-500">
+                                <option value="8">8 dernières semaines</option>
+                                <option value="12">12 dernières semaines</option>
+                                <option value="all">Toutes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead>
+                                <tr class="bg-gray-100 text-left text-sm">
+                                    <th class="p-3 font-semibold">Semaine</th>
+                                    <th class="p-3 font-semibold">Produit</th>
+                                    <th class="p-3 font-semibold text-center">Unités</th>
+                                    <th class="p-3 font-semibold text-right">CA</th>
+                                    <th class="p-3 font-semibold text-right">PPC</th>
+                                    <th class="p-3 font-semibold text-right">Remb.</th>
+                                    <th class="p-3 font-semibold text-right">Bénéfice</th>
+                                    <th class="p-3 font-semibold text-center">ACOS</th>
+                                    <th class="p-3 font-semibold text-center">Stock</th>
+                                </tr>
+                            </thead>
+                            <tbody id="hebdo-historique-tbody">
+                                <tr>
+                                    <td colspan="9" class="p-8 text-center text-gray-400">
+                                        <i class="fas fa-calendar-times text-4xl mb-3"></i>
+                                        <p>Aucune donnée hebdomadaire enregistrée</p>
+                                        <p class="text-sm">Cliquez sur "Nouvelle Semaine" pour commencer le suivi</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Graphiques -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">📈 Évolution CA & Bénéfice</h3>
+                        <canvas id="chart-hebdo-ca-benefice"></canvas>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4">🎯 Évolution ACOS</h3>
+                        <canvas id="chart-hebdo-acos"></canvas>
+                    </div>
+                </div>
+
+                <!-- Insights -->
+                <div id="hebdo-insights" class="bg-gradient-to-r from-purple-50 to-pink-50 p-6 rounded-xl shadow-md border-2 border-purple-200">
+                    <h3 class="text-lg font-bold text-gray-800 mb-4">
+                        <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                        💡 Insights & Alertes
+                    </h3>
+                    <div id="hebdo-insights-content" class="space-y-2 text-sm">
+                        <p class="text-gray-500">Ajoutez des données pour obtenir des insights personnalisés...</p>
+                    </div>
+                </div>
+
+            </section>
+
+        </main>
+    </div>
+    </div> <!-- Fin app-container -->
+
+    <!-- Scripts JavaScript -->
+    <script src="firebase-config.js"></script>
+    <script src="app.js"></script>
+    <script src="auth.js"></script>
+
+</body>
+</html>
