@@ -37,7 +37,11 @@ async function loadFromGoogleSheets() {
         showNotification("Mode hors-ligne", "error");
         loadFromLocalStorage();
     }
-    isLoading = false; // Autoriser la sauvegarde
+    // Attendre avant d'autoriser les sauvegardes (evite les sauvegardes accidentelles)
+    setTimeout(() => {
+        isLoading = false;
+        console.log("Sauvegardes activees");
+    }, 2000);
 }
 
 // Sauvegarder vers Google Sheets
@@ -242,16 +246,15 @@ function saveStockToCloud() {
 
 // Initialisation au chargement
 document.addEventListener('DOMContentLoaded', function() {
+    // Bloquer les sauvegardes pendant le chargement initial
+    isLoading = true;
+
     // Attendre un peu que les autres scripts soient charges
     setTimeout(() => {
         loadFromGoogleSheets();
     }, 1000);
 });
 
-// Sauvegarder quand on quitte la page
-window.addEventListener('beforeunload', function() {
-    collectAllData();
-    localStorage.setItem('fba-all-data', JSON.stringify(allData));
-});
+// Ne PAS sauvegarder automatiquement - seulement quand l'utilisateur clique "Sauvegarder"
 
 console.log("Google Sheets Sync charge !");
