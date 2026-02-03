@@ -313,11 +313,12 @@
 
                     <div class="stat-card card">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-gray-600 text-sm font-medium">Bénéfice Net</span>
+                            <span class="text-gray-600 text-sm font-medium">Benefice Net Reel</span>
                             <i class="fas fa-coins text-yellow-500 text-xl"></i>
                         </div>
                         <div class="text-3xl font-bold text-gray-800" id="kpi-benefice">290 €</div>
-                        <div class="mt-2 text-sm text-yellow-600 font-semibold" id="kpi-marge">26% Marge</div>
+                        <div class="mt-1 text-xs text-gray-500" id="kpi-charges-deduites">- 0€ charges fixes</div>
+                        <div class="mt-1 text-sm text-yellow-600 font-semibold" id="kpi-marge">26% Marge</div>
                     </div>
 
                     <div class="stat-card card">
@@ -327,6 +328,42 @@
                         </div>
                         <div class="text-3xl font-bold text-gray-800" id="kpi-acos">11.02%</div>
                         <div class="mt-2 text-sm text-purple-600 font-semibold">Objectif: 25%</div>
+                    </div>
+                </div>
+
+                <!-- Alertes Stock et Notifications -->
+                <div id="dashboard-alertes" class="mb-6 hidden">
+                    <div class="bg-gradient-to-r from-red-50 to-orange-50 p-4 rounded-xl border-2 border-red-200">
+                        <h3 class="text-lg font-bold text-red-800 mb-3 flex items-center gap-2">
+                            <i class="fas fa-exclamation-triangle text-red-500"></i>
+                            Alertes Stock
+                        </h3>
+                        <div id="alertes-stock-container" class="space-y-2">
+                            <!-- Les alertes seront inserees ici par JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance par Produit -->
+                <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i class="fas fa-trophy text-yellow-500"></i>
+                        Performance par Produit (ce mois)
+                    </h3>
+                    <div id="performance-produits-container" class="space-y-3">
+                        <!-- Les performances seront inserees ici par JS -->
+                        <p class="text-gray-500 text-center py-4">Chargement...</p>
+                    </div>
+                </div>
+
+                <!-- Previsions -->
+                <div class="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-xl shadow-md border-2 border-indigo-200 mb-6">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <i class="fas fa-chart-line text-indigo-600"></i>
+                        Previsions Fin de Mois
+                    </h3>
+                    <div id="previsions-container">
+                        <p class="text-gray-500 text-center py-4">Chargement des previsions...</p>
                     </div>
                 </div>
 
@@ -525,18 +562,20 @@
                 </div>
             </section>
 
-            <!-- Inputs caches pour les calculs (ancien pilotage) -->
+            <!-- Inputs caches pour les calculs (calcules automatiquement depuis suivi hebdo) -->
             <div class="hidden">
                 <input type="number" id="input-capital" value="3000" oninput="calculateAll()">
-                <input type="number" id="input-ca" value="1125" oninput="calculateAll()">
-                <input type="number" id="input-benefice" value="290" oninput="calculateAll()">
-                <input type="number" id="input-unites" value="25" oninput="calculateAll()">
-                <input type="number" id="input-acos" value="11.02" oninput="calculateAll()">
+                <!-- Ces champs sont calcules automatiquement depuis le suivi hebdo -->
+                <input type="number" id="input-ca" value="0" readonly>
+                <input type="number" id="input-benefice" value="0" readonly>
+                <input type="number" id="input-unites" value="0" readonly>
+                <input type="number" id="input-acos" value="0" readonly>
+                <!-- Objectifs restent modifiables -->
                 <input type="number" id="input-obj-ca" value="16612" oninput="calculateAll()">
                 <input type="number" id="input-obj-benefice" value="169" oninput="calculateAll()">
                 <input type="number" id="input-obj-unites" value="369" oninput="calculateAll()">
                 <input type="number" id="input-obj-acos" value="25.00" oninput="calculateAll()">
-                <input type="number" id="input-jours-stock" value="9" oninput="calculateAll()">
+                <input type="number" id="input-jours-stock" value="9" readonly>
             </div>
 
             <!-- Section Produits -->
@@ -2032,7 +2071,11 @@
                         <i class="fas fa-arrow-right"></i>
                     </button>
 
-                    <div class="flex gap-4">
+                    <div class="flex gap-4 flex-wrap">
+                        <button onclick="addProductFromSourcing()"
+                            class="flex-1 bg-gradient-to-r from-orange-500 to-red-500 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105">
+                            <i class="fas fa-rocket mr-2"></i>Lancer ce produit
+                        </button>
                         <button onclick="addToComparison()"
                             class="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition transform hover:scale-105">
                             <i class="fas fa-plus-circle mr-2"></i>Ajouter à la comparaison

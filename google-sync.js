@@ -221,6 +221,9 @@ function applyDataToPage(data) {
     // Recalculer
     if (typeof calculateAll === 'function') calculateAll();
     if (typeof updateChargesFixes === 'function') updateChargesFixes();
+
+    // Mettre a jour le tableau de bord avec les donnees du suivi hebdo
+    if (typeof updateDashboardFromSuiviHebdo === 'function') updateDashboardFromSuiviHebdo();
 }
 
 // Helper pour set input value

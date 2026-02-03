@@ -9,6 +9,382 @@ let suiviHebdo = []; // Historique des semaines
 let tempHebdoProduits = []; // Produits temporaires pour formulaire
 
 // ===========================
+// CALCUL AUTOMATIQUE DEPUIS SUIVI HEBDO
+// ===========================
+
+function getMonthDataFromSuiviHebdo() {
+    // Obtenir le mois et l'annee en cours
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-11
+
+    let totalCA = 0;
+    let totalBenefice = 0;
+    let totalUnites = 0;
+    let totalPPC = 0;
+    let totalCAForAcos = 0; // Pour calculer ACOS pondere
+
+    // Parcourir le suivi hebdo
+    if (suiviHebdo && suiviHebdo.length > 0) {
+        suiviHebdo.forEach(semaine => {
+            // Verifier si la semaine est dans le mois en cours
+            if (semaine.dateDebut) {
+                const dateDebut = new Date(semaine.dateDebut);
+                if (dateDebut.getFullYear() === currentYear && dateDebut.getMonth() === currentMonth) {
+                    totalCA += parseFloat(semaine.totalCA) || 0;
+                    totalBenefice += parseFloat(semaine.totalBenefice) || 0;
+                    totalUnites += parseFloat(semaine.totalUnites) || 0;
+                    totalPPC += parseFloat(semaine.totalPPC) || 0;
+                    if (semaine.totalCA > 0) {
+                        totalCAForAcos += parseFloat(semaine.totalCA) || 0;
+                    }
+                }
+            }
+        });
+    }
+
+    // Calculer ACOS moyen pondere (PPC / CA * 100)
+    const acosMoyen = totalCAForAcos > 0 ? (totalPPC / totalCAForAcos) * 100 : 0;
+
+    // Calculer les charges fixes mensuelles totales
+    const chargesFixes = getChargesFixesMensuelles();
+
+    // Benefice net reel = benefice - charges fixes
+    const beneficeNetReel = totalBenefice - chargesFixes;
+
+    return {
+        ca: totalCA,
+        benefice: totalBenefice,
+        beneficeNetReel: beneficeNetReel,
+        chargesFixes: chargesFixes,
+        unites: totalUnites,
+        acos: acosMoyen
+    };
+}
+
+// Calculer le total des charges fixes mensuelles depuis les Parametres
+function getChargesFixesMensuelles() {
+    const amazonPro = parseFloat(document.getElementById('charge-amazon-pro')?.value || 0);
+    const helium10 = parseFloat(document.getElementById('charge-helium10')?.value || 0);
+    const canva = parseFloat(document.getElementById('charge-canva')?.value || 0);
+    const ia = parseFloat(document.getElementById('charge-ia')?.value || 0);
+    const comptable = parseFloat(document.getElementById('charge-comptable')?.value || 0);
+    const banque = parseFloat(document.getElementById('charge-banque')?.value || 0);
+    const assurance = parseFloat(document.getElementById('charge-assurance')?.value || 0);
+    const credit = parseFloat(document.getElementById('charge-credit')?.value || 0);
+    const autresAbo = parseFloat(document.getElementById('charge-autres-abonnements')?.value || 0);
+
+    // Charges annuelles divisees par 12
+    const gs1 = parseFloat(document.getElementById('charge-gs1')?.value || 0) / 12;
+    const inpi = parseFloat(document.getElementById('charge-inpi')?.value || 0) / 12;
+    const photos = parseFloat(document.getElementById('charge-photos')?.value || 0) / 12;
+    const formation = parseFloat(document.getElementById('charge-formation')?.value || 0) / 12;
+    const web = parseFloat(document.getElementById('charge-web')?.value || 0) / 12;
+    const juridique = parseFloat(document.getElementById('charge-juridique')?.value || 0) / 12;
+    const autresFixes = parseFloat(document.getElementById('charge-autres-fixes')?.value || 0) / 12;
+
+    const totalMensuelles = amazonPro + helium10 + canva + ia + comptable + banque + assurance + credit + autresAbo;
+    const totalAnnuellesMensualise = gs1 + inpi + photos + formation + web + juridique + autresFixes;
+
+    return totalMensuelles + totalAnnuellesMensualise;
+}
+
+// Mettre a jour le tableau de bord avec les donnees du suivi hebdo
+function updateDashboardFromSuiviHebdo() {
+    const monthData = getMonthDataFromSuiviHebdo();
+
+    // Mettre a jour les inputs (ils sont maintenant en lecture seule)
+    const inputCA = document.getElementById('input-ca');
+    const inputBenefice = document.getElementById('input-benefice');
+    const inputUnites = document.getElementById('input-unites');
+    const inputAcos = document.getElementById('input-acos');
+
+    if (inputCA) inputCA.value = monthData.ca.toFixed(2);
+    if (inputBenefice) inputBenefice.value = monthData.benefice.toFixed(2);
+    if (inputUnites) inputUnites.value = monthData.unites;
+    if (inputAcos) inputAcos.value = monthData.acos.toFixed(2);
+
+    // Recalculer tout
+    calculateAll();
+
+    // Mettre a jour les alertes stock
+    updateStockAlerts();
+
+    // Mettre a jour la performance par produit
+    updatePerformanceParProduit();
+
+    // Mettre a jour les previsions
+    updatePrevisions();
+}
+
+// Afficher la performance par produit sur le dashboard
+function updatePerformanceParProduit() {
+    const container = document.getElementById('performance-produits-container');
+    if (!container) return;
+
+    // Obtenir le mois en cours
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Calculer les stats par produit pour le mois en cours
+    const statsParProduit = {};
+
+    products.forEach(produit => {
+        statsParProduit[produit.id] = {
+            nom: produit.nom,
+            ca: 0,
+            benefice: 0,
+            unites: 0,
+            ppc: 0,
+            // Donnees sourcing pour marge reelle
+            sourcing: produit.sourcing || null,
+            fromSourcing: produit.fromSourcing || false
+        };
+    });
+
+    // Parcourir le suivi hebdo du mois
+    suiviHebdo.forEach(semaine => {
+        if (semaine.dateDebut) {
+            const dateDebut = new Date(semaine.dateDebut);
+            if (dateDebut.getFullYear() === currentYear && dateDebut.getMonth() === currentMonth) {
+                if (semaine.produits) {
+                    semaine.produits.forEach(p => {
+                        if (statsParProduit[p.produitId]) {
+                            statsParProduit[p.produitId].ca += p.caTotal || 0;
+                            statsParProduit[p.produitId].benefice += p.beneficeNet || 0;
+                            statsParProduit[p.produitId].unites += p.unitesVendues || 0;
+                            statsParProduit[p.produitId].ppc += p.depensesPPC || 0;
+                        }
+                    });
+                }
+            }
+        }
+    });
+
+    // Convertir en tableau et trier par CA
+    const produitsArray = Object.values(statsParProduit).filter(p => p.ca > 0);
+    produitsArray.sort((a, b) => b.ca - a.ca);
+
+    if (produitsArray.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-4">Aucune donnee de vente ce mois</p>';
+        return;
+    }
+
+    // Afficher les produits
+    container.innerHTML = produitsArray.map((p, i) => {
+        const margeCalculee = p.ca > 0 ? (p.benefice / p.ca * 100).toFixed(1) : 0;
+        const acos = p.ca > 0 ? (p.ppc / p.ca * 100).toFixed(1) : 0;
+        const barWidth = produitsArray[0].ca > 0 ? (p.ca / produitsArray[0].ca * 100) : 0;
+
+        // Calculer la marge reelle avec les couts sourcing si disponible
+        let margeReelle = margeCalculee;
+        let beneficeReel = p.benefice;
+        let hasSourcing = false;
+
+        if (p.sourcing && p.unites > 0) {
+            hasSourcing = true;
+            // Cout reel = couts unitaires * unites vendues
+            const coutTotalReel = (p.sourcing.coutAchat + p.sourcing.fraisTransport +
+                p.sourcing.fraisQC + p.sourcing.fraisStockage + p.sourcing.fraisFBA) * p.unites;
+            const commissionReelle = p.ca * p.sourcing.tauxCommission;
+            const coutPPCReel = p.ppc;
+
+            beneficeReel = p.ca - coutTotalReel - commissionReelle - coutPPCReel;
+            margeReelle = p.ca > 0 ? (beneficeReel / p.ca * 100).toFixed(1) : 0;
+        }
+
+        const margeColor = margeReelle >= 20 ? 'text-green-600' : margeReelle >= 10 ? 'text-yellow-600' : 'text-red-600';
+
+        return `
+        <div class="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+            <div class="w-8 h-8 flex items-center justify-center rounded-full ${i === 0 ? 'bg-yellow-400 text-white' : 'bg-gray-200 text-gray-600'} font-bold text-sm">
+                ${i + 1}
+            </div>
+            <div class="flex-1">
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-semibold text-gray-800">${p.nom}</span>
+                    <span class="font-bold text-green-600">${formatCurrency(p.ca)}</span>
+                </div>
+                <div class="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div class="h-full bg-gradient-to-r from-blue-500 to-purple-500" style="width: ${barWidth}%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>${p.unites} unites</span>
+                    <span class="${margeColor} font-semibold">Marge: ${margeReelle}%${hasSourcing ? ' *' : ''}</span>
+                    <span>ACOS: ${acos}%</span>
+                    <span class="font-semibold ${beneficeReel >= 0 ? 'text-green-600' : 'text-red-600'}">${beneficeReel >= 0 ? '+' : ''}${formatCurrency(beneficeReel)}</span>
+                </div>
+            </div>
+        </div>
+        `;
+    }).join('') + (produitsArray.some(p => p.sourcing) ? '<p class="text-xs text-gray-400 mt-2">* Marge calculee avec les couts reels du sourcing</p>' : '');
+}
+
+// Calculer et afficher les previsions basees sur l'historique
+function updatePrevisions() {
+    const container = document.getElementById('previsions-container');
+    if (!container) return;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const jourDuMois = now.getDate();
+    const joursRestants = new Date(currentYear, currentMonth + 1, 0).getDate() - jourDuMois;
+    const joursTotaux = new Date(currentYear, currentMonth + 1, 0).getDate();
+
+    // Donnees du mois en cours
+    const monthData = getMonthDataFromSuiviHebdo();
+
+    // Calculer les moyennes quotidiennes
+    const caParJour = jourDuMois > 0 ? monthData.ca / jourDuMois : 0;
+    const beneficeParJour = jourDuMois > 0 ? monthData.benefice / jourDuMois : 0;
+    const unitesParJour = jourDuMois > 0 ? monthData.unites / jourDuMois : 0;
+
+    // Projections fin de mois
+    const caProjeteFin = monthData.ca + (caParJour * joursRestants);
+    const beneficeProjeteFin = monthData.benefice + (beneficeParJour * joursRestants);
+    const unitesProjeteFin = monthData.unites + (unitesParJour * joursRestants);
+
+    // Donnees du mois precedent pour comparaison
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    let caMoisPrec = 0;
+    let beneficeMoisPrec = 0;
+
+    suiviHebdo.forEach(semaine => {
+        if (semaine.dateDebut) {
+            const dateDebut = new Date(semaine.dateDebut);
+            if (dateDebut.getFullYear() === prevYear && dateDebut.getMonth() === prevMonth) {
+                caMoisPrec += semaine.totalCA || 0;
+                beneficeMoisPrec += semaine.totalBenefice || 0;
+            }
+        }
+    });
+
+    // Tendances
+    const tendanceCA = caMoisPrec > 0 ? ((caProjeteFin - caMoisPrec) / caMoisPrec * 100) : 0;
+    const tendanceBenefice = beneficeMoisPrec > 0 ? ((beneficeProjeteFin - beneficeMoisPrec) / beneficeMoisPrec * 100) : 0;
+
+    // Afficher les previsions
+    container.innerHTML = `
+        <div class="grid grid-cols-2 gap-4">
+            <div class="p-4 bg-blue-50 rounded-lg">
+                <div class="text-xs text-blue-600 mb-1">CA projete fin de mois</div>
+                <div class="text-2xl font-bold text-blue-800">${formatCurrency(caProjeteFin)}</div>
+                <div class="text-xs ${tendanceCA >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${tendanceCA >= 0 ? '+' : ''}${tendanceCA.toFixed(1)}% vs mois prec.
+                </div>
+            </div>
+            <div class="p-4 bg-green-50 rounded-lg">
+                <div class="text-xs text-green-600 mb-1">Benefice projete</div>
+                <div class="text-2xl font-bold text-green-800">${formatCurrency(beneficeProjeteFin)}</div>
+                <div class="text-xs ${tendanceBenefice >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${tendanceBenefice >= 0 ? '+' : ''}${tendanceBenefice.toFixed(1)}% vs mois prec.
+                </div>
+            </div>
+        </div>
+        <div class="mt-4 p-3 bg-gray-50 rounded-lg">
+            <div class="flex justify-between text-sm">
+                <span class="text-gray-600">Ventes projetees:</span>
+                <span class="font-semibold">${Math.round(unitesProjeteFin)} unites</span>
+            </div>
+            <div class="flex justify-between text-sm mt-1">
+                <span class="text-gray-600">Moyenne quotidienne:</span>
+                <span class="font-semibold">${formatCurrency(caParJour)}/jour</span>
+            </div>
+            <div class="flex justify-between text-sm mt-1">
+                <span class="text-gray-600">Jours restants:</span>
+                <span class="font-semibold">${joursRestants} jours</span>
+            </div>
+        </div>
+    `;
+}
+
+// Mettre a jour les alertes de stock sur le tableau de bord
+function updateStockAlerts() {
+    const alertesContainer = document.getElementById('alertes-stock-container');
+    const alertesSection = document.getElementById('dashboard-alertes');
+
+    if (!alertesContainer || !alertesSection) return;
+
+    // Recuperer le parametre de stock de securite (en jours) depuis Parametres
+    const stockSecurite = parseFloat(document.getElementById('param-stock-securite')?.value || 15);
+
+    // Calculer les alertes
+    const alertes = [];
+
+    // Verifier chaque produit
+    products.forEach(produit => {
+        const stock = stockData[produit.id];
+        if (!stock) return;
+
+        const stockActuel = stock.stockActuel || 0;
+        const enTransit = stock.enTransit || 0;
+
+        // Calculer les ventes moyennes par semaine
+        let ventesHebdo = 0;
+        let nbSemaines = 0;
+        suiviHebdo.forEach(semaine => {
+            const produitSemaine = semaine.produits?.find(p => p.produitId === produit.id);
+            if (produitSemaine && produitSemaine.unitesVendues > 0) {
+                ventesHebdo += produitSemaine.unitesVendues;
+                nbSemaines++;
+            }
+        });
+        const moyenneVentesHebdo = nbSemaines > 0 ? ventesHebdo / nbSemaines : 0;
+        const moyenneVentesJour = moyenneVentesHebdo / 7;
+
+        // Calculer les jours de stock restants
+        const joursRestants = moyenneVentesJour > 0 ? Math.floor(stockActuel / moyenneVentesJour) : 999;
+
+        // Alertes selon le niveau (basees sur stock de securite des Parametres)
+        if (stockActuel === 0 && enTransit === 0) {
+            alertes.push({
+                type: 'critique',
+                produit: produit.nom,
+                message: 'Rupture de stock !',
+                icon: 'fas fa-times-circle',
+                color: 'red'
+            });
+        } else if (joursRestants <= stockSecurite / 2) {
+            alertes.push({
+                type: 'urgent',
+                produit: produit.nom,
+                message: `Stock critique: ${joursRestants}j restants (seuil: ${Math.floor(stockSecurite/2)}j)`,
+                icon: 'fas fa-exclamation-circle',
+                color: 'orange'
+            });
+        } else if (joursRestants <= stockSecurite) {
+            alertes.push({
+                type: 'attention',
+                produit: produit.nom,
+                message: `Stock bas: ${joursRestants}j restants (seuil securite: ${stockSecurite}j)`,
+                icon: 'fas fa-exclamation-triangle',
+                color: 'yellow'
+            });
+        }
+    });
+
+    // Afficher les alertes
+    if (alertes.length > 0) {
+        alertesSection.classList.remove('hidden');
+        alertesContainer.innerHTML = alertes.map(alerte => `
+            <div class="flex items-center gap-3 p-3 bg-white rounded-lg border border-${alerte.color}-300">
+                <i class="${alerte.icon} text-${alerte.color}-500 text-xl"></i>
+                <div>
+                    <span class="font-semibold text-gray-800">${alerte.produit}</span>
+                    <span class="text-gray-600 ml-2">${alerte.message}</span>
+                </div>
+            </div>
+        `).join('');
+    } else {
+        alertesSection.classList.add('hidden');
+    }
+}
+
+// ===========================
 // INITIALISATION
 // ===========================
 
@@ -91,11 +467,17 @@ function calculateAll() {
     // Récupérer le taux d'impôts depuis les paramètres (ou 13.3% par défaut)
     const tauxImpots = parseFloat(document.getElementById('param-impots')?.value || 13.3) / 100;
 
-    // Taxes Micro-entreprise
+    // Calculer les charges fixes mensuelles
+    const chargesFixes = getChargesFixesMensuelles();
+
+    // Benefice net reel = benefice - charges fixes
+    const beneficeNetReel = benefice - chargesFixes;
+
+    // Taxes Micro-entreprise (sur benefice brut)
     const taxesMicro = benefice * tauxImpots;
 
-    // Gain Net "Poche" = Bénéfice - Taxes
-    const gainNetPoche = benefice - taxesMicro;
+    // Gain Net "Poche" = Bénéfice - Charges - Taxes
+    const gainNetPoche = beneficeNetReel - taxesMicro;
 
     // Marge Net Finale = (Gain Net / CA) × 100
     const margeNetFinale = ca > 0 ? (gainNetPoche / ca) * 100 : 0;
@@ -132,10 +514,11 @@ function calculateAll() {
     // ===========================
 
     // KPI Cards
-    updateElement('kpi-gain', formatCurrency(gainTotal));
+    updateElement('kpi-gain', formatCurrency(gainNetPoche));
     updateElement('kpi-gain-evolution', `+${roiGlobal.toFixed(1)}% ROI`);
     updateElement('kpi-ca', formatCurrency(ca));
-    updateElement('kpi-benefice', formatCurrency(benefice));
+    updateElement('kpi-benefice', formatCurrency(beneficeNetReel));
+    updateElement('kpi-charges-deduites', `- ${formatCurrency(chargesFixes)} charges`);
     updateElement('kpi-marge', `${margeNette.toFixed(0)}% Marge`);
     updateElement('kpi-acos', `${acos.toFixed(2)}%`);
 
@@ -1129,6 +1512,7 @@ function loadParams() {
 
     updateChargesFixes();
     updateRecapCharges();
+    syncCapital(); // Synchroniser le capital avec le tableau de bord
 }
 
 function syncCapital() {
@@ -1831,6 +2215,84 @@ function saveSourcingAnalysis() {
     showNotification(`Analyse "${analysis.nom}" sauvegardée !`, 'success');
 }
 
+// Ajouter le produit analyse aux produits
+function addProductFromSourcing() {
+    const nom = document.getElementById('sourcing-nom')?.value || 'Nouveau produit';
+    const prixVente = parseFloat(document.getElementById('sourcing-prix-vente')?.value || 0);
+    const coutAchat = parseFloat(document.getElementById('sourcing-cout-achat')?.value || 0);
+    const acos = parseFloat(document.getElementById('sourcing-acos')?.value || 0);
+
+    if (!nom || prixVente <= 0) {
+        showNotification('Veuillez remplir le nom et le prix de vente', 'error');
+        return;
+    }
+
+    // Calculer le benefice estime (basé sur l'analyse sourcing)
+    const fraisTransport = parseFloat(document.getElementById('sourcing-facture-transport')?.value || 0) /
+        (parseFloat(document.getElementById('sourcing-qte-transport')?.value || 1));
+    const fraisQC = parseFloat(document.getElementById('sourcing-facture-qc')?.value || 0) /
+        (parseFloat(document.getElementById('sourcing-qte-qc')?.value || 1));
+    const fraisStockage = parseFloat(document.getElementById('sourcing-frais-stockage')?.value || 0);
+    const tauxCommission = parseFloat(document.getElementById('sourcing-categorie')?.value || 15) / 100;
+    const commissionAmazon = prixVente * tauxCommission;
+
+    // Estimation frais FBA
+    const poids = parseFloat(document.getElementById('sourcing-poids')?.value || 0);
+    let fraisFBA = 3.00;
+    if (poids > 0) {
+        const poidsKg = poids / 1000;
+        if (poidsKg <= 0.25) fraisFBA = 2.41;
+        else if (poidsKg <= 0.5) fraisFBA = 2.73;
+        else if (poidsKg <= 1) fraisFBA = 3.01;
+        else if (poidsKg <= 1.5) fraisFBA = 3.40;
+        else fraisFBA = 3.40 + ((poidsKg - 1.5) * 0.75);
+    }
+
+    const coutPPC = prixVente * (acos / 100);
+    const coutTotal = coutAchat + fraisTransport + fraisQC + fraisStockage + commissionAmazon + fraisFBA + coutPPC;
+    const beneficeEstime = prixVente - coutTotal;
+
+    // Creer le produit avec toutes les donnees sourcing
+    const newProduct = {
+        id: Date.now(),
+        nom: nom,
+        ca: 0, // Sera mis a jour par le suivi hebdo
+        benefice: 0,
+        unites: 0,
+        acos: acos,
+        // Donnees sourcing completes pour calcul marge reelle
+        sourcing: {
+            prixVente: prixVente,
+            coutAchat: coutAchat,
+            fraisTransport: fraisTransport,
+            fraisQC: fraisQC,
+            fraisStockage: fraisStockage,
+            fraisFBA: fraisFBA,
+            commissionAmazon: commissionAmazon,
+            tauxCommission: tauxCommission,
+            coutTotal: coutTotal,
+            beneficeEstime: beneficeEstime,
+            margeEstimee: prixVente > 0 ? (beneficeEstime / prixVente * 100) : 0
+        },
+        fromSourcing: true
+    };
+
+    products.push(newProduct);
+    saveData();
+    renderProducts();
+
+    showNotification(`Produit "${nom}" ajouté avec succès !`, 'success');
+
+    // Proposer d'initialiser le stock
+    if (confirm('Voulez-vous initialiser le stock pour ce produit ?')) {
+        showSection('stock');
+        // Rediriger vers la section stock avec ce produit pre-selectionne
+        setTimeout(() => {
+            initStockSection();
+        }, 500);
+    }
+}
+
 function resetSourcing() {
     if (confirm('Êtes-vous sûr de vouloir réinitialiser l\'analyse en cours ?')) {
         // Réinitialiser tous les champs
@@ -1993,6 +2455,8 @@ function loadSuiviHebdo() {
         initChartsHebdo();
         genererInsightsHebdo();
     }
+    // Mettre a jour le tableau de bord avec les donnees du suivi
+    updateDashboardFromSuiviHebdo();
 }
 
 // Sauvegarder les données
@@ -2025,11 +2489,94 @@ function nouvelleSemaine() {
     tempHebdoProduits = [];
     document.getElementById('hebdo-produits-container').innerHTML = '';
 
-    // Ajouter le premier produit
-    ajouterProduitHebdo();
+    // Ajouter automatiquement tous les produits existants
+    if (products.length > 0) {
+        products.forEach((produit, i) => {
+            ajouterProduitHebdoAuto(produit);
+        });
+    } else {
+        // Si aucun produit, ajouter un champ vide
+        ajouterProduitHebdo();
+    }
 
     // Scroll vers le formulaire
     document.getElementById('hebdo-formulaire').scrollIntoView({ behavior: 'smooth' });
+}
+
+// Ajouter un produit specifique au formulaire (auto)
+function ajouterProduitHebdoAuto(produit) {
+    const index = tempHebdoProduits.length;
+    tempHebdoProduits.push({
+        produitId: produit.id,
+        unitesVendues: 0,
+        caTotal: 0,
+        depensesPPC: 0,
+        remboursements: 0,
+        stockRestant: 0
+    });
+
+    const container = document.getElementById('hebdo-produits-container');
+    const produitDiv = document.createElement('div');
+    produitDiv.className = 'p-4 border-2 border-blue-200 rounded-lg bg-blue-50';
+    produitDiv.id = `hebdo-produit-${index}`;
+
+    // Recuperer le stock actuel si disponible
+    const stockActuel = stockData[produit.id]?.stockActuel || 0;
+
+    produitDiv.innerHTML = `
+        <div class="flex justify-between items-center mb-3">
+            <h4 class="font-semibold text-gray-800">
+                <i class="fas fa-box text-blue-500 mr-2"></i>${produit.nom}
+            </h4>
+            <span class="text-sm text-gray-500">Stock: ${stockActuel} u</span>
+        </div>
+
+        <input type="hidden" id="hebdo-${index}-produit-id" value="${produit.id}">
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Unites vendues</label>
+                <input type="number" step="1" id="hebdo-${index}-unites"
+                    class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                    placeholder="0"
+                    oninput="calculerTotauxHebdo()">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">CA Total</label>
+                <input type="number" step="0.01" id="hebdo-${index}-ca"
+                    class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                    placeholder="0.00"
+                    oninput="calculerTotauxHebdo()">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Depenses PPC</label>
+                <input type="number" step="0.01" id="hebdo-${index}-ppc"
+                    class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                    placeholder="0.00"
+                    oninput="calculerTotauxHebdo()">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Remboursements</label>
+                <input type="number" step="0.01" id="hebdo-${index}-remb"
+                    class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                    placeholder="0.00"
+                    oninput="calculerTotauxHebdo()">
+            </div>
+
+            <div>
+                <label class="block text-xs font-medium text-gray-700 mb-1">Stock restant</label>
+                <input type="number" step="1" id="hebdo-${index}-stock"
+                    class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 transition"
+                    placeholder="${stockActuel}"
+                    value="${stockActuel}">
+            </div>
+        </div>
+    `;
+
+    container.appendChild(produitDiv);
 }
 
 // Ajouter un produit au formulaire
@@ -2366,6 +2913,9 @@ function sauvegarderSemaineHebdo() {
     updateFiltresHebdo();
     initChartsHebdo();
     genererInsightsHebdo();
+
+    // Mettre a jour le tableau de bord principal
+    updateDashboardFromSuiviHebdo();
 
     showNotification(`Semaine ${semaine} enregistrée avec succès !`, 'success');
 }
