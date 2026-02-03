@@ -341,22 +341,35 @@ function clearUnsubscribeListeners() {
     unsubscribeListeners = [];
 }
 
-// Charger les params depuis les donnees
+// Charger les params depuis les donnees Firebase
 function loadParamsFromData(data) {
-    const fields = [
-        'param-amazon-pro', 'param-helium', 'param-canva', 'param-ia',
-        'param-comptable', 'param-banque', 'param-assurance', 'param-credit', 'param-autres',
-        'param-gs1', 'param-inpi', 'param-photos', 'param-formation',
-        'param-site', 'param-juridique', 'param-autres-fixes',
-        'param-tva', 'param-impots'
-    ];
+    // Parametres generaux
+    if (data.tva && document.getElementById('param-tva')) document.getElementById('param-tva').value = data.tva;
+    if (data.impots && document.getElementById('param-impots')) document.getElementById('param-impots').value = data.impots;
+    if (data.capital && document.getElementById('param-capital')) document.getElementById('param-capital').value = data.capital;
+    if (data.objectifROI && document.getElementById('param-objectif-roi')) document.getElementById('param-objectif-roi').value = data.objectifROI;
+    if (data.objectifMarge && document.getElementById('param-objectif-marge')) document.getElementById('param-objectif-marge').value = data.objectifMarge;
+    if (data.stockSecurite && document.getElementById('param-stock-securite')) document.getElementById('param-stock-securite').value = data.stockSecurite;
 
-    fields.forEach(field => {
-        const el = document.getElementById(field);
-        if (el && data[field] !== undefined) {
-            el.value = data[field];
-        }
-    });
+    // Charges fixes mensuelles
+    if (data.chargeAmazonPro && document.getElementById('charge-amazon-pro')) document.getElementById('charge-amazon-pro').value = data.chargeAmazonPro;
+    if (data.chargeHelium10 && document.getElementById('charge-helium10')) document.getElementById('charge-helium10').value = data.chargeHelium10;
+    if (data.chargeCanva && document.getElementById('charge-canva')) document.getElementById('charge-canva').value = data.chargeCanva;
+    if (data.chargeIA && document.getElementById('charge-ia')) document.getElementById('charge-ia').value = data.chargeIA;
+    if (data.chargeComptable && document.getElementById('charge-comptable')) document.getElementById('charge-comptable').value = data.chargeComptable;
+    if (data.chargeBanque && document.getElementById('charge-banque')) document.getElementById('charge-banque').value = data.chargeBanque;
+    if (data.chargeAssurance && document.getElementById('charge-assurance')) document.getElementById('charge-assurance').value = data.chargeAssurance;
+    if (data.chargeCredit && document.getElementById('charge-credit')) document.getElementById('charge-credit').value = data.chargeCredit;
+    if (data.chargeAutresAbonnements && document.getElementById('charge-autres-abonnements')) document.getElementById('charge-autres-abonnements').value = data.chargeAutresAbonnements;
+
+    // Charges fixes annuelles
+    if (data.chargeGS1 && document.getElementById('charge-gs1')) document.getElementById('charge-gs1').value = data.chargeGS1;
+    if (data.chargeINPI && document.getElementById('charge-inpi')) document.getElementById('charge-inpi').value = data.chargeINPI;
+    if (data.chargePhotos && document.getElementById('charge-photos')) document.getElementById('charge-photos').value = data.chargePhotos;
+    if (data.chargeFormation && document.getElementById('charge-formation')) document.getElementById('charge-formation').value = data.chargeFormation;
+    if (data.chargeWeb && document.getElementById('charge-web')) document.getElementById('charge-web').value = data.chargeWeb;
+    if (data.chargeJuridique && document.getElementById('charge-juridique')) document.getElementById('charge-juridique').value = data.chargeJuridique;
+    if (data.chargeAutresFixes && document.getElementById('charge-autres-fixes')) document.getElementById('charge-autres-fixes').value = data.chargeAutresFixes;
 }
 
 // ===========================
@@ -417,27 +430,41 @@ async function saveStockToCloud() {
 
 // Sauvegarder les parametres
 async function saveParamsToCloud() {
-    const fields = [
-        'param-amazon-pro', 'param-helium', 'param-canva', 'param-ia',
-        'param-comptable', 'param-banque', 'param-assurance', 'param-credit', 'param-autres',
-        'param-gs1', 'param-inpi', 'param-photos', 'param-formation',
-        'param-site', 'param-juridique', 'param-autres-fixes',
-        'param-tva', 'param-impots'
-    ];
+    const data = {
+        // Parametres generaux
+        tva: document.getElementById('param-tva')?.value || 20,
+        impots: document.getElementById('param-impots')?.value || 13.3,
+        capital: document.getElementById('param-capital')?.value || 3000,
+        objectifROI: document.getElementById('param-objectif-roi')?.value || 30,
+        objectifMarge: document.getElementById('param-objectif-marge')?.value || 25,
+        stockSecurite: document.getElementById('param-stock-securite')?.value || 15,
 
-    const data = {};
-    fields.forEach(field => {
-        const el = document.getElementById(field);
-        if (el) data[field] = el.value;
-    });
+        // Charges fixes mensuelles
+        chargeAmazonPro: document.getElementById('charge-amazon-pro')?.value || 39,
+        chargeHelium10: document.getElementById('charge-helium10')?.value || 0,
+        chargeCanva: document.getElementById('charge-canva')?.value || 0,
+        chargeIA: document.getElementById('charge-ia')?.value || 0,
+        chargeComptable: document.getElementById('charge-comptable')?.value || 0,
+        chargeBanque: document.getElementById('charge-banque')?.value || 0,
+        chargeAssurance: document.getElementById('charge-assurance')?.value || 0,
+        chargeCredit: document.getElementById('charge-credit')?.value || 0,
+        chargeAutresAbonnements: document.getElementById('charge-autres-abonnements')?.value || 0,
+
+        // Charges fixes annuelles
+        chargeGS1: document.getElementById('charge-gs1')?.value || 0,
+        chargeINPI: document.getElementById('charge-inpi')?.value || 0,
+        chargePhotos: document.getElementById('charge-photos')?.value || 0,
+        chargeFormation: document.getElementById('charge-formation')?.value || 0,
+        chargeWeb: document.getElementById('charge-web')?.value || 0,
+        chargeJuridique: document.getElementById('charge-juridique')?.value || 0,
+        chargeAutresFixes: document.getElementById('charge-autres-fixes')?.value || 0
+    };
 
     localStorage.setItem('fba-dashboard-params', JSON.stringify(data));
 
     if (getCurrentUser()) {
         await saveToFirebase('params', data);
     }
-
-    showNotification('Parametres sauvegardes !', 'success');
 }
 
 // Synchroniser les changements en attente (apres reconnexion)
