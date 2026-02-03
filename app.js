@@ -265,6 +265,11 @@ function calculerJoursStockMoyen() {
 // ===========================
 
 function saveData() {
+    // Ne pas sauvegarder si chargement en cours
+    if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+
     const data = {
         capital: document.getElementById('input-capital').value,
         ca: document.getElementById('input-ca').value,
@@ -281,7 +286,7 @@ function saveData() {
 
     localStorage.setItem('fba-dashboard-data', JSON.stringify(data));
 
-    // Sauvegarder sur Firebase si disponible
+    // Sauvegarder sur le cloud si disponible
     if (typeof saveDataToCloud === 'function') {
         saveDataToCloud();
     } else {
@@ -1042,6 +1047,11 @@ function updateChargesFixes() {
 }
 
 function saveParams() {
+    // Ne pas sauvegarder si chargement en cours
+    if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+
     const params = {
         tva: document.getElementById('param-tva')?.value || 20,
         impots: document.getElementById('param-impots')?.value || 13.3,
@@ -1074,7 +1084,7 @@ function saveParams() {
     localStorage.setItem('fba-dashboard-params', JSON.stringify(params));
     updateRecapCharges();
 
-    // Sauvegarder sur Firebase si disponible
+    // Sauvegarder sur le cloud si disponible
     if (typeof saveParamsToCloud === 'function') {
         saveParamsToCloud();
     }
@@ -1985,9 +1995,14 @@ function loadSuiviHebdo() {
 
 // Sauvegarder les données
 function saveSuiviHebdo() {
+    // Ne pas sauvegarder si chargement en cours
+    if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+
     localStorage.setItem('fba-suivi-hebdo', JSON.stringify(suiviHebdo));
 
-    // Sauvegarder sur Firebase si disponible
+    // Sauvegarder sur le cloud si disponible
     if (typeof saveHebdoToCloud === 'function') {
         saveHebdoToCloud();
     }
@@ -2696,13 +2711,18 @@ function loadStockData() {
 }
 
 function saveStockData() {
+    // Ne pas sauvegarder si chargement en cours
+    if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+
     const data = {
         stockData: stockData,
         commandes: stockCommandes
     };
     localStorage.setItem('fba-stock-data', JSON.stringify(data));
 
-    // Sauvegarder sur Firebase si disponible
+    // Sauvegarder sur le cloud si disponible
     if (typeof saveStockToCloud === 'function') {
         saveStockToCloud();
     }
