@@ -50,9 +50,13 @@ function initFirebase() {
 
 // Sauvegarder les donnees utilisateur
 async function saveToFirebase(collection, data) {
+    if (!auth || !db) {
+        console.log('Firebase pas encore pret');
+        return false;
+    }
     const user = auth.currentUser;
     if (!user) {
-        console.error('Utilisateur non connecte');
+        console.log('Utilisateur non connecte - sauvegarde locale uniquement');
         return false;
     }
 
@@ -72,9 +76,13 @@ async function saveToFirebase(collection, data) {
 
 // Charger les donnees utilisateur
 async function loadFromFirebase(collection) {
+    if (!auth || !db) {
+        console.log('Firebase pas encore pret');
+        return null;
+    }
     const user = auth.currentUser;
     if (!user) {
-        console.error('Utilisateur non connecte');
+        console.log('Utilisateur non connecte - chargement local uniquement');
         return null;
     }
 
@@ -96,6 +104,7 @@ async function loadFromFirebase(collection) {
 
 // Ecouter les changements en temps reel
 function listenToFirebase(collection, callback) {
+    if (!auth || !db) return null;
     const user = auth.currentUser;
     if (!user) return null;
 
@@ -162,11 +171,13 @@ async function resetPassword(email) {
 
 // Observer les changements d'etat d'authentification
 function onAuthStateChange(callback) {
+    if (!auth) return null;
     return auth.onAuthStateChanged(callback);
 }
 
 // Obtenir l'utilisateur actuel
 function getCurrentUser() {
+    if (!auth) return null;
     return auth.currentUser;
 }
 

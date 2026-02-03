@@ -15,20 +15,19 @@ let tempHebdoProduits = []; // Produits temporaires pour formulaire
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Dashboard Amazon FBA chargé !');
 
-    // Charger les données sauvegardées ou utiliser les valeurs par défaut
-    loadData();
-
-    // Calculer tous les indicateurs
-    calculateAll();
-
-    // Initialiser les graphiques
+    // Initialiser les graphiques (structure vide)
     initCharts();
 
-    // Charger les produits
-    loadProducts();
-
-    // Charger le suivi hebdomadaire
-    loadSuiviHebdo();
+    // Si Firebase n'est pas configure, charger les donnees locales
+    // Sinon, auth.js gere le chargement apres authentification
+    if (typeof firebaseConfig === 'undefined' ||
+        typeof initFirebase === 'undefined' ||
+        firebaseConfig.apiKey === "REMPLACE_PAR_TA_CLE_API") {
+        loadData();
+        calculateAll();
+        loadProducts();
+        loadSuiviHebdo();
+    }
 });
 
 // ===========================

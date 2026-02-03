@@ -77,6 +77,10 @@ function showOfflineMode() {
     // Charger depuis localStorage comme avant
     loadData();
     loadStockData();
+    if (typeof calculateAll === 'function') calculateAll();
+    if (typeof loadProducts === 'function') loadProducts();
+    if (typeof loadSuiviHebdo === 'function') loadSuiviHebdo();
+    if (typeof initStockSection === 'function') initStockSection();
 }
 
 // Mettre a jour l'affichage utilisateur
@@ -286,6 +290,7 @@ async function loadAllDataFromFirebase() {
         calculateAll();
         loadProducts();
         initStockSection();
+        if (typeof loadSuiviHebdo === 'function') loadSuiviHebdo();
 
         showNotification('Donnees synchronisees !', 'success');
     } catch (error) {
