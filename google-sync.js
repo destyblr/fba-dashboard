@@ -37,7 +37,7 @@ async function loadFromGoogleSheets() {
         }
     } catch (error) {
         console.error("Erreur Google Sheets:", error);
-        showNotification("Mode hors-ligne", "error");
+        showNotification("Erreur: " + error.message, "error");
         loadFromLocalStorage();
     }
     // Attendre plus longtemps avant d'autoriser les sauvegardes
