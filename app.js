@@ -1043,9 +1043,6 @@ function updateChargesFixes() {
     updateElement('total-charges-fixes-mensuelles', formatCurrency(totalMensuelles));
     updateElement('total-charges-fixes-annuelles', formatCurrency(totalAnnuelles));
     updateElement('total-global-charges-fixes', formatCurrency(totalGlobal));
-
-    // Recalculer (sans sauvegarder automatiquement)
-    calculateAll();
 }
 
 function saveParams() {
@@ -1178,9 +1175,6 @@ function updateRecapCharges() {
     updateElement('recap-charges-variables', formatCurrency(0)); // Plus de charges variables séparées
     updateElement('recap-impots', formatCurrency(impots));
     updateElement('recap-total-charges', formatCurrency(totalCharges));
-
-    // Recalculer les graphiques et KPIs
-    calculateAll();
 }
 
 // ===========================
