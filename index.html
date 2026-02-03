@@ -14,10 +14,7 @@
     <!-- Font Awesome pour les icônes -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <!-- Google Sheets Sync (remplace Firebase) -->
 
     <style>
         /* Styles personnalisés */
@@ -80,9 +77,9 @@
 <body class="bg-gray-50">
 
     <!-- ===========================
-         ECRAN DE CONNEXION
+         ECRAN DE CONNEXION (desactive - utilise Google Sheets)
          =========================== -->
-    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-800 p-4">
+    <div id="login-screen" class="hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-600 to-indigo-800 p-4">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
             <!-- Header -->
             <div class="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white text-center">
@@ -190,7 +187,7 @@
     <!-- ===========================
          APPLICATION PRINCIPALE
          =========================== -->
-    <div id="app-container" class="hidden">
+    <div id="app-container" class="">
     <div class="flex">
         <!-- Menu Latéral -->
         <aside class="sidebar w-64 p-6 text-white shadow-2xl">
@@ -2748,9 +2745,8 @@
     </div> <!-- Fin app-container -->
 
     <!-- Scripts JavaScript -->
-    <script src="firebase-config.js"></script>
     <script src="app.js"></script>
-    <script src="auth.js"></script>
+    <script src="google-sync.js"></script>
 
 </body>
 </html>
