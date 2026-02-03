@@ -11,7 +11,10 @@ let allData = {
 };
 
 // Flag pour empecher la sauvegarde pendant le chargement
-let isLoading = false;
+let isLoading = true; // IMPORTANT: true par defaut!
+
+// Flag pour confirmer que les donnees ont ete chargees avec succes
+let dataLoadedSuccessfully = false;
 
 // Charger les donnees depuis Google Sheets
 async function loadFromGoogleSheets() {
@@ -37,18 +40,25 @@ async function loadFromGoogleSheets() {
         showNotification("Mode hors-ligne", "error");
         loadFromLocalStorage();
     }
-    // Attendre avant d'autoriser les sauvegardes (evite les sauvegardes accidentelles)
+    // Attendre plus longtemps avant d'autoriser les sauvegardes
     setTimeout(() => {
         isLoading = false;
-        console.log("Sauvegardes activees");
-    }, 2000);
+        dataLoadedSuccessfully = true;
+        console.log("=== SAUVEGARDES ACTIVEES (donnees chargees avec succes) ===");
+    }, 5000); // 5 secondes pour etre sur que tout est charge
 }
 
 // Sauvegarder vers Google Sheets
 async function saveToGoogleSheets() {
     // Ne pas sauvegarder pendant le chargement
     if (isLoading) {
-        console.log("Sauvegarde ignoree (chargement en cours)");
+        console.log("Sauvegarde BLOQUEE (chargement en cours)");
+        return;
+    }
+
+    // Ne pas sauvegarder si les donnees n'ont jamais ete chargees
+    if (!dataLoadedSuccessfully) {
+        console.log("Sauvegarde BLOQUEE (donnees pas encore chargees)");
         return;
     }
 
@@ -68,7 +78,7 @@ async function saveToGoogleSheets() {
         const result = await response.json();
 
         if (result.success) {
-            console.log("Donnees sauvegardees !");
+            console.log("Donnees sauvegardees !", allData);
             showNotification("Sauvegarde reussie !", "success");
         }
         return true;
@@ -226,10 +236,17 @@ function loadFromLocalStorage() {
         try {
             const data = JSON.parse(saved);
             applyDataToPage(data);
+            console.log("Donnees chargees depuis localStorage");
         } catch (e) {
             console.error("Erreur parsing localStorage:", e);
         }
     }
+    // Activer les sauvegardes apres un delai meme en mode hors-ligne
+    setTimeout(() => {
+        isLoading = false;
+        dataLoadedSuccessfully = true;
+        console.log("=== SAUVEGARDES ACTIVEES (mode local) ===");
+    }, 5000);
 }
 
 // Remplacer les fonctions existantes

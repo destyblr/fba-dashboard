@@ -265,8 +265,11 @@ function calculerJoursStockMoyen() {
 // ===========================
 
 function saveData() {
-    // Ne pas sauvegarder si chargement en cours
+    // Ne pas sauvegarder si chargement en cours ou donnees pas chargees
     if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+    if (typeof dataLoadedSuccessfully !== 'undefined' && !dataLoadedSuccessfully) {
         return;
     }
 
@@ -1046,8 +1049,11 @@ function updateChargesFixes() {
 }
 
 function saveParams() {
-    // Ne pas sauvegarder si chargement en cours
+    // Ne pas sauvegarder si chargement en cours ou donnees pas chargees
     if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+    if (typeof dataLoadedSuccessfully !== 'undefined' && !dataLoadedSuccessfully) {
         return;
     }
 
@@ -1997,8 +2003,11 @@ function loadSuiviHebdo() {
 
 // Sauvegarder les données
 function saveSuiviHebdo() {
-    // Ne pas sauvegarder si chargement en cours
+    // Ne pas sauvegarder si chargement en cours ou donnees pas chargees
     if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+    if (typeof dataLoadedSuccessfully !== 'undefined' && !dataLoadedSuccessfully) {
         return;
     }
 
@@ -2713,8 +2722,11 @@ function loadStockData() {
 }
 
 function saveStockData() {
-    // Ne pas sauvegarder si chargement en cours
+    // Ne pas sauvegarder si chargement en cours ou donnees pas chargees
     if (typeof isLoading !== 'undefined' && isLoading) {
+        return;
+    }
+    if (typeof dataLoadedSuccessfully !== 'undefined' && !dataLoadedSuccessfully) {
         return;
     }
 
