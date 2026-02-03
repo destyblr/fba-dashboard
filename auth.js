@@ -254,16 +254,16 @@ async function loadAllDataFromFirebase() {
         // Charger les donnees principales
         const mainData = await loadFromFirebase('main');
         if (mainData) {
-            if (mainData.capital) document.getElementById('input-capital').value = mainData.capital;
-            if (mainData.ca) document.getElementById('input-ca').value = mainData.ca;
-            if (mainData.benefice) document.getElementById('input-benefice').value = mainData.benefice;
-            if (mainData.unites) document.getElementById('input-unites').value = mainData.unites;
-            if (mainData.acos) document.getElementById('input-acos').value = mainData.acos;
-            if (mainData.objCA) document.getElementById('input-obj-ca').value = mainData.objCA;
-            if (mainData.objBenefice) document.getElementById('input-obj-benefice').value = mainData.objBenefice;
-            if (mainData.objUnites) document.getElementById('input-obj-unites').value = mainData.objUnites;
-            if (mainData.objACOS) document.getElementById('input-obj-acos').value = mainData.objACOS;
-            if (mainData.joursStock) document.getElementById('input-jours-stock').value = mainData.joursStock;
+            if (mainData.capital !== undefined) document.getElementById('input-capital').value = mainData.capital;
+            if (mainData.ca !== undefined) document.getElementById('input-ca').value = mainData.ca;
+            if (mainData.benefice !== undefined) document.getElementById('input-benefice').value = mainData.benefice;
+            if (mainData.unites !== undefined) document.getElementById('input-unites').value = mainData.unites;
+            if (mainData.acos !== undefined) document.getElementById('input-acos').value = mainData.acos;
+            if (mainData.objCA !== undefined) document.getElementById('input-obj-ca').value = mainData.objCA;
+            if (mainData.objBenefice !== undefined) document.getElementById('input-obj-benefice').value = mainData.objBenefice;
+            if (mainData.objUnites !== undefined) document.getElementById('input-obj-unites').value = mainData.objUnites;
+            if (mainData.objACOS !== undefined) document.getElementById('input-obj-acos').value = mainData.objACOS;
+            if (mainData.joursStock !== undefined) document.getElementById('input-jours-stock').value = mainData.joursStock;
             if (mainData.products) products = mainData.products;
         }
 
@@ -344,32 +344,35 @@ function clearUnsubscribeListeners() {
 // Charger les params depuis les donnees Firebase
 function loadParamsFromData(data) {
     // Parametres generaux
-    if (data.tva && document.getElementById('param-tva')) document.getElementById('param-tva').value = data.tva;
-    if (data.impots && document.getElementById('param-impots')) document.getElementById('param-impots').value = data.impots;
-    if (data.capital && document.getElementById('param-capital')) document.getElementById('param-capital').value = data.capital;
-    if (data.objectifROI && document.getElementById('param-objectif-roi')) document.getElementById('param-objectif-roi').value = data.objectifROI;
-    if (data.objectifMarge && document.getElementById('param-objectif-marge')) document.getElementById('param-objectif-marge').value = data.objectifMarge;
-    if (data.stockSecurite && document.getElementById('param-stock-securite')) document.getElementById('param-stock-securite').value = data.stockSecurite;
+    if (data.tva !== undefined && document.getElementById('param-tva')) document.getElementById('param-tva').value = data.tva;
+    if (data.impots !== undefined && document.getElementById('param-impots')) document.getElementById('param-impots').value = data.impots;
+    if (data.capital !== undefined && document.getElementById('param-capital')) document.getElementById('param-capital').value = data.capital;
+    if (data.objectifROI !== undefined && document.getElementById('param-objectif-roi')) document.getElementById('param-objectif-roi').value = data.objectifROI;
+    if (data.objectifMarge !== undefined && document.getElementById('param-objectif-marge')) document.getElementById('param-objectif-marge').value = data.objectifMarge;
+    if (data.stockSecurite !== undefined && document.getElementById('param-stock-securite')) document.getElementById('param-stock-securite').value = data.stockSecurite;
 
     // Charges fixes mensuelles
-    if (data.chargeAmazonPro && document.getElementById('charge-amazon-pro')) document.getElementById('charge-amazon-pro').value = data.chargeAmazonPro;
-    if (data.chargeHelium10 && document.getElementById('charge-helium10')) document.getElementById('charge-helium10').value = data.chargeHelium10;
-    if (data.chargeCanva && document.getElementById('charge-canva')) document.getElementById('charge-canva').value = data.chargeCanva;
-    if (data.chargeIA && document.getElementById('charge-ia')) document.getElementById('charge-ia').value = data.chargeIA;
-    if (data.chargeComptable && document.getElementById('charge-comptable')) document.getElementById('charge-comptable').value = data.chargeComptable;
-    if (data.chargeBanque && document.getElementById('charge-banque')) document.getElementById('charge-banque').value = data.chargeBanque;
-    if (data.chargeAssurance && document.getElementById('charge-assurance')) document.getElementById('charge-assurance').value = data.chargeAssurance;
-    if (data.chargeCredit && document.getElementById('charge-credit')) document.getElementById('charge-credit').value = data.chargeCredit;
-    if (data.chargeAutresAbonnements && document.getElementById('charge-autres-abonnements')) document.getElementById('charge-autres-abonnements').value = data.chargeAutresAbonnements;
+    if (data.chargeAmazonPro !== undefined && document.getElementById('charge-amazon-pro')) document.getElementById('charge-amazon-pro').value = data.chargeAmazonPro;
+    if (data.chargeHelium10 !== undefined && document.getElementById('charge-helium10')) document.getElementById('charge-helium10').value = data.chargeHelium10;
+    if (data.chargeCanva !== undefined && document.getElementById('charge-canva')) document.getElementById('charge-canva').value = data.chargeCanva;
+    if (data.chargeIA !== undefined && document.getElementById('charge-ia')) document.getElementById('charge-ia').value = data.chargeIA;
+    if (data.chargeComptable !== undefined && document.getElementById('charge-comptable')) document.getElementById('charge-comptable').value = data.chargeComptable;
+    if (data.chargeBanque !== undefined && document.getElementById('charge-banque')) document.getElementById('charge-banque').value = data.chargeBanque;
+    if (data.chargeAssurance !== undefined && document.getElementById('charge-assurance')) document.getElementById('charge-assurance').value = data.chargeAssurance;
+    if (data.chargeCredit !== undefined && document.getElementById('charge-credit')) document.getElementById('charge-credit').value = data.chargeCredit;
+    if (data.chargeAutresAbonnements !== undefined && document.getElementById('charge-autres-abonnements')) document.getElementById('charge-autres-abonnements').value = data.chargeAutresAbonnements;
 
     // Charges fixes annuelles
-    if (data.chargeGS1 && document.getElementById('charge-gs1')) document.getElementById('charge-gs1').value = data.chargeGS1;
-    if (data.chargeINPI && document.getElementById('charge-inpi')) document.getElementById('charge-inpi').value = data.chargeINPI;
-    if (data.chargePhotos && document.getElementById('charge-photos')) document.getElementById('charge-photos').value = data.chargePhotos;
-    if (data.chargeFormation && document.getElementById('charge-formation')) document.getElementById('charge-formation').value = data.chargeFormation;
-    if (data.chargeWeb && document.getElementById('charge-web')) document.getElementById('charge-web').value = data.chargeWeb;
-    if (data.chargeJuridique && document.getElementById('charge-juridique')) document.getElementById('charge-juridique').value = data.chargeJuridique;
-    if (data.chargeAutresFixes && document.getElementById('charge-autres-fixes')) document.getElementById('charge-autres-fixes').value = data.chargeAutresFixes;
+    if (data.chargeGS1 !== undefined && document.getElementById('charge-gs1')) document.getElementById('charge-gs1').value = data.chargeGS1;
+    if (data.chargeINPI !== undefined && document.getElementById('charge-inpi')) document.getElementById('charge-inpi').value = data.chargeINPI;
+    if (data.chargePhotos !== undefined && document.getElementById('charge-photos')) document.getElementById('charge-photos').value = data.chargePhotos;
+    if (data.chargeFormation !== undefined && document.getElementById('charge-formation')) document.getElementById('charge-formation').value = data.chargeFormation;
+    if (data.chargeWeb !== undefined && document.getElementById('charge-web')) document.getElementById('charge-web').value = data.chargeWeb;
+    if (data.chargeJuridique !== undefined && document.getElementById('charge-juridique')) document.getElementById('charge-juridique').value = data.chargeJuridique;
+    if (data.chargeAutresFixes !== undefined && document.getElementById('charge-autres-fixes')) document.getElementById('charge-autres-fixes').value = data.chargeAutresFixes;
+
+    // Mettre a jour l'affichage des charges
+    if (typeof updateChargesFixes === 'function') updateChargesFixes();
 }
 
 // ===========================
