@@ -1041,8 +1041,7 @@ function updateChargesFixes() {
     updateElement('total-charges-fixes-annuelles', formatCurrency(totalAnnuelles));
     updateElement('total-global-charges-fixes', formatCurrency(totalGlobal));
 
-    // Sauvegarder et recalculer
-    saveParams();
+    // Recalculer (sans sauvegarder automatiquement)
     calculateAll();
 }
 

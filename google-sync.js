@@ -187,20 +187,25 @@ function applyDataToPage(data) {
     // Produits
     if (data.products && Array.isArray(data.products)) {
         products = data.products;
-        if (typeof loadProducts === 'function') loadProducts();
+        if (typeof renderProducts === 'function') renderProducts();
     }
 
-    // Suivi hebdo
+    // Suivi hebdo (ne pas appeler loadSuiviHebdo qui recharge depuis localStorage)
     if (data.hebdo && data.hebdo.suiviHebdo) {
         suiviHebdo = data.hebdo.suiviHebdo;
-        if (typeof loadSuiviHebdo === 'function') loadSuiviHebdo();
+        // Appeler directement les fonctions de rendu
+        if (typeof updateKPIsHebdo === 'function') updateKPIsHebdo();
+        if (typeof renderHistoriqueHebdo === 'function') renderHistoriqueHebdo();
+        if (typeof initChartsHebdo === 'function') initChartsHebdo();
     }
 
-    // Stock
+    // Stock (ne pas recharger depuis localStorage)
     if (data.stock) {
         if (data.stock.stockData) stockData = data.stock.stockData;
         if (data.stock.commandes) stockCommandes = data.stock.commandes;
-        if (typeof initStockSection === 'function') initStockSection();
+        if (typeof renderStockTable === 'function') renderStockTable();
+        if (typeof updateStockKPIs === 'function') updateStockKPIs();
+        if (typeof renderCommandes === 'function') renderCommandes();
     }
 
     // Recalculer
