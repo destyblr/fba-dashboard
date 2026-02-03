@@ -53,19 +53,18 @@ async function saveToGoogleSheets() {
         // Sauvegarder en local aussi
         localStorage.setItem('fba-all-data', JSON.stringify(allData));
 
-        // Envoyer vers Google Sheets
+        // Envoyer vers Google Sheets via GET (contourne CORS)
         console.log("Sauvegarde vers Google Sheets...");
-        const response = await fetch(GOOGLE_SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(allData)
-        });
+        const dataEncoded = encodeURIComponent(JSON.stringify(allData));
+        const url = GOOGLE_SCRIPT_URL + "?data=" + dataEncoded;
 
-        console.log("Donnees sauvegardees !");
-        showNotification("Sauvegarde reussie !", "success");
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (result.success) {
+            console.log("Donnees sauvegardees !");
+            showNotification("Sauvegarde reussie !", "success");
+        }
         return true;
     } catch (error) {
         console.error("Erreur sauvegarde:", error);
