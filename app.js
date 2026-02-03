@@ -1172,6 +1172,9 @@ function updateRecapCharges() {
     updateElement('recap-charges-variables', formatCurrency(0)); // Plus de charges variables séparées
     updateElement('recap-impots', formatCurrency(impots));
     updateElement('recap-total-charges', formatCurrency(totalCharges));
+
+    // Recalculer les graphiques et KPIs
+    calculateAll();
 }
 
 // ===========================
