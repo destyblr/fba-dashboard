@@ -10,8 +10,12 @@ let allData = {
     products: []
 };
 
+// Flag pour empecher la sauvegarde pendant le chargement
+let isLoading = false;
+
 // Charger les donnees depuis Google Sheets
 async function loadFromGoogleSheets() {
+    isLoading = true; // Empecher la sauvegarde pendant le chargement
     try {
         console.log("Chargement depuis Google Sheets...");
         const response = await fetch(GOOGLE_SCRIPT_URL);
@@ -31,10 +35,17 @@ async function loadFromGoogleSheets() {
         showNotification("Mode hors-ligne", "error");
         loadFromLocalStorage();
     }
+    isLoading = false; // Autoriser la sauvegarde
 }
 
 // Sauvegarder vers Google Sheets
 async function saveToGoogleSheets() {
+    // Ne pas sauvegarder pendant le chargement
+    if (isLoading) {
+        console.log("Sauvegarde ignoree (chargement en cours)");
+        return;
+    }
+
     try {
         // Collecter toutes les donnees
         collectAllData();
