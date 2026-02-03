@@ -18,7 +18,9 @@ async function loadFromGoogleSheets() {
     isLoading = true; // Empecher la sauvegarde pendant le chargement
     try {
         console.log("Chargement depuis Google Sheets...");
-        const response = await fetch(GOOGLE_SCRIPT_URL);
+        // Ajouter un parametre anti-cache
+        const url = GOOGLE_SCRIPT_URL + "?nocache=" + Date.now();
+        const response = await fetch(url);
         const data = await response.json();
 
         if (data && Object.keys(data).length > 0) {
