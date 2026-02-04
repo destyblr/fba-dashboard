@@ -312,6 +312,9 @@ function updateDashboardFromSuiviHebdo() {
     // Mettre a jour les alertes stock
     updateStockAlerts();
 
+    // Mettre a jour les jours de stock avec alertes
+    updateJoursStockDashboard();
+
     // Mettre a jour la performance par produit
     updatePerformanceParProduit();
 
@@ -843,6 +846,114 @@ function calculerJoursStockMoyen() {
     });
 
     return nbProduits > 0 ? totalJours / nbProduits : 0;
+}
+
+// ===========================
+// CALCUL JOURS STOCK AVEC ALERTES
+// ===========================
+
+// Calculer les jours de stock pour un produit specifique
+function calculerJoursStockProduit(productId) {
+    if (typeof stockData === 'undefined' || !stockData[productId]) return null;
+
+    const stock = stockData[productId];
+    if (!stock.stockActuel || stock.stockActuel <= 0) return null;
+
+    // Calculer ventes moyennes par jour depuis suivi hebdo
+    const ventesSemaine = typeof getVentesMoyennesSemaine === 'function'
+        ? getVentesMoyennesSemaine(productId)
+        : 0;
+    const ventesJour = ventesSemaine / 7;
+
+    if (ventesJour <= 0) return null;
+
+    return Math.floor(stock.stockActuel / ventesJour);
+}
+
+// Obtenir le delai transport d'un produit (ou defaut)
+function getDelaiTransportProduit(product) {
+    // Si le produit a un delai specifique
+    if (product.sourcing && product.sourcing.delaiTransport) {
+        return parseInt(product.sourcing.delaiTransport) || 0;
+    }
+    // Sinon utiliser le defaut des parametres
+    return parseInt(document.getElementById('param-delai-transport')?.value) || 30;
+}
+
+// Calculer le seuil d'alerte pour un produit
+function calculerSeuilAlerteProduit(product) {
+    const stockSecurite = parseInt(document.getElementById('param-stock-securite')?.value) || 15;
+    const delaiTransport = getDelaiTransportProduit(product);
+    return stockSecurite + delaiTransport;
+}
+
+// Mettre a jour l'affichage des jours de stock dans le dashboard
+function updateJoursStockDashboard() {
+    const stockSecurite = parseInt(document.getElementById('param-stock-securite')?.value) || 15;
+    const delaiTransportDefaut = parseInt(document.getElementById('param-delai-transport')?.value) || 30;
+    const alertePreventive = parseInt(document.getElementById('param-alerte-preventive')?.value) || 10;
+
+    const joursStockEl = document.getElementById('jours-stock');
+    const inputJoursStock = document.getElementById('input-jours-stock');
+
+    if (!joursStockEl) return;
+
+    // Si pas de produits ou pas de stock
+    if (typeof products === 'undefined' || products.length === 0 ||
+        typeof stockData === 'undefined' || Object.keys(stockData).length === 0) {
+        joursStockEl.textContent = '- jours';
+        joursStockEl.className = 'font-bold text-gray-500';
+        if (inputJoursStock) inputJoursStock.value = 0;
+        return;
+    }
+
+    // Trouver le produit le plus critique (moins de jours avant seuil)
+    let produitCritique = null;
+    let joursAvantSeuilMin = Infinity;
+    let joursStockMin = Infinity;
+
+    products.forEach(product => {
+        const joursStock = calculerJoursStockProduit(product.id);
+        if (joursStock === null) return;
+
+        const seuilAlerte = calculerSeuilAlerteProduit(product);
+        const joursAvantSeuil = joursStock - seuilAlerte;
+
+        if (joursAvantSeuil < joursAvantSeuilMin) {
+            joursAvantSeuilMin = joursAvantSeuil;
+            joursStockMin = joursStock;
+            produitCritique = product;
+        }
+    });
+
+    // Si aucun produit avec des donnees
+    if (produitCritique === null) {
+        joursStockEl.textContent = '- jours';
+        joursStockEl.className = 'font-bold text-gray-500';
+        if (inputJoursStock) inputJoursStock.value = 0;
+        return;
+    }
+
+    // Mettre a jour l'affichage
+    if (inputJoursStock) inputJoursStock.value = joursStockMin;
+
+    // Determiner le statut et la couleur
+    if (joursAvantSeuilMin < 0) {
+        // URGENT - en dessous du seuil
+        joursStockEl.textContent = `${joursStockMin} jours`;
+        joursStockEl.className = 'font-bold text-red-600';
+        joursStockEl.title = `URGENT: Commander ${produitCritique.nom} maintenant !`;
+    } else if (joursAvantSeuilMin < alertePreventive) {
+        // ATTENTION - dans la zone d'alerte preventive
+        joursStockEl.textContent = `${joursStockMin} jours`;
+        joursStockEl.className = 'font-bold text-orange-600';
+        joursStockEl.title = `Attention: Commander ${produitCritique.nom} dans ${Math.ceil(joursAvantSeuilMin)} jours`;
+    } else {
+        // OK - stock suffisant
+        joursStockEl.textContent = `${joursStockMin} jours`;
+        joursStockEl.className = 'font-bold text-green-600';
+        joursStockEl.title = 'Stock OK';
+    }
 }
 
 // ===========================
@@ -2474,7 +2585,8 @@ function addProductFromSourcing() {
             tauxCommission: tauxCommission,
             coutTotal: coutTotal,
             beneficeEstime: beneficeEstime,
-            margeEstimee: prixVente > 0 ? (beneficeEstime / prixVente * 100) : 0
+            margeEstimee: prixVente > 0 ? (beneficeEstime / prixVente * 100) : 0,
+            delaiTransport: parseInt(document.getElementById('sourcing-delai-transport')?.value) || 0
         },
         fromSourcing: true
     };

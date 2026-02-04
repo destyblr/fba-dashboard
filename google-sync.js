@@ -113,6 +113,8 @@ function collectAllData() {
         objectifROI: document.getElementById('param-objectif-roi')?.value || 30,
         objectifMarge: document.getElementById('param-objectif-marge')?.value || 25,
         stockSecurite: document.getElementById('param-stock-securite')?.value || 15,
+        delaiTransport: document.getElementById('param-delai-transport')?.value || 30,
+        alertePreventive: document.getElementById('param-alerte-preventive')?.value || 10,
         acosMax: document.getElementById('param-acos-max')?.value || 25,
         chargeAmazonPro: document.getElementById('charge-amazon-pro')?.value || 39,
         chargeHelium10: document.getElementById('charge-helium10')?.value || 0,
@@ -182,6 +184,8 @@ function applyDataToPage(data) {
         if (data.params.objectifROI !== undefined) setInputValue('param-objectif-roi', data.params.objectifROI);
         if (data.params.objectifMarge !== undefined) setInputValue('param-objectif-marge', data.params.objectifMarge);
         if (data.params.stockSecurite !== undefined) setInputValue('param-stock-securite', data.params.stockSecurite);
+        if (data.params.delaiTransport !== undefined) setInputValue('param-delai-transport', data.params.delaiTransport);
+        if (data.params.alertePreventive !== undefined) setInputValue('param-alerte-preventive', data.params.alertePreventive);
         if (data.params.acosMax !== undefined) setInputValue('param-acos-max', data.params.acosMax);
         if (data.params.chargeAmazonPro !== undefined) setInputValue('charge-amazon-pro', data.params.chargeAmazonPro);
         if (data.params.chargeHelium10 !== undefined) setInputValue('charge-helium10', data.params.chargeHelium10);
