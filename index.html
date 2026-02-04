@@ -286,9 +286,22 @@
 
             <!-- Section Dashboard -->
             <section id="section-dashboard" class="content-section">
-                <div class="mb-6">
-                    <h2 class="text-3xl font-bold text-gray-800">Tableau de Bord</h2>
-                    <p class="text-gray-500">Vue d'ensemble de votre business Amazon FBA</p>
+                <div class="mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">Tableau de Bord</h2>
+                        <p class="text-gray-500">Vue d'ensemble de votre business Amazon FBA</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <label class="text-sm font-medium text-gray-700">Période :</label>
+                        <select id="dashboard-periode"
+                            class="px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition bg-white"
+                            onchange="changePeriodeDashboard()">
+                            <option value="mois">Ce mois</option>
+                            <option value="mois-dernier">Mois dernier</option>
+                            <option value="annee">Cette année</option>
+                            <option value="tout">Tout</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- KPI Cards -->
@@ -1260,7 +1273,7 @@
                                 </label>
                                 <input type="number" id="param-capital" value="3000"
                                     class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
-                                    oninput="syncCapital(); calculateAll()">
+                                    oninput="syncCapital(); calculateAll(); calculateAutoObjectives()">
                             </div>
 
                             <div>
@@ -1269,7 +1282,7 @@
                                 </label>
                                 <input type="number" step="0.1" id="param-objectif-roi" value="30"
                                     class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
-                                    oninput="updateRecapCharges()">
+                                    oninput="updateRecapCharges(); calculateAutoObjectives()">
                             </div>
 
                             <div>
@@ -1278,7 +1291,7 @@
                                 </label>
                                 <input type="number" step="0.1" id="param-objectif-marge" value="25"
                                     class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
-                                    oninput="updateRecapCharges()">
+                                    oninput="updateRecapCharges(); calculateAutoObjectives()">
                             </div>
 
                             <div>
@@ -1288,6 +1301,24 @@
                                 <input type="number" id="param-stock-securite" value="15"
                                     class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
                                     oninput="updateRecapCharges()">
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    ACOS max acceptable (%)
+                                </label>
+                                <input type="number" step="0.1" id="param-acos-max" value="25"
+                                    class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 transition"
+                                    oninput="calculateAutoObjectives()">
+                            </div>
+
+                            <div class="mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <i class="fas fa-calculator text-blue-500"></i>
+                                    <span class="text-sm font-medium text-blue-700">Croissance calculée (ROI → Objectifs)</span>
+                                </div>
+                                <p id="croissance-calculee" class="text-2xl font-bold text-blue-800">0%</p>
+                                <p class="text-xs text-blue-600 mt-1">Basée sur le ROI objectif et l'historique</p>
                             </div>
                         </div>
                     </div>

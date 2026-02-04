@@ -113,6 +113,7 @@ function collectAllData() {
         objectifROI: document.getElementById('param-objectif-roi')?.value || 30,
         objectifMarge: document.getElementById('param-objectif-marge')?.value || 25,
         stockSecurite: document.getElementById('param-stock-securite')?.value || 15,
+        acosMax: document.getElementById('param-acos-max')?.value || 25,
         chargeAmazonPro: document.getElementById('charge-amazon-pro')?.value || 39,
         chargeHelium10: document.getElementById('charge-helium10')?.value || 0,
         chargeCanva: document.getElementById('charge-canva')?.value || 0,
@@ -181,6 +182,7 @@ function applyDataToPage(data) {
         if (data.params.objectifROI !== undefined) setInputValue('param-objectif-roi', data.params.objectifROI);
         if (data.params.objectifMarge !== undefined) setInputValue('param-objectif-marge', data.params.objectifMarge);
         if (data.params.stockSecurite !== undefined) setInputValue('param-stock-securite', data.params.stockSecurite);
+        if (data.params.acosMax !== undefined) setInputValue('param-acos-max', data.params.acosMax);
         if (data.params.chargeAmazonPro !== undefined) setInputValue('charge-amazon-pro', data.params.chargeAmazonPro);
         if (data.params.chargeHelium10 !== undefined) setInputValue('charge-helium10', data.params.chargeHelium10);
         if (data.params.chargeCanva !== undefined) setInputValue('charge-canva', data.params.chargeCanva);
@@ -229,6 +231,9 @@ function applyDataToPage(data) {
 
     // Mettre a jour le tableau de bord avec les donnees du suivi hebdo
     if (typeof updateDashboardFromSuiviHebdo === 'function') updateDashboardFromSuiviHebdo();
+
+    // Calculer les objectifs automatiques
+    if (typeof calculateAutoObjectives === 'function') calculateAutoObjectives();
 }
 
 // Helper pour set input value

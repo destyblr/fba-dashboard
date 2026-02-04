@@ -89,6 +89,208 @@ function getChargesFixesMensuelles() {
     return totalMensuelles + totalAnnuellesMensualise;
 }
 
+// ===========================
+// SELECTION DE PERIODE DASHBOARD
+// ===========================
+
+// Obtenir les donnees pour une periode donnee
+function getDataForPeriod(periode = 'mois') {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    let totals = { ca: 0, benefice: 0, unites: 0, ppc: 0, caForAcos: 0 };
+
+    if (!suiviHebdo || suiviHebdo.length === 0) {
+        totals.acos = 0;
+        totals.chargesFixes = getChargesFixesMensuelles();
+        totals.beneficeNetReel = 0;
+        return totals;
+    }
+
+    suiviHebdo.forEach(semaine => {
+        if (!semaine.dateDebut) return;
+        const date = new Date(semaine.dateDebut);
+        let inclure = false;
+
+        switch(periode) {
+            case 'mois':
+                inclure = date.getFullYear() === currentYear && date.getMonth() === currentMonth;
+                break;
+            case 'mois-dernier':
+                const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+                const lastYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+                inclure = date.getFullYear() === lastYear && date.getMonth() === lastMonth;
+                break;
+            case 'annee':
+                inclure = date.getFullYear() === currentYear;
+                break;
+            case 'tout':
+                inclure = true;
+                break;
+        }
+
+        if (inclure) {
+            totals.ca += parseFloat(semaine.totalCA) || 0;
+            totals.benefice += parseFloat(semaine.totalBenefice) || 0;
+            totals.unites += parseFloat(semaine.totalUnites) || 0;
+            totals.ppc += parseFloat(semaine.totalPPC) || 0;
+            if (semaine.totalCA > 0) totals.caForAcos += parseFloat(semaine.totalCA) || 0;
+        }
+    });
+
+    totals.acos = totals.caForAcos > 0 ? (totals.ppc / totals.caForAcos) * 100 : 0;
+    totals.chargesFixes = getChargesFixesMensuelles();
+    totals.beneficeNetReel = totals.benefice - totals.chargesFixes;
+
+    return totals;
+}
+
+// Changer la periode du dashboard
+function changePeriodeDashboard() {
+    const periode = document.getElementById('dashboard-periode')?.value || 'mois';
+    const data = getDataForPeriod(periode);
+
+    // Mettre a jour les inputs
+    const inputCA = document.getElementById('input-ca');
+    const inputBenefice = document.getElementById('input-benefice');
+    const inputUnites = document.getElementById('input-unites');
+    const inputAcos = document.getElementById('input-acos');
+
+    if (inputCA) inputCA.value = data.ca.toFixed(2);
+    if (inputBenefice) inputBenefice.value = data.benefice.toFixed(2);
+    if (inputUnites) inputUnites.value = data.unites;
+    if (inputAcos) inputAcos.value = data.acos.toFixed(2);
+
+    // Recalculer
+    calculateAll();
+    updateStockAlerts();
+    updatePerformanceParProduit();
+    updatePrevisions();
+}
+
+// ===========================
+// OBJECTIFS AUTOMATIQUES
+// ===========================
+
+// Obtenir l'historique des 3 derniers mois
+function getHistorique3Mois() {
+    const now = new Date();
+    let totalCA = 0, totalBenefice = 0, totalUnites = 0;
+    let moisComptes = 0;
+
+    // Parcourir les 3 derniers mois (excluant le mois courant)
+    for (let i = 1; i <= 3; i++) {
+        const targetMonth = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const year = targetMonth.getFullYear();
+        const month = targetMonth.getMonth();
+
+        let moisCA = 0, moisBenefice = 0, moisUnites = 0;
+        let hasData = false;
+
+        if (suiviHebdo && suiviHebdo.length > 0) {
+            suiviHebdo.forEach(s => {
+                if (s.dateDebut) {
+                    const d = new Date(s.dateDebut);
+                    if (d.getFullYear() === year && d.getMonth() === month) {
+                        moisCA += parseFloat(s.totalCA) || 0;
+                        moisBenefice += parseFloat(s.totalBenefice) || 0;
+                        moisUnites += parseFloat(s.totalUnites) || 0;
+                        hasData = true;
+                    }
+                }
+            });
+        }
+
+        if (hasData) {
+            totalCA += moisCA;
+            totalBenefice += moisBenefice;
+            totalUnites += moisUnites;
+            moisComptes++;
+        }
+    }
+
+    return {
+        ca: moisComptes > 0 ? totalCA / moisComptes : 0,
+        benefice: moisComptes > 0 ? totalBenefice / moisComptes : 0,
+        unites: moisComptes > 0 ? totalUnites / moisComptes : 0,
+        moisComptes: moisComptes
+    };
+}
+
+// Calculer les objectifs automatiquement depuis ROI et historique
+function calculateAutoObjectives() {
+    // Recuperer les parametres
+    const capital = parseFloat(document.getElementById('param-capital')?.value) || 3000;
+    const objectifROI = parseFloat(document.getElementById('param-objectif-roi')?.value) || 30;
+    const objectifMarge = parseFloat(document.getElementById('param-objectif-marge')?.value) || 25;
+    const acosMax = parseFloat(document.getElementById('param-acos-max')?.value) || 25;
+
+    // Calculer benefice cible mensuel depuis ROI
+    const beneficeCibleAnnuel = capital * (objectifROI / 100);
+    const beneficeCibleMensuel = beneficeCibleAnnuel / 12;
+
+    // Calculer moyennes des 3 derniers mois
+    const historique = getHistorique3Mois();
+    const moyenneCA = historique.ca;
+    const moyenneBenefice = historique.benefice;
+    const moyenneUnites = historique.unites;
+
+    // Calculer croissance necessaire pour atteindre le ROI
+    let croissanceNecessaire = 0;
+    if (moyenneBenefice > 0) {
+        croissanceNecessaire = ((beneficeCibleMensuel - moyenneBenefice) / moyenneBenefice) * 100;
+    } else if (beneficeCibleMensuel > 0) {
+        // Si pas d'historique, afficher 100% (il faut commencer)
+        croissanceNecessaire = 100;
+    }
+
+    // Afficher croissance calculee
+    const croissanceEl = document.getElementById('croissance-calculee');
+    if (croissanceEl) {
+        const croissanceText = croissanceNecessaire >= 0
+            ? '+' + croissanceNecessaire.toFixed(1) + '%'
+            : croissanceNecessaire.toFixed(1) + '%';
+        croissanceEl.textContent = croissanceText;
+
+        // Couleur selon la valeur
+        if (croissanceNecessaire > 50) {
+            croissanceEl.className = 'text-2xl font-bold text-orange-600'; // Ambitieux
+        } else if (croissanceNecessaire > 0) {
+            croissanceEl.className = 'text-2xl font-bold text-green-600'; // Atteignable
+        } else {
+            croissanceEl.className = 'text-2xl font-bold text-blue-600'; // Deja atteint!
+        }
+    }
+
+    // Calculer objectifs
+    const facteurCroissance = 1 + Math.max(0, croissanceNecessaire / 100);
+    let objectifCA = moyenneCA * facteurCroissance;
+    let objectifUnites = moyenneUnites * facteurCroissance;
+    let objectifBenefice = objectifCA * (objectifMarge / 100);
+
+    // Si pas d'historique, utiliser le benefice cible comme base
+    if (historique.moisComptes === 0) {
+        objectifBenefice = beneficeCibleMensuel;
+        objectifCA = objectifBenefice / (objectifMarge / 100);
+        objectifUnites = 0; // Pas de reference
+    }
+
+    // Mettre a jour les inputs d'objectifs
+    const inputObjCA = document.getElementById('input-obj-ca');
+    const inputObjBenefice = document.getElementById('input-obj-benefice');
+    const inputObjUnites = document.getElementById('input-obj-unites');
+    const inputObjAcos = document.getElementById('input-obj-acos');
+
+    if (inputObjCA) inputObjCA.value = objectifCA.toFixed(0);
+    if (inputObjBenefice) inputObjBenefice.value = objectifBenefice.toFixed(0);
+    if (inputObjUnites) inputObjUnites.value = Math.round(objectifUnites);
+    if (inputObjAcos) inputObjAcos.value = acosMax.toFixed(2);
+
+    // Recalculer le dashboard
+    calculateAll();
+}
+
 // Mettre a jour le tableau de bord avec les donnees du suivi hebdo
 function updateDashboardFromSuiviHebdo() {
     const monthData = getMonthDataFromSuiviHebdo();
