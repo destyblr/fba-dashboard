@@ -754,6 +754,7 @@ function calculateAll() {
 
     updateElement('obj-acos-realise', `${acos.toFixed(2)}%`);
     updateElement('obj-acos-objectif', `${objACOS.toFixed(2)}%`);
+    updateElement('display-obj-acos', `${objACOS.toFixed(0)}%`);
     updateElement('progress-acos', '', Math.min(progressionACOS, 100));
 
     // Fiscalité

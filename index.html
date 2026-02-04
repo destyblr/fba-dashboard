@@ -277,7 +277,7 @@
                 <div class="text-xs text-purple-200 mb-1">Capital de Départ</div>
                 <div class="text-2xl font-bold" id="sidebar-capital">3 000 €</div>
                 <div class="text-xs text-purple-200 mt-2">Gain Total</div>
-                <div class="text-xl font-bold text-green-300" id="sidebar-gain">1 671 €</div>
+                <div class="text-xl font-bold text-green-300" id="sidebar-gain">0 €</div>
             </div>
         </aside>
 
@@ -311,8 +311,8 @@
                             <span class="text-gray-600 text-sm font-medium">Gain Total</span>
                             <i class="fas fa-euro-sign text-green-500 text-xl"></i>
                         </div>
-                        <div class="text-3xl font-bold text-gray-800" id="kpi-gain">1 671 €</div>
-                        <div class="mt-2 text-sm text-green-600 font-semibold" id="kpi-gain-evolution">+27% ROI</div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-gain">0 €</div>
+                        <div class="mt-2 text-sm text-green-600 font-semibold" id="kpi-gain-evolution">0% ROI</div>
                     </div>
 
                     <div class="stat-card card">
@@ -320,7 +320,7 @@
                             <span class="text-gray-600 text-sm font-medium">Chiffre d'Affaires</span>
                             <i class="fas fa-chart-line text-blue-500 text-xl"></i>
                         </div>
-                        <div class="text-3xl font-bold text-gray-800" id="kpi-ca">1 125 €</div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-ca">0 €</div>
                         <div class="mt-2 text-sm text-blue-600 font-semibold" id="kpi-ca-evolution">Ce mois</div>
                     </div>
 
@@ -329,9 +329,9 @@
                             <span class="text-gray-600 text-sm font-medium">Benefice Net Reel</span>
                             <i class="fas fa-coins text-yellow-500 text-xl"></i>
                         </div>
-                        <div class="text-3xl font-bold text-gray-800" id="kpi-benefice">290 €</div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-benefice">0 €</div>
                         <div class="mt-1 text-xs text-gray-500" id="kpi-charges-deduites">- 0€ charges fixes</div>
-                        <div class="mt-1 text-sm text-yellow-600 font-semibold" id="kpi-marge">26% Marge</div>
+                        <div class="mt-1 text-sm text-yellow-600 font-semibold" id="kpi-marge">0% Marge</div>
                     </div>
 
                     <div class="stat-card card">
@@ -339,8 +339,8 @@
                             <span class="text-gray-600 text-sm font-medium">ACOS</span>
                             <i class="fas fa-bullseye text-purple-500 text-xl"></i>
                         </div>
-                        <div class="text-3xl font-bold text-gray-800" id="kpi-acos">11.02%</div>
-                        <div class="mt-2 text-sm text-purple-600 font-semibold">Objectif: 25%</div>
+                        <div class="text-3xl font-bold text-gray-800" id="kpi-acos">0%</div>
+                        <div class="mt-2 text-sm text-purple-600 font-semibold">Objectif: <span id="display-obj-acos">0%</span></div>
                     </div>
                 </div>
 
@@ -392,7 +392,7 @@
                         <div class="space-y-3">
                             <div class="flex justify-between items-center p-3 bg-white rounded-lg">
                                 <span class="text-gray-700 font-medium">Bénéfice Brut</span>
-                                <span class="text-xl font-bold text-gray-800" id="impact-benefice-brut">290 €</span>
+                                <span class="text-xl font-bold text-gray-800" id="impact-benefice-brut">0 €</span>
                             </div>
 
                             <div class="flex items-center justify-center py-1">
@@ -401,7 +401,7 @@
 
                             <div class="flex justify-between items-center p-3 bg-red-100 rounded-lg border-2 border-red-300">
                                 <span class="text-red-800 font-medium">- Impôts <span id="impact-taux-impots">(13,3%)</span></span>
-                                <span class="text-xl font-bold text-red-600" id="impact-impots">-38.57 €</span>
+                                <span class="text-xl font-bold text-red-600" id="impact-impots">0 €</span>
                             </div>
 
                             <div class="border-t-2 border-orange-300 my-2"></div>
@@ -411,25 +411,25 @@
                                     <div class="text-white text-sm font-medium">Gain Net "Poche"</div>
                                     <div class="text-white text-xs opacity-90">Ce que vous gardez vraiment</div>
                                 </div>
-                                <span class="text-3xl font-bold text-white" id="impact-gain-net">140.70 €</span>
+                                <span class="text-3xl font-bold text-white" id="impact-gain-net">0 €</span>
                             </div>
 
                             <div class="mt-4 grid grid-cols-2 gap-3">
                                 <div class="text-center p-3 bg-white rounded-lg">
                                     <div class="text-xs text-gray-500 mb-1">ROI Brut → Net</div>
                                     <div class="font-bold text-gray-800">
-                                        <span id="impact-roi-brut">26.89%</span>
+                                        <span id="impact-roi-brut">0%</span>
                                         <i class="fas fa-arrow-right text-orange-500 mx-1"></i>
-                                        <span class="text-green-600" id="impact-roi-net">6.97%</span>
+                                        <span class="text-green-600" id="impact-roi-net">0%</span>
                                     </div>
                                 </div>
 
                                 <div class="text-center p-3 bg-white rounded-lg">
                                     <div class="text-xs text-gray-500 mb-1">Marge Brute → Nette</div>
                                     <div class="font-bold text-gray-800">
-                                        <span id="impact-marge-brute">25.81%</span>
+                                        <span id="impact-marge-brute">0%</span>
                                         <i class="fas fa-arrow-right text-orange-500 mx-1"></i>
-                                        <span class="text-green-600" id="impact-marge-nette">12.51%</span>
+                                        <span class="text-green-600" id="impact-marge-nette">0%</span>
                                     </div>
                                 </div>
                             </div>
@@ -456,30 +456,30 @@
                                     <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
                                         <td class="py-3 px-2 font-medium text-gray-700">ROI</td>
                                         <td class="py-3 px-2 text-center">
-                                            <span class="text-lg font-bold text-gray-600" id="table-roi-avant">26.89%</span>
+                                            <span class="text-lg font-bold text-gray-600" id="table-roi-avant">0%</span>
                                         </td>
                                         <td class="py-3 px-2 text-center">
-                                            <span class="text-lg font-bold text-green-600" id="table-roi-apres">6.97%</span>
+                                            <span class="text-lg font-bold text-green-600" id="table-roi-apres">0%</span>
                                         </td>
                                     </tr>
 
                                     <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
                                         <td class="py-3 px-2 font-medium text-gray-700">Marge Nette</td>
                                         <td class="py-3 px-2 text-center">
-                                            <span class="text-lg font-bold text-gray-600" id="table-marge-avant">25.81%</span>
+                                            <span class="text-lg font-bold text-gray-600" id="table-marge-avant">0%</span>
                                         </td>
                                         <td class="py-3 px-2 text-center">
-                                            <span class="text-lg font-bold text-green-600" id="table-marge-apres">12.51%</span>
+                                            <span class="text-lg font-bold text-green-600" id="table-marge-apres">0%</span>
                                         </td>
                                     </tr>
 
                                     <tr class="hover:bg-gray-50 transition">
                                         <td class="py-3 px-2 font-medium text-gray-700">Gain Mensuel</td>
                                         <td class="py-3 px-2 text-center">
-                                            <span class="text-lg font-bold text-gray-600" id="table-gain-avant">290 €</span>
+                                            <span class="text-lg font-bold text-gray-600" id="table-gain-avant">0 €</span>
                                         </td>
                                         <td class="py-3 px-2 text-center">
-                                            <span class="text-lg font-bold text-green-600" id="table-gain-apres">140.70 €</span>
+                                            <span class="text-lg font-bold text-green-600" id="table-gain-apres">0 €</span>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -509,10 +509,10 @@
                             <div>
                                 <div class="flex justify-between mb-2">
                                     <span class="text-gray-600">Seuil de Sécurité</span>
-                                    <span class="font-bold" id="sante-seuil">66%</span>
+                                    <span class="font-bold" id="sante-seuil">0%</span>
                                 </div>
                                 <div class="progress-bar">
-                                    <div class="progress-fill" id="progress-seuil" style="width: 66%"></div>
+                                    <div class="progress-fill" id="progress-seuil" style="width: 0%"></div>
                                 </div>
                             </div>
 
@@ -523,12 +523,12 @@
 
                             <div class="flex justify-between items-center">
                                 <span class="text-gray-600">Bénéfice Net d'Exploitation</span>
-                                <span class="font-bold text-gray-800" id="sante-benefice">1 671 €</span>
+                                <span class="font-bold text-gray-800" id="sante-benefice">0 €</span>
                             </div>
 
                             <div class="flex justify-between items-center">
                                 <span class="text-gray-600">ROI Global</span>
-                                <span class="font-bold text-green-600" id="sante-roi">26.89%</span>
+                                <span class="font-bold text-green-600" id="sante-roi">0%</span>
                             </div>
                         </div>
                     </div>
@@ -544,7 +544,7 @@
                             <div>
                                 <div class="flex justify-between mb-1">
                                     <span class="text-gray-600 text-sm">CA</span>
-                                    <span class="text-sm"><span class="font-bold" id="obj-ca-realise">1 125 €</span> / <span class="text-gray-500" id="obj-ca-objectif">16 612 €</span></span>
+                                    <span class="text-sm"><span class="font-bold" id="obj-ca-realise">0 €</span> / <span class="text-gray-500" id="obj-ca-objectif">0 €</span></span>
                                 </div>
                                 <div class="progress-bar">
                                     <div class="progress-fill" id="progress-ca" style="width: 7%"></div>
@@ -554,7 +554,7 @@
                             <div>
                                 <div class="flex justify-between mb-1">
                                     <span class="text-gray-600 text-sm">Unités Vendues</span>
-                                    <span class="text-sm"><span class="font-bold" id="obj-unites-realise">25</span> / <span class="text-gray-500" id="obj-unites-objectif">369</span></span>
+                                    <span class="text-sm"><span class="font-bold" id="obj-unites-realise">0</span> / <span class="text-gray-500" id="obj-unites-objectif">0</span></span>
                                 </div>
                                 <div class="progress-bar">
                                     <div class="progress-fill" id="progress-unites" style="width: 7%"></div>
@@ -564,7 +564,7 @@
                             <div>
                                 <div class="flex justify-between mb-1">
                                     <span class="text-gray-600 text-sm">ACOS</span>
-                                    <span class="text-sm"><span class="font-bold" id="obj-acos-realise">11.02%</span> / <span class="text-gray-500" id="obj-acos-objectif">25.00%</span></span>
+                                    <span class="text-sm"><span class="font-bold" id="obj-acos-realise">0%</span> / <span class="text-gray-500" id="obj-acos-objectif">0%</span></span>
                                 </div>
                                 <div class="progress-bar">
                                     <div class="progress-fill bg-gradient-to-r from-green-500 to-green-600" id="progress-acos" style="width: 44%"></div>
@@ -584,10 +584,10 @@
                 <input type="number" id="input-unites" value="0" readonly>
                 <input type="number" id="input-acos" value="0" readonly>
                 <!-- Objectifs restent modifiables -->
-                <input type="number" id="input-obj-ca" value="16612" oninput="calculateAll()">
-                <input type="number" id="input-obj-benefice" value="169" oninput="calculateAll()">
-                <input type="number" id="input-obj-unites" value="369" oninput="calculateAll()">
-                <input type="number" id="input-obj-acos" value="25.00" oninput="calculateAll()">
+                <input type="number" id="input-obj-ca" value="0" oninput="calculateAll()">
+                <input type="number" id="input-obj-benefice" value="0" oninput="calculateAll()">
+                <input type="number" id="input-obj-unites" value="0" oninput="calculateAll()">
+                <input type="number" id="input-obj-acos" value="0" oninput="calculateAll()">
                 <input type="number" id="input-jours-stock" value="0" readonly>
             </div>
 
