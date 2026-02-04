@@ -155,17 +155,22 @@ function collectAllData() {
 // Appliquer les donnees a la page
 function applyDataToPage(data) {
     // Donnees principales
+    // NOTE: CA, Benefice, Unites, ACOS sont maintenant calcules automatiquement
+    // depuis le suivi hebdo, donc on ne les charge plus depuis Google Sheets
     if (data.main) {
         if (data.main.capital !== undefined) setInputValue('input-capital', data.main.capital);
-        if (data.main.ca !== undefined) setInputValue('input-ca', data.main.ca);
-        if (data.main.benefice !== undefined) setInputValue('input-benefice', data.main.benefice);
-        if (data.main.unites !== undefined) setInputValue('input-unites', data.main.unites);
-        if (data.main.acos !== undefined) setInputValue('input-acos', data.main.acos);
+        // Ces valeurs sont calculees auto depuis suivi hebdo - ne pas charger
+        // if (data.main.ca !== undefined) setInputValue('input-ca', data.main.ca);
+        // if (data.main.benefice !== undefined) setInputValue('input-benefice', data.main.benefice);
+        // if (data.main.unites !== undefined) setInputValue('input-unites', data.main.unites);
+        // if (data.main.acos !== undefined) setInputValue('input-acos', data.main.acos);
+        // Objectifs restent chargeables
         if (data.main.objCA !== undefined) setInputValue('input-obj-ca', data.main.objCA);
         if (data.main.objBenefice !== undefined) setInputValue('input-obj-benefice', data.main.objBenefice);
         if (data.main.objUnites !== undefined) setInputValue('input-obj-unites', data.main.objUnites);
         if (data.main.objACOS !== undefined) setInputValue('input-obj-acos', data.main.objACOS);
-        if (data.main.joursStock !== undefined) setInputValue('input-jours-stock', data.main.joursStock);
+        // Jours stock est calcule auto aussi
+        // if (data.main.joursStock !== undefined) setInputValue('input-jours-stock', data.main.joursStock);
     }
 
     // Parametres
