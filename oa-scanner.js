@@ -921,6 +921,153 @@ function goToNextProduct() {
 }
 
 // ===========================
+// 3b. QUICK CHECK ASIN (pour les deals)
+// ===========================
+
+function quickCheckASIN() {
+    const asinInput = document.getElementById('quick-asin');
+    const priceFRInput = document.getElementById('quick-price-fr');
+    if (!asinInput) return;
+
+    const asin = asinInput.value.trim().toUpperCase();
+    if (!asin || asin.length < 5) {
+        showOANotification('Entre un ASIN valide (ex: B0XXXXXXXX)', 'error');
+        return;
+    }
+
+    const priceFR = parseFloat(priceFRInput ? priceFRInput.value : 0);
+    if (!priceFR || priceFR <= 0) {
+        showOANotification('Entre le prix d\'achat FR', 'error');
+        return;
+    }
+
+    const settings = loadOASettings();
+
+    // Chercher dans les donnees CSV DE deja importees
+    let productDE = null;
+    if (oaDataDE.length > 0) {
+        productDE = oaDataDE.find(p => p.asin === asin);
+    }
+    // Chercher aussi dans les resultats du dernier scan
+    if (!productDE && oaScanResults.length > 0) {
+        const fromScan = oaScanResults.find(p => p.asin === asin);
+        if (fromScan) {
+            productDE = { price: fromScan.pricDE, asin: asin, title: fromScan.title, bsr: fromScan.bsr, fbaSellers: fromScan.fbaSellers, estSales: fromScan.estSales, amazonSells: fromScan.amazonSells, price90avg: 0, price90drop: 0, price90min: 0, price90max: 0 };
+        }
+    }
+
+    // Si on a le prix DE depuis le CSV
+    if (productDE && productDE.price > 0) {
+        const product = {
+            asin: asin,
+            title: productDE.title || 'Produit ' + asin,
+            pricDE: productDE.price,
+            pricFR: priceFR,
+            bsr: productDE.bsr || 0,
+            bsr90: productDE.bsr90 || 0,
+            amazonSells: productDE.amazonSells || false,
+            fbaSellers: productDE.fbaSellers || 0,
+            estSales: productDE.estSales || 0,
+            stability: calculateStability(productDE),
+            profit: 0,
+            roi: 0
+        };
+
+        calculateProfit(product, settings);
+        showQuickCheckResult(product, true);
+    } else {
+        // Pas dans le CSV — demander le prix DE manuellement
+        const priceDEInput = document.getElementById('quick-price-de');
+        if (!priceDEInput || !priceDEInput.value) {
+            // Afficher le champ prix DE
+            const deField = document.getElementById('quick-de-field');
+            if (deField) deField.classList.remove('hidden');
+            showOANotification('ASIN pas dans le CSV Keepa. Entre le prix DE manuellement.', 'info');
+            return;
+        }
+
+        const priceDE = parseFloat(priceDEInput.value);
+        if (!priceDE || priceDE <= 0) {
+            showOANotification('Entre un prix DE valide', 'error');
+            return;
+        }
+
+        const product = {
+            asin: asin,
+            title: 'Produit ' + asin,
+            pricDE: priceDE,
+            pricFR: priceFR,
+            bsr: 0,
+            bsr90: 0,
+            amazonSells: false,
+            fbaSellers: 0,
+            estSales: 0,
+            stability: { score: 0, label: 'Inconnu', color: 'gray', detail: 'Donnees manuelles' },
+            profit: 0,
+            roi: 0
+        };
+
+        calculateProfit(product, settings);
+        showQuickCheckResult(product, false);
+    }
+}
+
+function showQuickCheckResult(product, fromCSV) {
+    const container = document.getElementById('quick-check-result');
+    if (!container) return;
+
+    const profitClass = product.profit >= 5 ? 'text-green-600' : (product.profit >= 3 ? 'text-yellow-600' : 'text-red-600');
+    const roiClass = product.roi >= 35 ? 'text-green-600' : (product.roi >= 20 ? 'text-yellow-600' : 'text-red-600');
+    const isGood = product.profit >= loadOASettings().minProfit && product.roi >= loadOASettings().minROI;
+
+    let html = '<div class="bg-white rounded-xl shadow-sm p-6 mt-4">';
+    html += '<div class="flex items-center justify-between mb-4">';
+    html += '<h4 class="font-bold text-gray-800">' + escapeHTML(product.title) + '</h4>';
+    html += '<span class="text-xs text-gray-400 font-mono">' + product.asin + '</span>';
+    html += '</div>';
+
+    html += '<div class="grid grid-cols-4 gap-4 mb-4">';
+    html += '<div class="text-center"><div class="text-xs text-gray-400">Prix FR (achat)</div><div class="text-xl font-bold text-blue-600">' + product.pricFR.toFixed(2) + ' &euro;</div></div>';
+    html += '<div class="text-center"><div class="text-xs text-gray-400">Prix DE (vente)</div><div class="text-xl font-bold text-purple-600">' + product.pricDE.toFixed(2) + ' &euro;</div></div>';
+    html += '<div class="text-center"><div class="text-xs text-gray-400">Profit</div><div class="text-xl font-bold ' + profitClass + '">' + product.profit.toFixed(2) + ' &euro;</div></div>';
+    html += '<div class="text-center"><div class="text-xs text-gray-400">ROI</div><div class="text-xl font-bold ' + roiClass + '">' + product.roi.toFixed(0) + '%</div></div>';
+    html += '</div>';
+
+    if (fromCSV) {
+        html += '<div class="text-xs text-gray-400 mb-3">';
+        html += 'BSR: ' + formatNumber(product.bsr) + ' | FBA sellers: ' + product.fbaSellers;
+        html += ' | Stabilite: <span class="font-bold">' + product.stability.label + '</span>';
+        if (product.amazonSells) html += ' | <span class="text-red-500 font-bold">Amazon vend !</span>';
+        html += '</div>';
+    } else {
+        html += '<div class="text-xs text-yellow-600 mb-3"><i class="fas fa-exclamation-triangle mr-1"></i>Donnees manuelles — verifie BSR, concurrence et stabilite dans la checklist</div>';
+    }
+
+    if (isGood) {
+        html += '<div class="flex items-center gap-3">';
+        html += '<span class="text-green-600 font-bold"><i class="fas fa-check-circle mr-1"></i>Rentable</span>';
+        html += '<button onclick="quickCheckToChecklist()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold"><i class="fas fa-clipboard-check mr-2"></i>Lancer la checklist</button>';
+        html += '</div>';
+    } else {
+        html += '<div class="text-red-600 font-bold"><i class="fas fa-times-circle mr-1"></i>Pas rentable avec les criteres actuels</div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+
+    // Stocker le produit pour la checklist
+    window._quickCheckProduct = product;
+}
+
+function quickCheckToChecklist() {
+    if (!window._quickCheckProduct) return;
+
+    // Ajouter le produit aux resultats du scan (temporairement)
+    oaScanResults.push(window._quickCheckProduct);
+    startChecklist(oaScanResults.length - 1);
+}
+
+// ===========================
 // 4. INVENTAIRE & CAPITAL TRACKER
 // ===========================
 
@@ -1031,6 +1178,45 @@ function markAsSold(productId, actualSalePrice) {
     renderInventory();
     console.log('[OA] Produit vendu:', productId, 'profit reel:', product.realProfit);
     showOANotification('Vente enregistree ! Profit reel: ' + product.realProfit.toFixed(2) + ' EUR', 'success');
+}
+
+function recheckPrice(productId) {
+    loadOAInventory();
+    const product = oaInventory.find(p => p.id === productId);
+    if (!product) return;
+
+    const newPriceStr = prompt('Prix actuel sur Amazon.de pour ' + (product.title || product.asin) + ' (en EUR) :');
+    if (newPriceStr === null) return;
+    const newPriceDE = parseFloat(newPriceStr);
+    if (isNaN(newPriceDE) || newPriceDE <= 0) {
+        showOANotification('Prix invalide', 'error');
+        return;
+    }
+
+    const settings = loadOASettings();
+    const commission = newPriceDE * (settings.commissionPct / 100);
+    const totalFees = commission + settings.fbaFee + settings.inboundShipping + settings.prepCost + settings.toolAmortization;
+    const urssaf = newPriceDE * (settings.urssafPct / 100);
+    const newProfit = (newPriceDE - totalFees - urssaf - product.costPerUnit) * product.quantity;
+
+    const oldPricDE = product.pricDE;
+    product.pricDE = newPriceDE;
+    product.expectedProfit = Math.round(newProfit * 100) / 100;
+    product.dateUpdated = new Date().toISOString();
+    product.lastPriceCheck = new Date().toISOString();
+
+    saveOAInventory();
+    renderInventory();
+
+    const diff = newPriceDE - oldPricDE;
+    const diffText = diff >= 0 ? '+' + diff.toFixed(2) : diff.toFixed(2);
+    const profitPerUnit = Math.round((newProfit / product.quantity) * 100) / 100;
+
+    if (profitPerUnit > 0) {
+        showOANotification('Prix DE: ' + newPriceDE.toFixed(2) + '\u20ac (' + diffText + '\u20ac) — Profit: ' + profitPerUnit.toFixed(2) + '\u20ac/unite', 'success');
+    } else {
+        showOANotification('ATTENTION: Prix DE: ' + newPriceDE.toFixed(2) + '\u20ac — Profit NEGATIF: ' + profitPerUnit.toFixed(2) + '\u20ac/unite !', 'error');
+    }
 }
 
 function calculateCapital() {
@@ -1167,6 +1353,20 @@ function renderInventory() {
                 html += '<div class="text-xs text-gray-500">Estime: +' + (p.expectedProfit || 0).toFixed(2) + ' &euro;</div>';
             }
             html += '</div>';
+
+            // Bouton re-verifier prix (seulement pour produits en pipeline, pas vendus/retires)
+            const inPipelineStatus = ['achete', 'recu', 'fnsku', 'expedie', 'en_vente'];
+            if (inPipelineStatus.indexOf(p.status) !== -1) {
+                html += '<div>';
+                html += '<button onclick="recheckPrice(\'' + p.id + '\')" class="text-gray-400 hover:text-blue-400 text-xs" title="Re-verifier le prix DE actuel">';
+                html += '<i class="fas fa-sync-alt"></i></button>';
+                if (p.lastPriceCheck) {
+                    const checkDate = new Date(p.lastPriceCheck);
+                    const ago = Math.round((Date.now() - checkDate.getTime()) / 3600000);
+                    html += '<div class="text-xs text-gray-600">' + (ago < 24 ? ago + 'h' : Math.round(ago / 24) + 'j') + '</div>';
+                }
+                html += '</div>';
+            }
 
             // Badge statut (cliquable)
             html += '<div class="flex items-center gap-2">';
