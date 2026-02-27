@@ -27,15 +27,17 @@ const OA_DEFAULTS = {
     toolAmortization: 0.70,
 
     // Criteres de selection
-    minProfit: 4.00,
-    minROI: 30,
-    maxBSR: 50000,
+    minProfit: 5.00,
+    minROI: 35,
+    maxBSR: 30000,
     maxFBASellers: 5,
     amazonSells: false,
+    minPriceDE: 15,
+    maxPriceDE: 80,
 
     // Capital
     capitalTotal: 755,
-    maxPerProduct: 50,
+    maxPerProduct: 40,
     maxUnitsFirstBuy: 2
 };
 
@@ -72,6 +74,8 @@ function saveOASettings() {
         { id: 'oa-maxBSR', key: 'maxBSR', type: 'int' },
         { id: 'oa-maxFBASellers', key: 'maxFBASellers', type: 'int' },
         { id: 'oa-amazonSells', key: 'amazonSells', type: 'bool' },
+        { id: 'oa-minPriceDE', key: 'minPriceDE', type: 'float' },
+        { id: 'oa-maxPriceDE', key: 'maxPriceDE', type: 'float' },
         { id: 'oa-capitalTotal', key: 'capitalTotal', type: 'float' },
         { id: 'oa-maxPerProduct', key: 'maxPerProduct', type: 'float' },
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy', type: 'int' }
@@ -114,6 +118,8 @@ function initOASettings() {
         { id: 'oa-maxBSR', key: 'maxBSR' },
         { id: 'oa-maxFBASellers', key: 'maxFBASellers' },
         { id: 'oa-amazonSells', key: 'amazonSells' },
+        { id: 'oa-minPriceDE', key: 'minPriceDE' },
+        { id: 'oa-maxPriceDE', key: 'maxPriceDE' },
         { id: 'oa-capitalTotal', key: 'capitalTotal' },
         { id: 'oa-maxPerProduct', key: 'maxPerProduct' },
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy' }
@@ -385,6 +391,8 @@ function filterProducts(products, settings) {
         if (settings.maxBSR > 0 && p.bsr > settings.maxBSR && p.bsr > 0) return false;
         if (p.fbaSellers > settings.maxFBASellers) return false;
         if (!settings.amazonSells && p.amazonSells) return false;
+        if (settings.minPriceDE > 0 && p.pricDE < settings.minPriceDE) return false;
+        if (settings.maxPriceDE > 0 && p.pricDE > settings.maxPriceDE) return false;
         return true;
     });
 }
