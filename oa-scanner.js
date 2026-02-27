@@ -416,9 +416,52 @@ function runScan() {
 
     oaScanResults = products;
 
+    // Sauvegarder les resultats pour ne pas perdre au refresh
+    saveScanResults();
+
     console.log('[OA] Scan termine: ' + products.length + ' produits trouves');
     renderScanResults(products);
     showOANotification(products.length + ' produits trouves !', 'success');
+}
+
+function saveScanResults() {
+    try {
+        const data = {
+            results: oaScanResults,
+            date: new Date().toISOString(),
+            countDE: oaDataDE.length,
+            countFR: oaDataFR.length
+        };
+        localStorage.setItem('oaScanResults', JSON.stringify(data));
+        console.log('[OA] Resultats sauvegardes:', oaScanResults.length, 'produits');
+    } catch (e) {
+        console.log('[OA] Erreur sauvegarde resultats (localStorage plein ?):', e);
+    }
+}
+
+function loadScanResults() {
+    try {
+        const saved = localStorage.getItem('oaScanResults');
+        if (saved) {
+            const data = JSON.parse(saved);
+            oaScanResults = data.results || [];
+            const scanDate = new Date(data.date);
+            const ago = Math.round((Date.now() - scanDate.getTime()) / 60000);
+            const timeLabel = ago < 60 ? ago + ' min' : Math.round(ago / 60) + 'h';
+
+            console.log('[OA] Resultats restaures:', oaScanResults.length, 'produits (scan il y a ' + timeLabel + ')');
+
+            if (oaScanResults.length > 0) {
+                renderScanResults(oaScanResults);
+                const summary = document.getElementById('scan-summary');
+                if (summary) summary.textContent = 'Dernier scan : ' + oaScanResults.length + ' produits (il y a ' + timeLabel + ')';
+            }
+            return true;
+        }
+    } catch (e) {
+        console.log('[OA] Erreur chargement resultats:', e);
+    }
+    return false;
 }
 
 function renderScanResults(products) {
@@ -1161,6 +1204,9 @@ function initOA() {
 
     // Charger l'inventaire depuis localStorage
     loadOAInventory();
+
+    // Restaurer les resultats du dernier scan
+    loadScanResults();
 
     // Attacher drag & drop sur les zones CSV
     ['csv-zone-de', 'csv-zone-fr'].forEach(zoneId => {
