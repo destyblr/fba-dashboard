@@ -227,6 +227,13 @@ function parseKeepaCSV(csvText) {
     const colNewPrice = findColumn(headerMap, ['new: current', 'new current', 'new price', 'new']);
     const colEstSales = findColumn(headerMap, ['estimated sales', 'est. sales', 'sales estimate', 'estimated monthly sales']);
 
+    // Colonnes de stabilite prix (Keepa 90 jours)
+    const colBuyBox90 = findColumn(headerMap, ['buy box: 90 days avg', 'buy box 90 days avg', 'buy box: 90']);
+    const colBuyBox90Drop = findColumn(headerMap, ['buy box: 90 days drop %', 'buy box 90 days drop', 'buy box: drops 90']);
+    const colNew90 = findColumn(headerMap, ['new: 90 days avg', 'new 90 days avg', 'new: 90']);
+    const colBuyBoxMin90 = findColumn(headerMap, ['buy box: 90 days min', 'buy box: lowest 90']);
+    const colBuyBoxMax90 = findColumn(headerMap, ['buy box: 90 days max', 'buy box: highest 90']);
+
     const products = [];
 
     for (let i = 1; i < lines.length; i++) {
@@ -243,6 +250,12 @@ function parseKeepaCSV(csvText) {
         const fbaSellers = parseInt(getVal(values, colNewOffers, '0').replace(/[^0-9]/g, '')) || 0;
         const estSales = parseInt(getVal(values, colEstSales, '0').replace(/[^0-9]/g, '')) || 0;
 
+        // Donnees stabilite prix
+        const price90avg = parsePrice(getVal(values, colBuyBox90, '')) || parsePrice(getVal(values, colNew90, ''));
+        const price90drop = parseInt(getVal(values, colBuyBox90Drop, '0').replace(/[^0-9]/g, '')) || 0;
+        const price90min = parsePrice(getVal(values, colBuyBoxMin90, ''));
+        const price90max = parsePrice(getVal(values, colBuyBoxMax90, ''));
+
         products.push({
             asin: asin,
             title: getVal(values, colTitle, 'Sans titre').trim(),
@@ -253,7 +266,11 @@ function parseKeepaCSV(csvText) {
             amazonSells: amazonPrice > 0,
             fbaSellers: fbaSellers,
             category: getVal(values, colCategory, '').trim(),
-            estSales: estSales
+            estSales: estSales,
+            price90avg: price90avg,
+            price90drop: price90drop,
+            price90min: price90min,
+            price90max: price90max
         });
     }
 
@@ -346,6 +363,9 @@ function mergeData(dataDE, dataFR) {
     dataDE.forEach(pDE => {
         const pFR = frMap[pDE.asin];
         if (pFR && pFR.price > 0 && pDE.price > 0) {
+            // Calculer la stabilite prix (DE = prix de vente)
+            const stability = calculateStability(pDE);
+
             merged.push({
                 asin: pDE.asin,
                 title: pDE.title || pFR.title,
@@ -358,6 +378,7 @@ function mergeData(dataDE, dataFR) {
                 fbaSellers: pDE.fbaSellers,
                 category: pDE.category || pFR.category,
                 estSales: pDE.estSales || pFR.estSales,
+                stability: stability,
                 profit: 0,
                 roi: 0
             });
@@ -366,6 +387,56 @@ function mergeData(dataDE, dataFR) {
 
     console.log('[OA] Fusion: ' + merged.length + ' produits en commun sur ' + dataDE.length + ' DE / ' + dataFR.length + ' FR');
     return merged;
+}
+
+// Calcule un score de stabilite prix sur 90 jours
+// Retourne { score: 0-100, label: 'Stable'/'Modere'/'Volatile'/'Inconnu', color: 'green'/'yellow'/'red'/'gray' }
+function calculateStability(product) {
+    const current = product.price;
+    const avg90 = product.price90avg;
+    const min90 = product.price90min;
+    const max90 = product.price90max;
+    const drops = product.price90drop;
+
+    // Si pas de donnees 90j, on ne peut pas calculer
+    if (!avg90 || avg90 <= 0 || !current || current <= 0) {
+        return { score: 0, label: 'Inconnu', color: 'gray', detail: 'Pas de donnees 90j' };
+    }
+
+    let score = 100;
+
+    // 1. Ecart prix actuel vs moyenne 90j (max -40 points)
+    const pctFromAvg = Math.abs(current - avg90) / avg90 * 100;
+    if (pctFromAvg > 20) score -= 40;
+    else if (pctFromAvg > 10) score -= 25;
+    else if (pctFromAvg > 5) score -= 10;
+
+    // 2. Amplitude min-max sur 90j (max -30 points)
+    if (min90 > 0 && max90 > 0) {
+        const range = (max90 - min90) / avg90 * 100;
+        if (range > 40) score -= 30;
+        else if (range > 25) score -= 20;
+        else if (range > 15) score -= 10;
+    }
+
+    // 3. Nombre de drops sur 90j (max -30 points)
+    if (drops > 10) score -= 30;
+    else if (drops > 5) score -= 20;
+    else if (drops > 2) score -= 10;
+
+    score = Math.max(0, Math.min(100, score));
+
+    let label, color;
+    if (score >= 70) { label = 'Stable'; color = 'green'; }
+    else if (score >= 40) { label = 'Modere'; color = 'yellow'; }
+    else { label = 'Volatile'; color = 'red'; }
+
+    // Detail lisible
+    let detail = 'Prix actuel: ' + current.toFixed(2) + '\u20ac';
+    if (avg90 > 0) detail += ' | Moy 90j: ' + avg90.toFixed(2) + '\u20ac';
+    if (min90 > 0 && max90 > 0) detail += ' | Range: ' + min90.toFixed(0) + '-' + max90.toFixed(0) + '\u20ac';
+
+    return { score: score, label: label, color: color, detail: detail };
 }
 
 function calculateProfit(product, settings) {
@@ -494,7 +565,8 @@ function renderScanResults(products) {
     html += '<th class="pb-3 pr-4 text-right">Profit</th>';
     html += '<th class="pb-3 pr-4 text-right">ROI</th>';
     html += '<th class="pb-3 pr-4 text-right">BSR</th>';
-    html += '<th class="pb-3 pr-4 text-right">Vendeurs FBA</th>';
+    html += '<th class="pb-3 pr-4 text-right">FBA</th>';
+    html += '<th class="pb-3 pr-4 text-center">Stabilite</th>';
     html += '<th class="pb-3 pr-4 text-center">Action</th>';
     html += '</tr></thead><tbody>';
 
@@ -514,6 +586,16 @@ function renderScanResults(products) {
         html += '<td class="py-3 pr-4 text-right font-bold ' + roiClass + '">' + p.roi.toFixed(0) + '%</td>';
         html += '<td class="py-3 pr-4 text-right text-gray-300">' + formatNumber(p.bsr) + '</td>';
         html += '<td class="py-3 pr-4 text-right text-gray-300">' + p.fbaSellers + '</td>';
+
+        // Colonne stabilite prix
+        const stab = p.stability || { score: 0, label: 'Inconnu', color: 'gray', detail: '' };
+        const stabColorClass = stab.color === 'green' ? 'text-green-400 bg-green-900/30' :
+                               stab.color === 'yellow' ? 'text-yellow-400 bg-yellow-900/30' :
+                               stab.color === 'red' ? 'text-red-400 bg-red-900/30' : 'text-gray-400 bg-gray-800';
+        html += '<td class="py-3 pr-4 text-center">';
+        html += '<span class="px-2 py-1 rounded text-xs font-bold ' + stabColorClass + '" title="' + escapeHTML(stab.detail) + '">';
+        html += stab.label + (stab.score > 0 ? ' ' + stab.score : '') + '</span></td>';
+
         html += '<td class="py-3 pr-4 text-center">';
         html += '<button onclick="startChecklist(' + i + ')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">';
         html += '<i class="fas fa-clipboard-check mr-1"></i>Verifier</button></td>';
