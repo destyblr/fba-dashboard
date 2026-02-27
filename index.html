@@ -2935,11 +2935,12 @@
                 <!-- Quick Check ASIN (deals) -->
                 <div class="bg-white rounded-xl shadow-sm p-6 mb-8">
                     <h3 class="font-bold text-gray-800 mb-3"><i class="fas fa-bolt text-yellow-500 mr-2"></i>Quick Check — Deal / ASIN</h3>
-                    <p class="text-sm text-gray-500 mb-4">Tu as trouve un deal ? Colle l'ASIN et le prix FR pour verifier la rentabilite instantanement.</p>
+                    <p class="text-sm text-gray-500 mb-4">Tu as trouve un deal ? Colle un <b>lien Amazon</b>, un <b>ASIN</b>, ou un <b>nom de produit</b> + le prix FR.</p>
                     <div class="flex flex-wrap items-end gap-3">
-                        <div>
-                            <label class="text-xs font-medium text-gray-600 mb-1 block">ASIN</label>
-                            <input type="text" id="quick-asin" placeholder="B0XXXXXXXX" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-40 font-mono">
+                        <div class="relative">
+                            <label class="text-xs font-medium text-gray-600 mb-1 block">ASIN / Lien Amazon / Nom produit</label>
+                            <input type="text" id="quick-asin" placeholder="B0XXXXXXXX ou lien Amazon ou nom..." class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-72">
+                            <div id="quick-search-results" class="hidden absolute z-10 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto w-72"></div>
                         </div>
                         <div>
                             <label class="text-xs font-medium text-gray-600 mb-1 block">Prix FR (achat) &euro;</label>

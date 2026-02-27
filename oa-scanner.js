@@ -924,14 +924,107 @@ function goToNextProduct() {
 // 3b. QUICK CHECK ASIN (pour les deals)
 // ===========================
 
+// Extraire un ASIN depuis un lien Amazon (amazon.fr, amazon.de, amazon.com, etc.)
+function extractASINFromURL(input) {
+    // Match /dp/ASIN, /gp/product/ASIN, /gp/aw/d/ASIN
+    const urlPatterns = [
+        /\/dp\/([A-Z0-9]{10})/i,
+        /\/gp\/product\/([A-Z0-9]{10})/i,
+        /\/gp\/aw\/d\/([A-Z0-9]{10})/i,
+        /[?&]asin=([A-Z0-9]{10})/i
+    ];
+    for (const pattern of urlPatterns) {
+        const match = input.match(pattern);
+        if (match) return match[1].toUpperCase();
+    }
+    return null;
+}
+
+// Chercher un produit par nom dans les donnees CSV
+function searchProductByName(query) {
+    const q = query.toLowerCase().trim();
+    if (q.length < 3) return [];
+    const results = [];
+
+    // Chercher dans les donnees DE
+    for (const p of oaDataDE) {
+        if (p.title && p.title.toLowerCase().includes(q)) {
+            results.push({ source: 'csv-de', asin: p.asin, title: p.title, price: p.price });
+        }
+        if (results.length >= 10) break;
+    }
+
+    // Chercher dans les resultats du scan
+    if (results.length < 10) {
+        for (const p of oaScanResults) {
+            if (p.title && p.title.toLowerCase().includes(q) && !results.find(r => r.asin === p.asin)) {
+                results.push({ source: 'scan', asin: p.asin, title: p.title, price: p.pricDE });
+            }
+            if (results.length >= 10) break;
+        }
+    }
+
+    return results;
+}
+
+// Detecte le type d'entree : ASIN, URL Amazon, ou nom de produit
+function detectInputType(input) {
+    const trimmed = input.trim();
+    if (!trimmed) return { type: 'empty' };
+
+    // 1. URL Amazon ?
+    if (trimmed.includes('amazon.') || trimmed.includes('amzn.')) {
+        const asin = extractASINFromURL(trimmed);
+        if (asin) return { type: 'url', asin: asin };
+        return { type: 'url-invalid' };
+    }
+
+    // 2. ASIN direct ? (10 caracteres alphanumeriques commencant par B0)
+    if (/^[A-Z0-9]{10}$/i.test(trimmed)) {
+        return { type: 'asin', asin: trimmed.toUpperCase() };
+    }
+
+    // 3. Sinon c'est un nom de produit
+    return { type: 'name', query: trimmed };
+}
+
 function quickCheckASIN() {
     const asinInput = document.getElementById('quick-asin');
     const priceFRInput = document.getElementById('quick-price-fr');
     if (!asinInput) return;
 
-    const asin = asinInput.value.trim().toUpperCase();
-    if (!asin || asin.length < 5) {
-        showOANotification('Entre un ASIN valide (ex: B0XXXXXXXX)', 'error');
+    const rawInput = asinInput.value.trim();
+    if (!rawInput || rawInput.length < 3) {
+        showOANotification('Entre un ASIN, un lien Amazon ou un nom de produit', 'error');
+        return;
+    }
+
+    const detected = detectInputType(rawInput);
+
+    // Determiner l'ASIN selon le type d'entree
+    let asin = null;
+    if (detected.type === 'asin' || detected.type === 'url') {
+        asin = detected.asin;
+    } else if (detected.type === 'name') {
+        // Recherche par nom — trouver le meilleur match
+        const matches = searchProductByName(detected.query);
+        if (matches.length === 0) {
+            showOANotification('Aucun produit trouve pour "' + escapeHTML(detected.query) + '". Importe d\'abord un CSV Keepa ou entre un ASIN.', 'error');
+            return;
+        }
+        if (matches.length === 1) {
+            asin = matches[0].asin;
+            showOANotification('Produit trouve : ' + escapeHTML(matches[0].title.substring(0, 60)), 'success');
+        } else {
+            // Plusieurs resultats — afficher la liste
+            showSearchResults(matches);
+            return;
+        }
+    } else if (detected.type === 'url-invalid') {
+        showOANotification('Lien Amazon non reconnu. Verifie que l\'URL contient /dp/ASIN ou /gp/product/ASIN', 'error');
+        return;
+    } else {
+        showOANotification('Entre un ASIN, un lien Amazon ou un nom de produit', 'error');
         return;
     }
 
@@ -1010,6 +1103,40 @@ function quickCheckASIN() {
         calculateProfit(product, settings);
         showQuickCheckResult(product, false);
     }
+}
+
+// Afficher les resultats de recherche par nom
+function showSearchResults(matches) {
+    const container = document.getElementById('quick-search-results');
+    if (!container) {
+        // Fallback: utiliser le premier resultat
+        const input = document.getElementById('quick-asin');
+        if (input) input.value = matches[0].asin;
+        showOANotification('Plusieurs resultats — premier selectionne: ' + matches[0].asin, 'info');
+        return;
+    }
+
+    let html = '';
+    for (const m of matches) {
+        html += '<div class="px-3 py-2 hover:bg-indigo-50 cursor-pointer border-b border-gray-100 last:border-0" onclick="selectSearchResult(\'' + m.asin + '\')">';
+        html += '<div class="text-sm text-gray-800 truncate">' + escapeHTML(m.title ? m.title.substring(0, 60) : m.asin) + '</div>';
+        html += '<div class="text-xs text-gray-400"><span class="font-mono">' + m.asin + '</span> — ' + (m.price ? m.price.toFixed(2) + ' €' : '?') + '</div>';
+        html += '</div>';
+    }
+
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+}
+
+function selectSearchResult(asin) {
+    const input = document.getElementById('quick-asin');
+    if (input) input.value = asin;
+
+    // Cacher la liste
+    const container = document.getElementById('quick-search-results');
+    if (container) container.classList.add('hidden');
+
+    showOANotification('ASIN selectionne : ' + asin, 'success');
 }
 
 function showQuickCheckResult(product, fromCSV) {
