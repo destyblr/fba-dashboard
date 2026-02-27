@@ -204,7 +204,7 @@
                 </div>
             </div>
 
-            <div class="mb-8">
+            <div class="mb-4">
                 <h1 class="text-2xl font-bold flex items-center gap-2">
                     <i class="fas fa-chart-line"></i>
                     FBA Dashboard
@@ -212,72 +212,109 @@
                 <p class="text-sm text-purple-200 mt-1">Pilotage Business</p>
             </div>
 
+            <!-- Selecteur de mode -->
+            <div class="mb-6">
+                <select id="mode-selector" onchange="switchMode(this.value)"
+                    class="w-full px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 text-sm font-semibold cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50">
+                    <option value="pl" class="text-gray-800">Private Label</option>
+                    <option value="oa" class="text-gray-800">Online Arbitrage</option>
+                </select>
+            </div>
+
             <nav class="space-y-1">
-                <!-- Accueil -->
-                <div class="nav-item active p-3 rounded-lg" onclick="showSection('dashboard')">
-                    <i class="fas fa-home mr-3"></i>
-                    Tableau de bord
+                <!-- ====== NAV PRIVATE LABEL ====== -->
+                <div class="nav-pl">
+                    <div class="nav-item active p-3 rounded-lg" onclick="showSection('dashboard')">
+                        <i class="fas fa-home mr-3"></i>
+                        Tableau de bord
+                    </div>
+                    <div class="pt-3 pb-1 px-3">
+                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Suivi</span>
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('suivi-hebdo')">
+                        <i class="fas fa-calendar-week mr-3"></i>
+                        Hebdomadaire
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('graphiques')">
+                        <i class="fas fa-chart-line mr-3"></i>
+                        Graphiques
+                    </div>
+                    <div class="pt-3 pb-1 px-3">
+                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Produits</span>
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('produits')">
+                        <i class="fas fa-box mr-3"></i>
+                        Mes Produits
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('stock')">
+                        <i class="fas fa-warehouse mr-3"></i>
+                        Stock
+                        <span id="stock-alert-badge" class="hidden ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">!</span>
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('sourcing')">
+                        <i class="fas fa-search-dollar mr-3"></i>
+                        Sourcing
+                    </div>
+                    <div class="pt-3 pb-1 px-3">
+                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Finances</span>
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('fiscalite')">
+                        <i class="fas fa-file-invoice-dollar mr-3"></i>
+                        Fiscalite
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('commissions')">
+                        <i class="fas fa-percent mr-3"></i>
+                        Commissions
+                    </div>
+                    <div class="pt-3 pb-1 px-3">
+                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Config</span>
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('parametres')">
+                        <i class="fas fa-cog mr-3"></i>
+                        Parametres
+                    </div>
                 </div>
 
-                <!-- Separator: Suivi -->
-                <div class="pt-3 pb-1 px-3">
-                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Suivi</span>
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('suivi-hebdo')">
-                    <i class="fas fa-calendar-week mr-3"></i>
-                    Hebdomadaire
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('graphiques')">
-                    <i class="fas fa-chart-line mr-3"></i>
-                    Graphiques
-                </div>
-
-                <!-- Separator: Produits -->
-                <div class="pt-3 pb-1 px-3">
-                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Produits</span>
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('produits')">
-                    <i class="fas fa-box mr-3"></i>
-                    Mes Produits
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('stock')">
-                    <i class="fas fa-warehouse mr-3"></i>
-                    Stock
-                    <span id="stock-alert-badge" class="hidden ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">!</span>
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('sourcing')">
-                    <i class="fas fa-search-dollar mr-3"></i>
-                    Sourcing
-                </div>
-
-                <!-- Separator: Finances -->
-                <div class="pt-3 pb-1 px-3">
-                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Finances</span>
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('fiscalite')">
-                    <i class="fas fa-file-invoice-dollar mr-3"></i>
-                    Fiscalite
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('commissions')">
-                    <i class="fas fa-percent mr-3"></i>
-                    Commissions
-                </div>
-
-                <!-- Separator: Config -->
-                <div class="pt-3 pb-1 px-3">
-                    <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Config</span>
-                </div>
-                <div class="nav-item p-3 rounded-lg" onclick="showSection('parametres')">
-                    <i class="fas fa-cog mr-3"></i>
-                    Parametres
+                <!-- ====== NAV ONLINE ARBITRAGE ====== -->
+                <div class="nav-oa hidden">
+                    <div class="nav-item active p-3 rounded-lg" onclick="showSection('oa-scanner')">
+                        <i class="fas fa-search mr-3"></i>
+                        Scanner
+                    </div>
+                    <div class="pt-3 pb-1 px-3">
+                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Workflow</span>
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-checklist')">
+                        <i class="fas fa-clipboard-check mr-3"></i>
+                        Checklist
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-inventaire')">
+                        <i class="fas fa-boxes-stacked mr-3"></i>
+                        Inventaire
+                    </div>
+                    <div class="pt-3 pb-1 px-3">
+                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Config</span>
+                    </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-parametres')">
+                        <i class="fas fa-sliders mr-3"></i>
+                        Parametres OA
+                    </div>
                 </div>
             </nav>
 
-            <div class="mt-12 p-4 bg-white/10 rounded-lg">
-                <div class="text-xs text-purple-200 mb-1">Capital de Départ</div>
-                <div class="text-2xl font-bold" id="sidebar-capital">3 000 €</div>
+            <!-- Sidebar footer - PL -->
+            <div id="sidebar-footer-pl" class="mt-12 p-4 bg-white/10 rounded-lg">
+                <div class="text-xs text-purple-200 mb-1">Capital de Depart</div>
+                <div class="text-2xl font-bold" id="sidebar-capital">3 000 &euro;</div>
                 <div class="text-xs text-purple-200 mt-2">Gain Total</div>
-                <div class="text-xl font-bold text-green-300" id="sidebar-gain">0 €</div>
+                <div class="text-xl font-bold text-green-300" id="sidebar-gain">0 &euro;</div>
+            </div>
+            <!-- Sidebar footer - OA -->
+            <div id="sidebar-footer-oa" class="mt-12 p-4 bg-white/10 rounded-lg hidden">
+                <div class="text-xs text-purple-200 mb-1">Capital OA</div>
+                <div class="text-2xl font-bold" id="sidebar-oa-capital">755 &euro;</div>
+                <div class="text-xs text-purple-200 mt-2">Profit OA</div>
+                <div class="text-xl font-bold text-green-300" id="sidebar-oa-profit">0 &euro;</div>
             </div>
         </aside>
 
@@ -2842,12 +2879,499 @@
 
             </section>
 
+            <!-- ===========================
+                 SECTIONS ONLINE ARBITRAGE
+                 =========================== -->
+
+            <!-- Section OA Scanner -->
+            <section id="section-oa-scanner" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-search text-indigo-600 mr-2"></i>Scanner OA
+                    </h2>
+                    <p class="text-gray-500">Importez vos CSV Keepa pour trouver des produits rentables</p>
+                </div>
+
+                <!-- Import CSV Zone -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                    <!-- CSV Amazon.de -->
+                    <div id="csv-zone-de" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition cursor-pointer"
+                         onclick="document.getElementById('csv-input-de').click()"
+                         ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-50')"
+                         ondragleave="this.classList.remove('border-indigo-500','bg-indigo-50')"
+                         ondrop="handleCSVDrop(event, 'de')">
+                        <input type="file" id="csv-input-de" accept=".csv" class="hidden" onchange="handleCSVSelect(event, 'de')">
+                        <i class="fas fa-file-csv text-4xl text-gray-400 mb-3"></i>
+                        <p class="font-semibold text-gray-600">CSV Amazon.<strong>DE</strong></p>
+                        <p class="text-sm text-gray-400 mt-1">Glisser-deposer ou cliquer</p>
+                        <div id="csv-status-de" class="mt-3 text-sm hidden">
+                            <span class="text-green-600 font-semibold"><i class="fas fa-check-circle mr-1"></i><span id="csv-info-de"></span></span>
+                        </div>
+                    </div>
+                    <!-- CSV Amazon.fr -->
+                    <div id="csv-zone-fr" class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-indigo-400 transition cursor-pointer"
+                         onclick="document.getElementById('csv-input-fr').click()"
+                         ondragover="event.preventDefault(); this.classList.add('border-indigo-500','bg-indigo-50')"
+                         ondragleave="this.classList.remove('border-indigo-500','bg-indigo-50')"
+                         ondrop="handleCSVDrop(event, 'fr')">
+                        <input type="file" id="csv-input-fr" accept=".csv" class="hidden" onchange="handleCSVSelect(event, 'fr')">
+                        <i class="fas fa-file-csv text-4xl text-gray-400 mb-3"></i>
+                        <p class="font-semibold text-gray-600">CSV Amazon.<strong>FR</strong></p>
+                        <p class="text-sm text-gray-400 mt-1">Glisser-deposer ou cliquer</p>
+                        <div id="csv-status-fr" class="mt-3 text-sm hidden">
+                            <span class="text-green-600 font-semibold"><i class="fas fa-check-circle mr-1"></i><span id="csv-info-fr"></span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scan controls -->
+                <div class="flex items-center gap-4 mb-6">
+                    <button onclick="runScan()" class="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition">
+                        <i class="fas fa-bolt mr-2"></i>Lancer le scan
+                    </button>
+                    <span id="scan-summary" class="text-sm text-gray-500"></span>
+                </div>
+
+                <!-- Results table -->
+                <div id="oa-scan-results" class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-8 text-center text-gray-400">
+                        <i class="fas fa-cloud-upload-alt text-5xl mb-4"></i>
+                        <p class="text-lg">Importez 2 CSV Keepa (DE + FR) pour lancer le scan</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section OA Checklist -->
+            <section id="section-oa-checklist" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-clipboard-check text-indigo-600 mr-2"></i>Checklist
+                    </h2>
+                    <p class="text-gray-500">Verification guidee avant achat</p>
+                </div>
+
+                <!-- No product selected state -->
+                <div id="checklist-empty" class="bg-white rounded-xl shadow-sm p-8 text-center text-gray-400">
+                    <i class="fas fa-hand-pointer text-5xl mb-4"></i>
+                    <p class="text-lg">Selectionnez un produit depuis le Scanner pour commencer la verification</p>
+                </div>
+
+                <!-- Checklist content (hidden until product selected) -->
+                <div id="checklist-content" class="hidden">
+                    <!-- Product summary card -->
+                    <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 id="check-product-name" class="text-xl font-bold text-gray-800"></h3>
+                                <p class="text-sm text-gray-500">ASIN: <span id="check-product-asin" class="font-mono"></span></p>
+                            </div>
+                            <div class="flex gap-6 text-center">
+                                <div>
+                                    <div class="text-xs text-gray-400">Profit estime</div>
+                                    <div id="check-product-profit" class="text-2xl font-bold text-green-600"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-400">ROI</div>
+                                    <div id="check-product-roi" class="text-2xl font-bold text-indigo-600"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-400">Prix DE</div>
+                                    <div id="check-product-price-de" class="text-2xl font-bold text-gray-700"></div>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-gray-400">Prix FR</div>
+                                    <div id="check-product-price-fr" class="text-2xl font-bold text-gray-700"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5 Steps -->
+                    <div class="space-y-4">
+                        <!-- Step 1: Gating -->
+                        <div id="check-step-1" class="bg-white rounded-xl shadow-sm p-6">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600">1</div>
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800">Verification Gating</h4>
+                                        <p class="text-sm text-gray-500">Seller Central &rarr; Catalogue &rarr; Creer des produits &rarr; Coller l'ASIN</p>
+                                        <p class="text-sm text-gray-500">Tu vois <strong>"Vendre ce produit"</strong> ?</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span id="check-step-1-time" class="text-xs text-gray-400"></span>
+                                    <button onclick="validateCheckStep(1, true)" class="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600">OUI</button>
+                                    <button onclick="validateCheckStep(1, false)" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600">NON</button>
+                                    <span id="check-step-1-icon" class="text-2xl"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 2: Prix DE -->
+                        <div id="check-step-2" class="bg-white rounded-xl shadow-sm p-6 opacity-50">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600">2</div>
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800">Prix Amazon.de actuel</h4>
+                                        <p class="text-sm text-gray-500">Ouvre la page amazon.de et verifie le prix actuel</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span id="check-step-2-time" class="text-xs text-gray-400"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-gray-500">&euro;</span>
+                                        <input type="number" id="check-price-de-input" step="0.01" placeholder="Prix actuel"
+                                            class="w-32 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm" disabled>
+                                        <button id="check-step-2-btn" onclick="validateCheckStep(2, document.getElementById('check-price-de-input').value)"
+                                            class="px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-semibold hover:bg-indigo-600" disabled>OK</button>
+                                    </div>
+                                    <span id="check-step-2-icon" class="text-2xl"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 3: IP Risk -->
+                        <div id="check-step-3" class="bg-white rounded-xl shadow-sm p-6 opacity-50">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600">3</div>
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800">Risque IP</h4>
+                                        <p class="text-sm text-gray-500">SellerAmp affiche <strong>"No known IP issues"</strong> ?</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span id="check-step-3-time" class="text-xs text-gray-400"></span>
+                                    <button onclick="validateCheckStep(3, true)" class="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600" disabled>OUI</button>
+                                    <button onclick="validateCheckStep(3, false)" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600" disabled>NON</button>
+                                    <span id="check-step-3-icon" class="text-2xl"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 4: Prix FR -->
+                        <div id="check-step-4" class="bg-white rounded-xl shadow-sm p-6 opacity-50">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600">4</div>
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800">Prix FR + Disponibilite</h4>
+                                        <p class="text-sm text-gray-500">Le produit est disponible au bon prix ?</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span id="check-step-4-time" class="text-xs text-gray-400"></span>
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-gray-500">&euro;</span>
+                                        <input type="number" id="check-price-fr-input" step="0.01" placeholder="Prix actuel"
+                                            class="w-32 px-3 py-2 border-2 border-gray-200 rounded-lg text-sm" disabled>
+                                        <button onclick="validateCheckStep(4, document.getElementById('check-price-fr-input').value)"
+                                            class="px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-semibold hover:bg-indigo-600" disabled>OK</button>
+                                        <button onclick="validateCheckStep(4, false)"
+                                            class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600" disabled>Rupture</button>
+                                    </div>
+                                    <span id="check-step-4-icon" class="text-2xl"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Step 5: Keepa -->
+                        <div id="check-step-5" class="bg-white rounded-xl shadow-sm p-6 opacity-50">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center font-bold text-gray-600">5</div>
+                                    <div>
+                                        <h4 class="font-semibold text-gray-800">Keepa stable 30j+</h4>
+                                        <p class="text-sm text-gray-500">Le graphique Keepa montre un prix stable depuis 30 jours ?</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span id="check-step-5-time" class="text-xs text-gray-400"></span>
+                                    <button onclick="validateCheckStep(5, true)" class="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-semibold hover:bg-green-600" disabled>OUI</button>
+                                    <button onclick="validateCheckStep(5, false)" class="px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-semibold hover:bg-red-600" disabled>NON</button>
+                                    <span id="check-step-5-icon" class="text-2xl"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Verdict -->
+                    <div id="check-verdict" class="mt-6 hidden">
+                        <!-- GO verdict -->
+                        <div id="verdict-go" class="hidden bg-green-50 border-2 border-green-500 rounded-xl p-6">
+                            <div class="text-center mb-4">
+                                <div class="text-4xl font-black text-green-600 mb-2"><i class="fas fa-check-circle mr-2"></i>GO — ACHETER</div>
+                                <p class="text-gray-600">5/5 verifications passees</p>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-4">
+                                <div class="bg-white rounded-lg p-4 text-center">
+                                    <div class="text-xs text-gray-400">Profit recalcule</div>
+                                    <div id="verdict-profit" class="text-2xl font-bold text-green-600"></div>
+                                </div>
+                                <div class="bg-white rounded-lg p-4 text-center">
+                                    <div class="text-xs text-gray-400">ROI recalcule</div>
+                                    <div id="verdict-roi" class="text-2xl font-bold text-indigo-600"></div>
+                                </div>
+                            </div>
+                            <!-- Quantity recommendation -->
+                            <div class="bg-white rounded-lg p-4 mb-4">
+                                <h4 class="font-semibold text-gray-800 mb-2"><i class="fas fa-calculator mr-2"></i>Recommandation</h4>
+                                <div id="verdict-recommendation" class="text-sm text-gray-600"></div>
+                            </div>
+                            <div class="flex items-center justify-center gap-4">
+                                <label class="text-sm font-semibold text-gray-700">Quantite :</label>
+                                <input type="number" id="verdict-quantity" value="2" min="1" max="10"
+                                    class="w-20 px-3 py-2 border-2 border-gray-200 rounded-lg text-center">
+                                <button onclick="confirmPurchaseFromChecklist()"
+                                    class="px-8 py-3 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-700 transition">
+                                    <i class="fas fa-shopping-cart mr-2"></i>Acheter
+                                </button>
+                            </div>
+                        </div>
+                        <!-- NO GO verdict -->
+                        <div id="verdict-nogo" class="hidden bg-red-50 border-2 border-red-500 rounded-xl p-6 text-center">
+                            <div class="text-4xl font-black text-red-600 mb-2"><i class="fas fa-times-circle mr-2"></i>NO GO</div>
+                            <p id="verdict-nogo-reason" class="text-gray-600 mb-4"></p>
+                            <button onclick="goToNextProduct()" class="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700">
+                                <i class="fas fa-arrow-right mr-2"></i>Produit suivant
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section OA Inventaire -->
+            <section id="section-oa-inventaire" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-boxes-stacked text-indigo-600 mr-2"></i>Inventaire OA
+                    </h2>
+                    <p class="text-gray-500">Suivi du capital et des produits en pipeline</p>
+                </div>
+
+                <!-- Capital tracker -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div class="stat-card">
+                        <div class="text-xs text-gray-400 mb-1">Capital initial</div>
+                        <div id="inv-capital-total" class="text-2xl font-bold text-gray-800">755 &euro;</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="text-xs text-gray-400 mb-1">Depense (en cours)</div>
+                        <div id="inv-capital-spent" class="text-2xl font-bold text-orange-500">0 &euro;</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="text-xs text-gray-400 mb-1">Recupere (ventes)</div>
+                        <div id="inv-capital-recovered" class="text-2xl font-bold text-green-500">0 &euro;</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="text-xs text-gray-400 mb-1">Capital disponible</div>
+                        <div id="inv-capital-available" class="text-2xl font-bold text-indigo-600">755 &euro;</div>
+                    </div>
+                </div>
+
+                <!-- Capital progress bar -->
+                <div class="mb-8">
+                    <div class="progress-bar" style="height: 12px">
+                        <div id="inv-capital-bar" class="progress-fill" style="width: 100%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>0 &euro;</span>
+                        <span id="inv-capital-bar-label">755 &euro; disponible</span>
+                    </div>
+                </div>
+
+                <!-- Bilan cards -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                    <div class="stat-card text-center">
+                        <div class="text-3xl font-bold text-gray-800" id="inv-total-bought">0</div>
+                        <div class="text-xs text-gray-400">Produits achetes</div>
+                    </div>
+                    <div class="stat-card text-center">
+                        <div class="text-3xl font-bold text-orange-500" id="inv-total-pipeline">0</div>
+                        <div class="text-xs text-gray-400">En pipeline</div>
+                    </div>
+                    <div class="stat-card text-center">
+                        <div class="text-3xl font-bold text-green-600" id="inv-total-sold">0</div>
+                        <div class="text-xs text-gray-400">Vendus</div>
+                    </div>
+                    <div class="stat-card text-center">
+                        <div class="text-3xl font-bold text-green-600" id="inv-total-profit">0 &euro;</div>
+                        <div class="text-xs text-gray-400">Profit realise</div>
+                    </div>
+                </div>
+
+                <!-- Product pipeline list -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-4 bg-gray-50 border-b font-semibold text-gray-700 flex items-center justify-between">
+                        <span><i class="fas fa-list mr-2"></i>Pipeline produits</span>
+                    </div>
+                    <div id="inv-product-list">
+                        <div class="p-8 text-center text-gray-400">
+                            <i class="fas fa-inbox text-4xl mb-3"></i>
+                            <p>Aucun produit dans le pipeline. Lancez un scan et achetez votre premier produit !</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section OA Parametres -->
+            <section id="section-oa-parametres" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-sliders text-indigo-600 mr-2"></i>Parametres OA
+                    </h2>
+                    <p class="text-gray-500">Configurez vos frais et criteres de selection</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Frais Amazon -->
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="font-bold text-gray-800 mb-4"><i class="fab fa-amazon text-orange-500 mr-2"></i>Frais Amazon</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Commission Amazon (%)
+                                    <span class="text-gray-400 cursor-help" title="Commission Amazon sur le prix de vente. Varie entre 8% et 15% selon la categorie. 15% par defaut (majorite des categories)."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-commissionPct" step="0.1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Frais FBA (&euro;/unite)
+                                    <span class="text-gray-400 cursor-help" title="Frais de preparation et expedition par Amazon. Depend de la taille et du poids. ~3-5e pour taille standard, ~8e+ pour surdimensionne."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-fbaFee" step="0.01" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Frais stockage (&euro;/m&sup3;/mois)
+                                    <span class="text-gray-400 cursor-help" title="Frais de stockage mensuel dans les entrepots Amazon. ~26e/m3/mois en standard, plus cher en Q4 (oct-dec)."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-storageFee" step="0.01" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tes couts -->
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="font-bold text-gray-800 mb-4"><i class="fas fa-coins text-yellow-500 mr-2"></i>Tes couts</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Inbound shipping (&euro;/unite)
+                                    <span class="text-gray-400 cursor-help" title="Cout d'envoi de tes produits vers l'entrepot Amazon FBA. Inclut le colis, l'etiquette d'expedition. ~1.50e en moyenne."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-inboundShipping" step="0.01" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Prep cost (&euro;/unite)
+                                    <span class="text-gray-400 cursor-help" title="Cout de preparation par unite : etiquette FNSKU + carton + emballage. ~0.30e en moyenne."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-prepCost" step="0.01" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    URSSAF (% du CA)
+                                    <span class="text-gray-400 cursor-help" title="Cotisations sociales micro-entreprise. 12.3% du chiffre d'affaires (prix de vente). Non recuperable."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-urssafPct" step="0.1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Amortissement outils (&euro;/unite)
+                                    <span class="text-gray-400 cursor-help" title="Amortissement imprimante + SellerAmp + Keepa ramene par unite vendue. ~0.70e au debut, diminue avec le volume."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-toolAmortization" step="0.01" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Criteres de selection -->
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="font-bold text-gray-800 mb-4"><i class="fas fa-filter text-blue-500 mr-2"></i>Criteres de selection</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Profit minimum (&euro;)
+                                    <span class="text-gray-400 cursor-help" title="Profit net minimum par unite apres TOUS les frais. 4e minimum recommande pour que ca vaille le coup."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-minProfit" step="0.5" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    ROI minimum (%)
+                                    <span class="text-gray-400 cursor-help" title="Retour sur investissement minimum. 30% = tu gagnes 30% de ce que tu as investi. En dessous de 30% c'est trop risque."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-minROI" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    BSR maximum
+                                    <span class="text-gray-400 cursor-help" title="Best Seller Rank maximum. Plus le chiffre est bas, plus le produit se vend. < 50 000 = bon. < 10 000 = tres bon."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-maxBSR" step="1000" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Vendeurs FBA maximum
+                                    <span class="text-gray-400 cursor-help" title="Nombre maximum de vendeurs FBA sur le listing. Plus il y en a, plus la Buy Box est partagee. 5 max recommande."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-maxFBASellers" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                    <input type="checkbox" id="oa-amazonSells" class="w-4 h-4 rounded border-gray-300 text-indigo-600" onchange="saveOASettings()">
+                                    Inclure produits ou Amazon vend
+                                    <span class="text-gray-400 cursor-help" title="Par defaut NON. Si Amazon vend le meme produit, il domine la Buy Box et les vendeurs tiers ont tres peu de chances de vendre."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Capital -->
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="font-bold text-gray-800 mb-4"><i class="fas fa-wallet text-green-500 mr-2"></i>Capital</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Capital total (&euro;)
+                                    <span class="text-gray-400 cursor-help" title="Budget total disponible pour l'Online Arbitrage. Separe du budget Private Label."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-capitalTotal" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Max par produit (&euro;)
+                                    <span class="text-gray-400 cursor-help" title="Investissement maximum sur un seul produit. Ne jamais mettre plus de 15% du capital sur 1 produit."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-maxPerProduct" step="5" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Max unites 1er achat
+                                    <span class="text-gray-400 cursor-help" title="Nombre maximum d'unites pour un premier achat test. Toujours tester avec peu d'unites avant de scaler."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="number" id="oa-maxUnitsFirstBuy" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            </div>
+                        </div>
+
+                        <button onclick="resetOASettings()" class="mt-6 w-full px-4 py-2 border-2 border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition">
+                            <i class="fas fa-undo mr-2"></i>Reinitialiser les valeurs par defaut
+                        </button>
+                    </div>
+                </div>
+            </section>
+
         </main>
     </div>
     </div> <!-- Fin app-container -->
 
     <!-- Scripts JavaScript -->
     <script src="app.js"></script>
+    <script src="oa-scanner.js"></script>
     <script src="google-sync.js"></script>
 
 </body>

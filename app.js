@@ -609,6 +609,9 @@ document.addEventListener('DOMContentLoaded', function() {
         loadProducts();
         loadSuiviHebdo();
     }
+
+    // Initialiser le mode (PL ou OA) depuis le dernier choix
+    initMode();
 });
 
 // ===========================
@@ -629,7 +632,10 @@ function showSection(sectionName) {
     // Mettre à jour la navigation active
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => item.classList.remove('active'));
-    event.target.closest('.nav-item').classList.add('active');
+    if (event && event.target) {
+        const navItem = event.target.closest('.nav-item');
+        if (navItem) navItem.classList.add('active');
+    }
 
     // Si on affiche les graphiques, les rafraîchir
     if (sectionName === 'graphiques') {
@@ -645,6 +651,81 @@ function showSection(sectionName) {
     if (sectionName === 'fiscalite') {
         initFiscalite();
     }
+
+    // Si on affiche les sections OA, rafraichir les donnees
+    if (sectionName === 'oa-inventaire' && typeof renderInventory === 'function') {
+        renderInventory();
+    }
+    if (sectionName === 'oa-parametres' && typeof initOASettings === 'function') {
+        initOASettings();
+    }
+}
+
+// ===========================
+// SWITCH MODE PL / OA
+// ===========================
+
+function switchMode(mode) {
+    const navPL = document.querySelector('.nav-pl');
+    const navOA = document.querySelector('.nav-oa');
+    const footerPL = document.getElementById('sidebar-footer-pl');
+    const footerOA = document.getElementById('sidebar-footer-oa');
+
+    // Masquer toutes les sections
+    const sections = document.querySelectorAll('.content-section');
+    sections.forEach(section => section.classList.add('hidden'));
+
+    // Reset nav active states
+    const navItems = document.querySelectorAll('.nav-item');
+    navItems.forEach(item => item.classList.remove('active'));
+
+    if (mode === 'oa') {
+        // Mode Online Arbitrage
+        navPL.classList.add('hidden');
+        navOA.classList.remove('hidden');
+        footerPL.classList.add('hidden');
+        footerOA.classList.remove('hidden');
+
+        // Afficher la premiere section OA
+        const oaScanner = document.getElementById('section-oa-scanner');
+        if (oaScanner) oaScanner.classList.remove('hidden');
+
+        // Activer le premier nav item OA
+        const firstOANav = navOA.querySelector('.nav-item');
+        if (firstOANav) firstOANav.classList.add('active');
+
+        // Initialiser les parametres OA
+        if (typeof initOASettings === 'function') initOASettings();
+        if (typeof updateSidebarOA === 'function') updateSidebarOA();
+    } else {
+        // Mode Private Label
+        navPL.classList.remove('hidden');
+        navOA.classList.add('hidden');
+        footerPL.classList.remove('hidden');
+        footerOA.classList.add('hidden');
+
+        // Afficher le dashboard PL
+        const dashboard = document.getElementById('section-dashboard');
+        if (dashboard) dashboard.classList.remove('hidden');
+
+        // Activer le premier nav item PL
+        const firstPLNav = navPL.querySelector('.nav-item');
+        if (firstPLNav) firstPLNav.classList.add('active');
+    }
+
+    // Sauvegarder le mode
+    localStorage.setItem('oaMode', mode);
+
+    // Mettre a jour le selecteur
+    const selector = document.getElementById('mode-selector');
+    if (selector) selector.value = mode;
+
+    console.log('[Mode] Switched to:', mode);
+}
+
+function initMode() {
+    const savedMode = localStorage.getItem('oaMode') || 'pl';
+    switchMode(savedMode);
 }
 
 // ===========================
