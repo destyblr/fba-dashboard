@@ -1485,8 +1485,45 @@ function enableCheckStep(step) {
     const stepEl = document.getElementById('check-step-' + step);
     if (!stepEl) return;
     stepEl.classList.remove('opacity-50');
-    // Activer les boutons/inputs de cette etape
-    stepEl.querySelectorAll('button, input').forEach(el => el.disabled = false);
+    // Activer les boutons/inputs de cette etape (sauf le bouton reset)
+    stepEl.querySelectorAll('button:not(.reset-btn), input').forEach(el => el.disabled = false);
+}
+
+function resetCheckStep(step) {
+    if (!oaCurrentCheck) return;
+
+    // Reset cette etape et toutes les suivantes
+    for (var i = step; i <= 5; i++) {
+        oaCurrentCheck.steps[i - 1].status = null;
+        oaCurrentCheck.steps[i - 1].timestamp = null;
+        oaCurrentCheck.steps[i - 1].realPrice = null;
+        if (i === 2) oaCurrentCheck.realPricDE = null;
+        if (i === 4) oaCurrentCheck.realPricFR = null;
+
+        var stepEl = document.getElementById('check-step-' + i);
+        var icon = document.getElementById('check-step-' + i + '-icon');
+        var time = document.getElementById('check-step-' + i + '-time');
+        if (icon) icon.innerHTML = '';
+        if (time) time.textContent = '';
+        if (stepEl) {
+            stepEl.classList.toggle('opacity-50', i > step);
+            // Reactiver les boutons seulement pour l'etape courante
+            stepEl.querySelectorAll('button:not(.reset-btn), input').forEach(function(el) {
+                el.disabled = i !== step;
+            });
+        }
+    }
+
+    // Cacher le verdict si affiché
+    oaCurrentCheck.verdict = null;
+    var verdict = document.getElementById('check-verdict');
+    var verdictGo = document.getElementById('verdict-go');
+    var verdictNogo = document.getElementById('verdict-nogo');
+    if (verdict) verdict.classList.add('hidden');
+    if (verdictGo) verdictGo.classList.add('hidden');
+    if (verdictNogo) verdictNogo.classList.add('hidden');
+
+    console.log('[OA] Reset etape ' + step + ' et suivantes');
 }
 
 function validateCheckStep(step, value) {
