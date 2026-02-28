@@ -175,10 +175,17 @@ function handleCSVImport(file, marketplace) {
             oaDataDE = data;
             updateCSVStatus('de', file.name, data.length);
             console.log('[OA] CSV DE charge:', data.length, 'produits');
+            // Afficher le guide d'extraction ASINs si FR pas encore charge
+            if (data.length > 0 && oaDataFR.length === 0) {
+                showASINExtractGuide(data.length);
+            }
         } else if (marketplace === 'fr') {
             oaDataFR = data;
             updateCSVStatus('fr', file.name, data.length);
             console.log('[OA] CSV FR charge:', data.length, 'produits');
+            // Cacher le guide si visible
+            const guide = document.getElementById('asin-extract-zone');
+            if (guide) guide.classList.add('hidden');
         }
 
         // Lancer le scan automatiquement si les 2 CSV sont charges
@@ -519,6 +526,47 @@ function sortProducts(products) {
     return products.sort((a, b) => b.profit - a.profit);
 }
 
+// Afficher le guide d'extraction ASINs quand le CSV DE est charge
+function showASINExtractGuide(count) {
+    const zone = document.getElementById('asin-extract-zone');
+    if (zone) {
+        zone.classList.remove('hidden');
+        const countEl = document.getElementById('asin-count');
+        if (countEl) countEl.textContent = count;
+    }
+    showOANotification('CSV DE charge ! Copie les ASINs pour les chercher sur Amazon.fr via Keepa Product Viewer.', 'info');
+}
+
+// Copier tous les ASINs du CSV DE dans le presse-papier (pour Keepa Product Viewer)
+function copyASINsToClipboard() {
+    if (oaDataDE.length === 0) {
+        showOANotification('Aucun CSV DE charge', 'error');
+        return;
+    }
+
+    const asins = oaDataDE.map(p => p.asin).filter(a => a && a.length >= 10);
+    const uniqueAsins = [...new Set(asins)];
+    const text = uniqueAsins.join('\n');
+
+    navigator.clipboard.writeText(text).then(() => {
+        const status = document.getElementById('asin-copy-status');
+        if (status) {
+            status.classList.remove('hidden');
+            setTimeout(() => status.classList.add('hidden'), 3000);
+        }
+        showOANotification(uniqueAsins.length + ' ASINs copies dans le presse-papier !', 'success');
+    }).catch(err => {
+        // Fallback : creer un textarea temporaire
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showOANotification(uniqueAsins.length + ' ASINs copies !', 'success');
+    });
+}
+
 function runScan() {
     console.log('[OA] Lancement du scan...');
     const settings = loadOASettings();
@@ -531,10 +579,18 @@ function runScan() {
     // Fusionner
     let products = mergeData(oaDataDE, oaDataFR);
 
+    if (products.length === 0) {
+        showOANotification('0 ASINs en commun entre DE et FR. Utilise le bouton "Copier les ASINs" pour chercher les memes produits sur Amazon.fr via Keepa Product Viewer.', 'error');
+        showASINExtractGuide(oaDataDE.length);
+        renderScanResults([]);
+        return;
+    }
+
     // Calculer profits
     products = products.map(p => calculateProfit(p, settings));
 
     // Filtrer
+    let unfilteredCount = products.length;
     products = filterProducts(products, settings);
 
     // Trier
@@ -545,9 +601,9 @@ function runScan() {
     // Sauvegarder les resultats pour ne pas perdre au refresh
     saveScanResults();
 
-    console.log('[OA] Scan termine: ' + products.length + ' produits trouves');
+    console.log('[OA] Scan termine: ' + products.length + ' produits rentables sur ' + unfilteredCount + ' en commun');
     renderScanResults(products);
-    showOANotification(products.length + ' produits trouves !', 'success');
+    showOANotification(products.length + ' produits rentables sur ' + unfilteredCount + ' en commun (DE: ' + oaDataDE.length + ' / FR: ' + oaDataFR.length + ')', products.length > 0 ? 'success' : 'info');
 }
 
 function saveScanResults() {
