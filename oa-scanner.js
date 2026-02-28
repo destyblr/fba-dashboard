@@ -1232,34 +1232,65 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     if (strictCount === undefined) strictCount = countFilteredProducts(products, settings, 'strict');
     if (soupleCount === undefined) soupleCount = countFilteredProducts(products, settings, 'souple');
 
-    // Toggle Strict / Souple
-    var strictActive = oaFilterMode === 'strict';
+    // Toggle Strict / Souple / Non eligible
+    var nonEligibleCount = products.length - soupleCount;
     summary += '<div class="flex items-center gap-3 mb-4">';
     summary += '<span class="text-sm text-gray-400">Filtrage :</span>';
     summary += '<button onclick="toggleFilterMode(\'strict\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
-        (strictActive ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
+        (oaFilterMode === 'strict' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
     summary += 'Strict (' + strictCount + ')</button>';
     summary += '<button onclick="toggleFilterMode(\'souple\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
-        (!strictActive ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
+        (oaFilterMode === 'souple' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
     summary += 'Souple (' + soupleCount + ')</button>';
-    summary += '<span class="text-xs text-gray-500 ml-2">' + (strictActive ? 'Criteres stricts' : 'Criteres assouplis — plus de resultats') + '</span>';
+    summary += '<button onclick="toggleFilterMode(\'noneligible\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
+        (oaFilterMode === 'noneligible' ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
+    summary += 'Non eligible (' + nonEligibleCount + ')</button>';
+    var modeLabel = oaFilterMode === 'strict' ? 'Criteres stricts' : oaFilterMode === 'souple' ? 'Criteres assouplis' : 'Produits qui ne passent aucun filtre';
+    summary += '<span class="text-xs text-gray-500 ml-2">' + modeLabel + '</span>';
     summary += '</div>';
 
     // Filtrer selon le mode actif puis limiter a 200
     const maxDisplay = 200;
-    var activeFilters = getActiveFilters(settings);
-    const filteredProducts = products.filter(function(p) {
-        if (p.pricDE <= p.pricFR) return false;
-        if (p.profit <= 0) return false;
-        if (p.profit < activeFilters.minProfit) return false;
-        if (p.roi < activeFilters.minROI) return false;
-        if (activeFilters.maxBSR > 0 && p.bsr > activeFilters.maxBSR && p.bsr > 0) return false;
-        if (p.fbaSellers > activeFilters.maxFBASellers) return false;
-        if (!activeFilters.amazonSells && p.amazonSells) return false;
-        if (activeFilters.minPriceDE > 0 && p.pricDE < activeFilters.minPriceDE) return false;
-        if (activeFilters.maxPriceDE > 0 && p.pricDE > activeFilters.maxPriceDE) return false;
-        return true;
-    });
+    var filteredProducts;
+    if (oaFilterMode === 'noneligible') {
+        // Non eligible = ne passe PAS les criteres souple (les plus permissifs)
+        var sf = {
+            minProfit: settings.soupleMinProfit || 2,
+            minROI: settings.soupleMinROI || 15,
+            maxBSR: settings.soupleMaxBSR || 100000,
+            maxFBASellers: settings.soupleMaxFBASellers || 8,
+            amazonSells: settings.amazonSells,
+            minPriceDE: settings.soupleMinPriceDE || 12,
+            maxPriceDE: settings.soupleMaxPriceDE || 100
+        };
+        filteredProducts = products.filter(function(p) {
+            // Garder ceux qui ECHOUENT au moins un critere souple
+            if (p.pricDE <= p.pricFR) return true;
+            if (p.profit <= 0) return true;
+            if (p.profit < sf.minProfit) return true;
+            if (p.roi < sf.minROI) return true;
+            if (sf.maxBSR > 0 && p.bsr > sf.maxBSR && p.bsr > 0) return true;
+            if (p.fbaSellers > sf.maxFBASellers) return true;
+            if (!sf.amazonSells && p.amazonSells) return true;
+            if (sf.minPriceDE > 0 && p.pricDE < sf.minPriceDE) return true;
+            if (sf.maxPriceDE > 0 && p.pricDE > sf.maxPriceDE) return true;
+            return false; // passe tous les filtres = eligible, donc on l'exclut
+        });
+    } else {
+        var activeFilters = getActiveFilters(settings);
+        filteredProducts = products.filter(function(p) {
+            if (p.pricDE <= p.pricFR) return false;
+            if (p.profit <= 0) return false;
+            if (p.profit < activeFilters.minProfit) return false;
+            if (p.roi < activeFilters.minROI) return false;
+            if (activeFilters.maxBSR > 0 && p.bsr > activeFilters.maxBSR && p.bsr > 0) return false;
+            if (p.fbaSellers > activeFilters.maxFBASellers) return false;
+            if (!activeFilters.amazonSells && p.amazonSells) return false;
+            if (activeFilters.minPriceDE > 0 && p.pricDE < activeFilters.minPriceDE) return false;
+            if (activeFilters.maxPriceDE > 0 && p.pricDE > activeFilters.maxPriceDE) return false;
+            return true;
+        });
+    }
     const displayProducts = filteredProducts.slice(0, maxDisplay);
 
     summary += '<div class="text-sm text-gray-400 mb-4">';
@@ -1268,7 +1299,7 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
 
     let html = '<div class="overflow-x-auto">';
     html += '<table class="w-full text-sm">';
-    html += '<thead><tr class="text-left text-gray-400 border-b border-gray-700">';
+    html += '<thead><tr class="text-left text-gray-300 border-b border-gray-600">';
     html += '<th class="pb-3 pr-4">#</th>';
     html += '<th class="pb-3 pr-4">Produit</th>';
     var src = getSource();
@@ -1290,13 +1321,13 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
         const rowBg = p.profit >= 5 ? 'bg-green-900/20' :
                       p.profit >= 0 ? 'bg-yellow-900/10' :
                       p.profit >= -2 ? 'bg-orange-900/10' : '';
-        const profitClass = p.profit >= 5 ? 'text-green-400' :
-                           p.profit >= 0 ? 'text-emerald-300' :
-                           p.profit >= -2 ? 'text-yellow-400' : 'text-red-400';
-        const roiClass = p.roi >= 35 ? 'text-green-400' :
-                        p.roi >= 0 ? 'text-yellow-400' : 'text-red-400';
+        const profitClass = p.profit >= 5 ? 'text-green-300 font-bold' :
+                           p.profit >= 0 ? 'text-emerald-200' :
+                           p.profit >= -2 ? 'text-yellow-300' : 'text-red-400';
+        const roiClass = p.roi >= 35 ? 'text-green-300' :
+                        p.roi >= 0 ? 'text-yellow-300' : 'text-red-400';
         const ecart = p.pricDE - p.pricFR;
-        const ecartClass = ecart > 0 ? 'text-green-400' : 'text-red-400';
+        const ecartClass = ecart > 0 ? 'text-green-300' : 'text-red-400';
         const totalFeesDisplay = p.totalFees + p.urssaf;
 
         // Nom FR (pour chercher deals) + nom DE
@@ -1321,32 +1352,32 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
             + '\nTotal: ' + totalFeesDisplay.toFixed(2) + '\u20ac';
 
         html += '<tr class="border-b border-gray-800 hover:bg-gray-800/50 ' + rowBg + '">';
-        html += '<td class="py-2 pr-3 text-gray-500 text-xs">' + (i + 1) + '</td>';
+        html += '<td class="py-2 pr-3 text-gray-400 text-xs">' + (i + 1) + '</td>';
         html += '<td class="py-2 pr-3 max-w-xs">';
         if (titleFR) {
-            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleFR) + '"><span class="text-blue-400 font-bold mr-1">' + src.code + '</span>' + escapeHTML(titleMainShort) + '</div>';
+            html += '<div class="font-medium text-gray-100 text-xs" title="' + escapeHTML(titleFR) + '"><span class="text-blue-300 font-bold mr-1">' + src.code + '</span>' + escapeHTML(titleMainShort) + '</div>';
         }
         if (titleDE && titleDE !== titleFR) {
             const titleDEShort = titleDE.length > 50 ? titleDE.substring(0, 50) + '...' : titleDE;
-            html += '<div class="text-xs text-gray-400 truncate" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">' + dst.code + '</span>' + escapeHTML(titleDEShort) + '</div>';
+            html += '<div class="text-xs text-gray-300 truncate" title="' + escapeHTML(titleDE) + '"><span class="text-purple-300 font-bold mr-1">' + dst.code + '</span>' + escapeHTML(titleDEShort) + '</div>';
         }
         if (!titleFR && titleDE) {
-            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">' + dst.code + '</span>' + escapeHTML(titleMainShort) + '</div>';
+            html += '<div class="font-medium text-gray-100 text-xs" title="' + escapeHTML(titleDE) + '"><span class="text-purple-300 font-bold mr-1">' + dst.code + '</span>' + escapeHTML(titleMainShort) + '</div>';
         }
-        html += '<div class="text-xs font-mono"><a href="https://www.' + src.domain + '/dp/' + p.asin + '" target="_blank" class="text-gray-500 hover:text-blue-400">' + p.asin + '</a></div></td>';
-        html += '<td class="py-2 pr-3 text-right text-blue-400">' + p.pricFR.toFixed(2) + '</td>';
-        html += '<td class="py-2 pr-3 text-right text-purple-400">' + p.pricDE.toFixed(2) + '</td>';
+        html += '<div class="text-xs font-mono"><a href="https://www.' + src.domain + '/dp/' + p.asin + '" target="_blank" class="text-gray-400 hover:text-blue-300">' + p.asin + '</a></div></td>';
+        html += '<td class="py-2 pr-3 text-right text-blue-300 font-medium">' + p.pricFR.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-purple-300 font-medium">' + p.pricDE.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right font-bold ' + ecartClass + '">' + (ecart > 0 ? '+' : '') + ecart.toFixed(2) + '</td>';
-        html += '<td class="py-2 pr-3 text-right text-gray-400 text-xs cursor-help" title="' + escapeHTML(feesTooltip) + '">' + totalFeesDisplay.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-gray-200 text-xs cursor-help" title="' + escapeHTML(feesTooltip) + '">' + totalFeesDisplay.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right font-bold ' + profitClass + '">' + p.profit.toFixed(2) + '</td>';
-        html += '<td class="py-2 pr-3 text-right ' + roiClass + '">' + p.roi.toFixed(0) + '%</td>';
-        html += '<td class="py-2 pr-3 text-right text-gray-300 text-xs">' + formatNumber(p.bsr) + '</td>';
-        html += '<td class="py-2 pr-3 text-right text-gray-300 text-xs">' + p.fbaSellers + '</td>';
+        html += '<td class="py-2 pr-3 text-right font-medium ' + roiClass + '">' + p.roi.toFixed(0) + '%</td>';
+        html += '<td class="py-2 pr-3 text-right text-gray-100 text-xs">' + formatNumber(p.bsr) + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-gray-100 text-xs">' + p.fbaSellers + '</td>';
 
         // Liens Amazon FR + DE
         html += '<td class="py-2 pr-3 text-center whitespace-nowrap">';
-        html += '<a href="https://www.' + src.domain + '/dp/' + p.asin + '" target="_blank" class="text-blue-400 hover:text-blue-300 text-xs mr-2" title="Voir sur ' + src.domain + '">' + src.code + '</a>';
-        html += '<a href="https://www.' + dst.domain + '/dp/' + p.asin + '" target="_blank" class="text-purple-400 hover:text-purple-300 text-xs" title="Voir sur ' + dst.domain + '">' + dst.code + '</a>';
+        html += '<a href="https://www.' + src.domain + '/dp/' + p.asin + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2 font-medium" title="Voir sur ' + src.domain + '">' + src.code + '</a>';
+        html += '<a href="https://www.' + dst.domain + '/dp/' + p.asin + '" target="_blank" class="text-purple-300 hover:text-purple-200 text-xs font-medium" title="Voir sur ' + dst.domain + '">' + dst.code + '</a>';
         html += '</td>';
 
         html += '<td class="py-2 pr-3 text-center whitespace-nowrap">';
