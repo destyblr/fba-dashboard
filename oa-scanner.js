@@ -7,12 +7,23 @@
 // VARIABLES GLOBALES OA
 // ===========================
 
-let oaDataDE = [];          // Donnees CSV Keepa Allemagne
-let oaDataFR = [];          // Donnees CSV Keepa France
+let oaDataDE = [];          // Donnees CSV marche de VENTE (destination)
+let oaDataFR = [];          // Donnees CSV marche d'ACHAT (source)
 let oaScanResults = [];     // Resultats du scan filtre
 let oaCurrentCheck = null;  // Produit en cours de verification
 let oaCurrentCheckIndex = -1; // Index dans oaScanResults
 let oaInventory = [];       // Inventaire OA
+
+// Marketplaces Amazon Europe
+const OA_MARKETPLACES = {
+    'fr': { code: 'FR', name: 'France', domain: 'amazon.fr', flag: '\ud83c\uddeb\ud83c\uddf7', keepaSearch: 'Recherche de Produit', keepaViewer: 'Visualiseur de Produit' },
+    'de': { code: 'DE', name: 'Allemagne', domain: 'amazon.de', flag: '\ud83c\udde9\ud83c\uddea', keepaSearch: 'Produktsuche', keepaViewer: 'Produktbetrachter' },
+    'it': { code: 'IT', name: 'Italie', domain: 'amazon.it', flag: '\ud83c\uddee\ud83c\uddf9', keepaSearch: 'Ricerca Prodotti', keepaViewer: 'Visualizzatore Prodotti' },
+    'es': { code: 'ES', name: 'Espagne', domain: 'amazon.es', flag: '\ud83c\uddea\ud83c\uddf8', keepaSearch: 'Buscador de Productos', keepaViewer: 'Visor de Productos' }
+};
+
+function getSource() { var s = loadOASettings(); return OA_MARKETPLACES[s.sourceMarket] || OA_MARKETPLACES['de']; }
+function getDest() { var s = loadOASettings(); return OA_MARKETPLACES[s.destMarket] || OA_MARKETPLACES['fr']; }
 
 const OA_DEFAULTS = {
     // Frais Amazon (FBA fee est par produit depuis Keepa, ce default est le fallback)
@@ -37,6 +48,10 @@ const OA_DEFAULTS = {
     amazonSells: false,
     minPriceDE: 15,
     maxPriceDE: 80,
+
+    // Direction (marche source = achat, marche dest = vente)
+    sourceMarket: 'de',
+    destMarket: 'fr',
 
     // Capital
     capitalTotal: 755,
@@ -116,7 +131,9 @@ function saveOASettings() {
         { id: 'oa-maxPriceDE', key: 'maxPriceDE', type: 'float' },
         { id: 'oa-capitalTotal', key: 'capitalTotal', type: 'float' },
         { id: 'oa-maxPerProduct', key: 'maxPerProduct', type: 'float' },
-        { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy', type: 'int' }
+        { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy', type: 'int' },
+        { id: 'oa-sourceMarket', key: 'sourceMarket', type: 'string' },
+        { id: 'oa-destMarket', key: 'destMarket', type: 'string' }
     ];
 
     fields.forEach(f => {
@@ -126,10 +143,18 @@ function saveOASettings() {
             settings[f.key] = el.checked || false;
         } else if (f.type === 'int') {
             settings[f.key] = parseInt(el.value) || 0;
+        } else if (f.type === 'string') {
+            settings[f.key] = el.value || '';
         } else {
             settings[f.key] = parseFloat(el.value) || 0;
         }
     });
+
+    // Validation : source != destination
+    if (settings.sourceMarket && settings.destMarket && settings.sourceMarket === settings.destMarket) {
+        showOANotification('Le marche source et destination doivent etre differents !', 'error');
+        return;
+    }
 
     try {
         localStorage.setItem('oaSettings', JSON.stringify(settings));
@@ -146,6 +171,7 @@ function saveOASettings() {
             showOANotification('Resultats recalcules avec les nouveaux parametres (' + profitable.length + ' rentables)', 'success');
         }
         updateFixedChargesDashboard();
+        updateMarketplaceLabels();
     } catch (e) {
         console.log('[OA] Erreur sauvegarde parametres:', e);
         showOANotification('Erreur sauvegarde parametres', 'error');
@@ -172,7 +198,9 @@ function initOASettings() {
         { id: 'oa-maxPriceDE', key: 'maxPriceDE' },
         { id: 'oa-capitalTotal', key: 'capitalTotal' },
         { id: 'oa-maxPerProduct', key: 'maxPerProduct' },
-        { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy' }
+        { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy' },
+        { id: 'oa-sourceMarket', key: 'sourceMarket' },
+        { id: 'oa-destMarket', key: 'destMarket' }
     ];
 
     fields.forEach(f => {
@@ -194,6 +222,46 @@ function resetOASettings() {
     initOASettings();
     showOANotification('Parametres reinitialises aux valeurs par defaut', 'success');
     console.log('[OA] Parametres reinitialises');
+}
+
+// Met a jour tous les labels dynamiques selon la direction source/dest choisie
+function updateMarketplaceLabels() {
+    var src = getSource();
+    var dst = getDest();
+
+    // Labels CSV zones
+    var csvLabelDe = document.getElementById('csv-label-dest');
+    var csvSubDe = document.getElementById('csv-sub-dest');
+    var csvLabelFr = document.getElementById('csv-label-source');
+    var csvSubFr = document.getElementById('csv-sub-source');
+    if (csvLabelDe) csvLabelDe.innerHTML = 'CSV Amazon.<strong>' + dst.code + '</strong> ' + dst.flag;
+    if (csvSubDe) csvSubDe.innerHTML = 'Keepa <strong>' + dst.keepaSearch + '</strong>';
+    if (csvLabelFr) csvLabelFr.innerHTML = 'CSV Amazon.<strong>' + src.code + '</strong> ' + src.flag;
+    if (csvSubFr) csvSubFr.innerHTML = 'Keepa <strong>' + src.keepaViewer + '</strong>';
+
+    // Labels checklist
+    var checkPriceDe = document.getElementById('check-label-price-dest');
+    var checkPriceFr = document.getElementById('check-label-price-source');
+    if (checkPriceDe) checkPriceDe.textContent = 'Prix ' + dst.code + ' (vente)';
+    if (checkPriceFr) checkPriceFr.textContent = 'Prix ' + src.code + ' (achat)';
+
+    // Labels parametres prix
+    var labelMinPrice = document.getElementById('label-minPriceDE');
+    var labelMaxPrice = document.getElementById('label-maxPriceDE');
+    if (labelMinPrice) labelMinPrice.textContent = 'Prix vente min (' + dst.code + ')';
+    if (labelMaxPrice) labelMaxPrice.textContent = 'Prix vente max (' + dst.code + ')';
+
+    // Guide ASIN extract
+    var guideText = document.getElementById('asin-guide-text');
+    if (guideText) guideText.innerHTML = 'Le CSV ' + dst.code + ' est charge. Maintenant il faut recuperer les prix ' + src.code + ' <b>des memes produits</b>. Copie les ASINs ci-dessous, va dans Keepa ' + src.keepaViewer + ' (Amazon.' + src.code.toLowerCase() + '), colle-les, charge, puis exporte en CSV.';
+    var guideSteps = document.getElementById('asin-guide-steps');
+    if (guideSteps) guideSteps.textContent = 'Sur Keepa ' + src.keepaViewer + ' : 1) Selectionne Amazon.' + src.code.toLowerCase() + ' 2) Colle les ASINs 3) Charge 4) Exporte CSV 5) Importe ici dans la zone CSV ' + src.code;
+
+    // Direction indicator
+    var dirLabel = document.getElementById('oa-direction-label');
+    if (dirLabel) dirLabel.innerHTML = src.flag + ' ' + src.code + ' <i class="fas fa-arrow-right mx-2"></i> ' + dst.flag + ' ' + dst.code;
+
+    console.log('[OA] Labels mis a jour: ' + src.code + ' -> ' + dst.code);
 }
 
 // Dashboard charges fixes (bandeau persistant en haut de toutes les sections OA)
@@ -394,15 +462,15 @@ function handleCSVImport(file, marketplace) {
         if (marketplace === 'de') {
             oaDataDE = data;
             updateCSVStatus('de', file.name, data.length);
-            console.log('[OA] CSV DE charge:', data.length, 'produits');
-            // Afficher le guide d'extraction ASINs si FR pas encore charge
+            console.log('[OA] CSV vente charge:', data.length, 'produits');
+            // Afficher le guide d'extraction ASINs si source pas encore charge
             if (data.length > 0 && oaDataFR.length === 0) {
                 showASINExtractGuide(data.length);
             }
         } else if (marketplace === 'fr') {
             oaDataFR = data;
             updateCSVStatus('fr', file.name, data.length);
-            console.log('[OA] CSV FR charge:', data.length, 'produits');
+            console.log('[OA] CSV achat charge:', data.length, 'produits');
             // Cacher le guide si visible
             const guide = document.getElementById('asin-extract-zone');
             if (guide) guide.classList.add('hidden');
@@ -820,13 +888,15 @@ function showASINExtractGuide(count) {
         const countEl = document.getElementById('asin-count');
         if (countEl) countEl.textContent = count;
     }
-    showOANotification('CSV DE charge ! Copie les ASINs pour les chercher sur Amazon.fr via Keepa Product Viewer.', 'info');
+    var dst = getDest();
+    var src = getSource();
+    showOANotification('CSV ' + dst.code + ' charge ! Copie les ASINs pour les chercher sur ' + src.domain + ' via Keepa ' + src.keepaViewer + '.', 'info');
 }
 
 // Copier tous les ASINs du CSV DE dans le presse-papier (pour Keepa Product Viewer)
 function copyASINsToClipboard() {
     if (oaDataDE.length === 0) {
-        showOANotification('Aucun CSV DE charge', 'error');
+        showOANotification('Aucun CSV vente charge', 'error');
         return;
     }
 
@@ -857,23 +927,26 @@ function runScan() {
     console.log('[OA] Lancement du scan...');
     const settings = loadOASettings();
 
+    var src = getSource();
+    var dst = getDest();
+
     if (oaDataDE.length === 0 || oaDataFR.length === 0) {
-        showOANotification('Veuillez importer les 2 CSV (DE et FR) avant de lancer le scan', 'error');
+        showOANotification('Veuillez importer les 2 CSV (' + dst.code + ' et ' + src.code + ') avant de lancer le scan', 'error');
         return;
     }
 
     // Construire l'entonnoir de filtrage
     const funnel = [];
 
-    funnel.push({ step: 'CSV DE charges', count: oaDataDE.length, icon: 'file-csv', color: 'gray' });
-    funnel.push({ step: 'CSV FR charges', count: oaDataFR.length, icon: 'file-csv', color: 'gray' });
+    funnel.push({ step: 'CSV ' + dst.code + ' (vente)', count: oaDataDE.length, icon: 'file-csv', color: 'gray' });
+    funnel.push({ step: 'CSV ' + src.code + ' (achat)', count: oaDataFR.length, icon: 'file-csv', color: 'gray' });
 
     // Fusionner
     let products = mergeData(oaDataDE, oaDataFR);
-    funnel.push({ step: 'ASINs en commun (fusion DE+FR)', count: products.length, icon: 'link', color: 'blue' });
+    funnel.push({ step: 'ASINs en commun (' + dst.code + '+' + src.code + ')', count: products.length, icon: 'link', color: 'blue' });
 
     if (products.length === 0) {
-        showOANotification('0 ASINs en commun entre DE et FR. Utilise le bouton "Copier les ASINs" pour chercher les memes produits sur Amazon.fr via Keepa Product Viewer.', 'error');
+        showOANotification('0 ASINs en commun. Utilise le bouton "Copier les ASINs" pour chercher les memes produits sur ' + src.domain + ' via Keepa ' + src.keepaViewer + '.', 'error');
         showASINExtractGuide(oaDataDE.length);
         renderScanResults([], 0, funnel);
         return;
@@ -891,7 +964,7 @@ function runScan() {
             (settings.minPriceDE <= 0 || p.pricDE >= settings.minPriceDE) &&
             (settings.maxPriceDE <= 0 || p.pricDE <= settings.maxPriceDE)
         );
-        funnel.push({ step: 'Prix DE ' + settings.minPriceDE + '-' + settings.maxPriceDE + ' \u20ac', count: remaining.length, icon: 'euro-sign', color: 'purple' });
+        funnel.push({ step: 'Prix vente ' + dst.code + ' ' + settings.minPriceDE + '-' + settings.maxPriceDE + ' \u20ac', count: remaining.length, icon: 'euro-sign', color: 'purple' });
     }
 
     // Filtre BSR
@@ -912,7 +985,7 @@ function runScan() {
 
     // Filtre ecart positif (FR < DE) — cascade
     remaining = remaining.filter(p => p.pricDE > p.pricFR);
-    funnel.push({ step: 'Prix DE > Prix FR (ecart positif)', count: remaining.length, icon: 'arrow-up', color: 'green' });
+    funnel.push({ step: 'Prix vente > Prix achat (ecart positif)', count: remaining.length, icon: 'arrow-up', color: 'green' });
 
     // Filtre profit positif — cascade
     remaining = remaining.filter(p => p.profit > 0);
@@ -1067,13 +1140,15 @@ function renderScanResults(products, profitableCount, funnel) {
     html += '<thead><tr class="text-left text-gray-400 border-b border-gray-700">';
     html += '<th class="pb-3 pr-4">#</th>';
     html += '<th class="pb-3 pr-4">Produit</th>';
-    html += '<th class="pb-3 pr-4 text-right">Prix FR</th>';
-    html += '<th class="pb-3 pr-4 text-right">Prix DE</th>';
+    var src = getSource();
+    var dst = getDest();
+    html += '<th class="pb-3 pr-4 text-right">Prix ' + src.code + '</th>';
+    html += '<th class="pb-3 pr-4 text-right">Prix ' + dst.code + '</th>';
     html += '<th class="pb-3 pr-4 text-right">Ecart</th>';
     html += '<th class="pb-3 pr-4 text-right cursor-help" title="Deja precis ! Le scanner utilise le vrai montant Keepa par produit (FBA pick&pack). L\'envoi a AMZ est calcule automatiquement selon le poids. Survolez chaque ligne pour voir le detail.">Frais <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-right">Profit</th>';
     html += '<th class="pb-3 pr-4 text-right">ROI</th>';
-    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Best Sellers Rank : classement des ventes sur Amazon.de. Plus le chiffre est bas, plus le produit se vend. 1-100 = top ventes, 100-1000 = tres populaire, 1000-10000 = bon vendeur, 10000-30000 = ventes regulieres, 30000+ = ventes lentes">BSR <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
+    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Best Sellers Rank : classement des ventes sur ' + dst.domain + '. Plus le chiffre est bas, plus le produit se vend. 1-100 = top ventes, 100-1000 = tres populaire, 1000-10000 = bon vendeur, 10000-30000 = ventes regulieres, 30000+ = ventes lentes">BSR <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-right cursor-help" title="Nombre de vendeurs FBA (Fulfilled by Amazon) sur cette fiche produit. Moins il y en a, moins il y a de concurrence.">Sellers <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-center">Liens</th>';
     html += '<th class="pb-3 pr-4 text-center">Action</th>';
@@ -1118,16 +1193,16 @@ function renderScanResults(products, profitableCount, funnel) {
         html += '<td class="py-2 pr-3 text-gray-500 text-xs">' + (i + 1) + '</td>';
         html += '<td class="py-2 pr-3 max-w-xs">';
         if (titleFR) {
-            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleFR) + '"><span class="text-blue-400 font-bold mr-1">FR</span>' + escapeHTML(titleMainShort) + '</div>';
+            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleFR) + '"><span class="text-blue-400 font-bold mr-1">' + src.code + '</span>' + escapeHTML(titleMainShort) + '</div>';
         }
         if (titleDE && titleDE !== titleFR) {
             const titleDEShort = titleDE.length > 50 ? titleDE.substring(0, 50) + '...' : titleDE;
-            html += '<div class="text-xs text-gray-400 truncate" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">DE</span>' + escapeHTML(titleDEShort) + '</div>';
+            html += '<div class="text-xs text-gray-400 truncate" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">' + dst.code + '</span>' + escapeHTML(titleDEShort) + '</div>';
         }
         if (!titleFR && titleDE) {
-            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">DE</span>' + escapeHTML(titleMainShort) + '</div>';
+            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">' + dst.code + '</span>' + escapeHTML(titleMainShort) + '</div>';
         }
-        html += '<div class="text-xs font-mono"><a href="https://www.amazon.fr/dp/' + p.asin + '" target="_blank" class="text-gray-500 hover:text-blue-400">' + p.asin + '</a></div></td>';
+        html += '<div class="text-xs font-mono"><a href="https://www.' + src.domain + '/dp/' + p.asin + '" target="_blank" class="text-gray-500 hover:text-blue-400">' + p.asin + '</a></div></td>';
         html += '<td class="py-2 pr-3 text-right text-blue-400">' + p.pricFR.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right text-purple-400">' + p.pricDE.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right font-bold ' + ecartClass + '">' + (ecart > 0 ? '+' : '') + ecart.toFixed(2) + '</td>';
@@ -1139,8 +1214,8 @@ function renderScanResults(products, profitableCount, funnel) {
 
         // Liens Amazon FR + DE
         html += '<td class="py-2 pr-3 text-center whitespace-nowrap">';
-        html += '<a href="https://www.amazon.fr/dp/' + p.asin + '" target="_blank" class="text-blue-400 hover:text-blue-300 text-xs mr-2" title="Voir sur Amazon.fr">FR</a>';
-        html += '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="text-purple-400 hover:text-purple-300 text-xs" title="Voir sur Amazon.de">DE</a>';
+        html += '<a href="https://www.' + src.domain + '/dp/' + p.asin + '" target="_blank" class="text-blue-400 hover:text-blue-300 text-xs mr-2" title="Voir sur ' + src.domain + '">' + src.code + '</a>';
+        html += '<a href="https://www.' + dst.domain + '/dp/' + p.asin + '" target="_blank" class="text-purple-400 hover:text-purple-300 text-xs" title="Voir sur ' + dst.domain + '">' + dst.code + '</a>';
         html += '</td>';
 
         html += '<td class="py-2 pr-3 text-center whitespace-nowrap">';
@@ -1150,7 +1225,7 @@ function renderScanResults(products, profitableCount, funnel) {
         } else if (p.profit > -3) {
             // Presque rentable — Quick Check pour voir si un deal existe
             const searchQuery = encodeURIComponent((titleFR || titleDE).substring(0, 60));
-            html += '<a href="https://www.amazon.fr/s?k=' + searchQuery + '" target="_blank" class="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs inline-block" title="Chercher un deal sur Amazon.fr">';
+            html += '<a href="https://www.' + src.domain + '/s?k=' + searchQuery + '" target="_blank" class="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs inline-block" title="Chercher un deal sur ' + src.domain + '">';
             html += '<i class="fas fa-search mr-1"></i>Deal?</a>';
         } else {
             html += '<span class="text-gray-600 text-xs" title="Profit trop negatif (' + p.profit.toFixed(2) + '\u20ac)">-</span>';
@@ -1173,11 +1248,13 @@ function startChecklist(productIndex) {
 
     oaCurrentCheck = Object.assign({}, oaScanResults[productIndex]);
     oaCurrentCheckIndex = productIndex;
+    var dstDomain = getDest().domain;
+    var srcDomain = getSource().domain;
     oaCurrentCheck.steps = [
         { id: 1, label: 'Verifier eligibilite sur Seller Central', status: null, timestamp: null },
-        { id: 2, label: 'Verifier le prix de vente reel sur Amazon.de', status: null, timestamp: null, realPrice: null },
+        { id: 2, label: 'Verifier le prix de vente reel sur ' + dstDomain, status: null, timestamp: null, realPrice: null },
         { id: 3, label: 'Verifier les restrictions / avertissements', status: null, timestamp: null },
-        { id: 4, label: 'Verifier le prix d\'achat reel sur Amazon.fr', status: null, timestamp: null, realPrice: null },
+        { id: 4, label: 'Verifier le prix d\'achat reel sur ' + srcDomain, status: null, timestamp: null, realPrice: null },
         { id: 5, label: 'Verifier la concurrence et le BSR actuel', status: null, timestamp: null }
     ];
     oaCurrentCheck.verdict = null; // 'go' ou 'nogo'
@@ -1731,9 +1808,11 @@ function showQuickCheckResult(product, fromCSV) {
     html += '<span class="text-xs text-gray-400 font-mono">' + product.asin + '</span>';
     html += '</div>';
 
+    var srcQC = getSource();
+    var dstQC = getDest();
     html += '<div class="grid grid-cols-4 gap-4 mb-4">';
-    html += '<div class="text-center"><div class="text-xs text-gray-400">Prix FR (achat)</div><div class="text-xl font-bold text-blue-600">' + product.pricFR.toFixed(2) + ' &euro;</div></div>';
-    html += '<div class="text-center"><div class="text-xs text-gray-400">Prix DE (vente)</div><div class="text-xl font-bold text-purple-600">' + product.pricDE.toFixed(2) + ' &euro;</div></div>';
+    html += '<div class="text-center"><div class="text-xs text-gray-400">Prix ' + srcQC.code + ' (achat)</div><div class="text-xl font-bold text-blue-600">' + product.pricFR.toFixed(2) + ' &euro;</div></div>';
+    html += '<div class="text-center"><div class="text-xs text-gray-400">Prix ' + dstQC.code + ' (vente)</div><div class="text-xl font-bold text-purple-600">' + product.pricDE.toFixed(2) + ' &euro;</div></div>';
     html += '<div class="text-center"><div class="text-xs text-gray-400">Profit</div><div class="text-xl font-bold ' + profitClass + '">' + product.profit.toFixed(2) + ' &euro;</div></div>';
     html += '<div class="text-center"><div class="text-xs text-gray-400">ROI</div><div class="text-xl font-bold ' + roiClass + '">' + product.roi.toFixed(0) + '%</div></div>';
     html += '</div>';
@@ -2206,6 +2285,9 @@ function initOA() {
 
     // Mettre a jour le dashboard charges fixes
     updateFixedChargesDashboard();
+
+    // Mettre a jour les labels marketplace (direction source/dest)
+    updateMarketplaceLabels();
 
     // Drag & drop gere par les handlers inline dans le HTML (ondragover, ondragleave, ondrop)
 
