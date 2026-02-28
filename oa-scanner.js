@@ -278,7 +278,6 @@ function updateFixedChargesDashboard() {
         }
     }
     const totalFixedCharges = fixedMonthly * completedMonths;
-    const pendingCharges = isCurrentMonth ? fixedMonthly : 0; // charges du mois en cours (pas encore prelevees)
 
     // Cout par vente (sur les charges deja prelevees)
     const costPerSale = salesCount > 0 && totalFixedCharges > 0 ? totalFixedCharges / salesCount : 0;
@@ -1477,6 +1476,7 @@ function confirmPurchase(product, quantity, costPerUnit) {
     };
 
     addToInventory(inventoryItem);
+    updateFixedChargesDashboard();
     showOANotification('Produit ajoute a l\'inventaire ! (' + quantity + 'x ' + costPerUnit.toFixed(2) + ' EUR = ' + totalCost.toFixed(2) + ' EUR)', 'success');
     console.log('[OA] Achat confirme:', inventoryItem);
 }
@@ -1615,7 +1615,7 @@ function quickCheckASIN() {
     if (!productDE && oaScanResults.length > 0) {
         const fromScan = oaScanResults.find(p => p.asin === asin);
         if (fromScan) {
-            productDE = { price: fromScan.pricDE, asin: asin, title: fromScan.title, bsr: fromScan.bsr, fbaSellers: fromScan.fbaSellers, estSales: fromScan.estSales, amazonSells: fromScan.amazonSells, fbaFeeReal: fromScan.fbaFeeReal || 0, referralPct: fromScan.referralPct || 0, weight: fromScan.weight || 0, price90avg: 0, price90drop: 0, price90min: 0, price90max: 0 };
+            productDE = { price: fromScan.pricDE, asin: asin, title: fromScan.title, bsr: fromScan.bsr, bsr90: fromScan.bsr90 || 0, fbaSellers: fromScan.fbaSellers, estSales: fromScan.estSales, amazonSells: fromScan.amazonSells, fbaFeeReal: fromScan.fbaFeeReal || 0, referralPct: fromScan.referralPct || 0, weight: fromScan.weight || 0, volumeCm3: fromScan.volumeCm3 || 0, stability: fromScan.stability, price90avg: 0, price90drop: 0, price90min: 0, price90max: 0 };
         }
     }
 
@@ -1634,7 +1634,8 @@ function quickCheckASIN() {
             fbaFeeReal: productDE.fbaFeeReal || 0,
             referralPct: productDE.referralPct || 0,
             weight: productDE.weight || 0,
-            stability: calculateStability(productDE),
+            volumeCm3: productDE.volumeCm3 || 0,
+            stability: productDE.stability || calculateStability(productDE),
             profit: 0,
             roi: 0
         };
@@ -1668,6 +1669,10 @@ function quickCheckASIN() {
             amazonSells: false,
             fbaSellers: 0,
             estSales: 0,
+            weight: 0,
+            volumeCm3: 0,
+            fbaFeeReal: 0,
+            referralPct: 0,
             stability: { score: 0, label: 'Inconnu', color: 'gray', detail: 'Donnees manuelles' },
             profit: 0,
             roi: 0
@@ -1828,7 +1833,7 @@ function updateProductStatus(productId, newStatus) {
     if (!product) return;
 
     if (newStatus === 'vendu') {
-        const priceStr = prompt('Prix de vente reel (en EUR) :');
+        const priceStr = prompt('Prix de vente reel PAR UNITE (en EUR) :');
         if (priceStr === null) return;
         const actualPrice = parseFloat(priceStr);
         if (isNaN(actualPrice) || actualPrice <= 0) {
@@ -2117,10 +2122,14 @@ function updateSidebarOA() {
 // FONCTIONS UTILITAIRES
 // ===========================
 
+var oaActiveToasts = [];
 function showOANotification(message, type) {
     // Creer un toast notification
     const toast = document.createElement('div');
-    toast.className = 'fixed top-4 right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300 transform translate-x-full';
+    // Calculer le decalage vertical selon les toasts actifs
+    const offset = oaActiveToasts.length * 56; // ~56px par toast (padding + margin)
+    toast.className = 'fixed right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300 transform translate-x-full';
+    toast.style.top = (16 + offset) + 'px';
 
     if (type === 'success') {
         toast.classList.add('bg-green-600');
@@ -2133,6 +2142,7 @@ function showOANotification(message, type) {
     toast.innerHTML = '<i class="fas fa-' + (type === 'success' ? 'check-circle' : (type === 'error' ? 'exclamation-circle' : 'info-circle')) + ' mr-2"></i>' + escapeHTML(message);
 
     document.body.appendChild(toast);
+    oaActiveToasts.push(toast);
 
     // Animation entree
     requestAnimationFrame(() => {
@@ -2146,6 +2156,7 @@ function showOANotification(message, type) {
         toast.classList.remove('translate-x-0');
         setTimeout(() => {
             if (toast.parentNode) toast.parentNode.removeChild(toast);
+            oaActiveToasts = oaActiveToasts.filter(function(t) { return t !== toast; });
         }, 300);
     }, 3000);
 }
