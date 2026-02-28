@@ -1300,7 +1300,7 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     let html = '<div class="overflow-x-auto">';
     html += '<table class="w-full text-sm">';
     html += '<thead><tr class="text-left text-gray-300 border-b border-gray-600">';
-    html += '<th class="pb-3 pr-4">#</th>';
+    html += '<th class="pb-3 px-4">#</th>';
     html += '<th class="pb-3 pr-4">Produit</th>';
     var src = getSource();
     var dst = getDest();
@@ -1317,13 +1317,9 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     html += '</tr></thead><tbody>';
 
     displayProducts.forEach((p, i) => {
-        // Couleur de la ligne selon qualite du deal
+        // Couleur de la ligne
         const isNonEligible = oaFilterMode === 'noneligible';
-        const isTopDeal = !isNonEligible && p.profit >= 8 && p.roi >= 50;
-        const isGoodDeal = !isNonEligible && !isTopDeal && p.profit >= 5 && p.roi >= 35;
-        const rowBg = isNonEligible ? 'bg-gray-800/40' :
-                      isTopDeal ? 'bg-green-900/30' :
-                      isGoodDeal ? 'bg-blue-900/20' : '';
+        const rowBg = isNonEligible ? 'bg-gray-800/40' : '';
         const profitClass = p.profit >= 5 ? 'text-white font-bold' :
                            p.profit >= 0 ? 'text-gray-100' : 'text-red-400 font-bold';
         const roiClass = p.roi >= 35 ? 'text-white' :
@@ -1354,8 +1350,7 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
             + '\nTotal: ' + totalFeesDisplay.toFixed(2) + '\u20ac';
 
         html += '<tr class="border-b border-gray-800 hover:bg-gray-800/50 ' + rowBg + '">';
-        var rankBadge = isTopDeal ? 'bg-green-600 text-white' : isGoodDeal ? 'bg-blue-600 text-white' : 'text-gray-400';
-        html += '<td class="py-2 pr-3 text-xs"><span class="' + rankBadge + (isTopDeal || isGoodDeal ? ' px-1.5 py-0.5 rounded' : '') + '">' + (i + 1) + '</span></td>';
+        html += '<td class="py-2 px-4 text-gray-400 text-xs">' + (i + 1) + '</td>';
         html += '<td class="py-2 pr-3 max-w-xs">';
         if (titleFR) {
             html += '<div class="font-medium text-gray-100 text-xs" title="' + escapeHTML(titleFR) + '"><span class="text-blue-300 font-bold mr-1">' + src.code + '</span>' + escapeHTML(titleMainShort) + '</div>';
