@@ -1474,7 +1474,13 @@ function startChecklist(productIndex) {
         const step = document.getElementById('check-step-' + i);
         const icon = document.getElementById('check-step-' + i + '-icon');
         const time = document.getElementById('check-step-' + i + '-time');
-        if (step) step.classList.toggle('opacity-50', i > 1);
+        if (step) {
+            step.classList.toggle('opacity-50', i > 1);
+            // Desactiver tout sauf reset
+            step.querySelectorAll('button:not(.reset-btn), input').forEach(el => el.disabled = i > 1);
+            // Les boutons reset sont toujours actifs
+            step.querySelectorAll('.reset-btn').forEach(el => el.disabled = false);
+        }
         if (icon) icon.textContent = '';
         if (time) time.textContent = '';
     }
@@ -1565,9 +1571,9 @@ function validateCheckStep(step, value) {
     if (icon) icon.innerHTML = value ? '<span class="text-green-500"><i class="fas fa-check-circle"></i></span>' : '<span class="text-red-500"><i class="fas fa-times-circle"></i></span>';
     if (time) time.textContent = timestamp;
 
-    // Desactiver les boutons de cette etape
+    // Desactiver les boutons de cette etape (sauf le reset)
     const stepEl = document.getElementById('check-step-' + step);
-    if (stepEl) stepEl.querySelectorAll('button, input').forEach(el => el.disabled = true);
+    if (stepEl) stepEl.querySelectorAll('button:not(.reset-btn), input').forEach(el => el.disabled = true);
 
     // Verifier si NO GO
     if (value === false) {
@@ -1626,9 +1632,10 @@ function validateCheckStep(step, value) {
         if (verdictRoi) verdictRoi.textContent = result.roi.toFixed(0) + ' %';
         if (verdictReco) verdictReco.innerHTML = recommendation.html;
 
-        // Mettre la quantite recommandee dans l'input
+        // Mettre la quantite recommandee dans l'input et lancer le simulateur
         const qtyInput = document.getElementById('verdict-quantity');
         if (qtyInput) qtyInput.value = recommendation.qty;
+        updateGainSimulator();
     }
 }
 
@@ -1655,6 +1662,32 @@ function recalculateWithRealPrices() {
         pricDE: pricDE,
         pricFR: pricFR
     };
+}
+
+function updateGainSimulator() {
+    if (!oaCurrentCheck) return;
+    var result = recalculateWithRealPrices();
+    var qty = parseInt(document.getElementById('verdict-quantity').value) || 1;
+    var buyPrice = oaCurrentCheck.realPricFR || oaCurrentCheck.pricFR;
+    var sellPrice = oaCurrentCheck.realPricDE || oaCurrentCheck.pricDE;
+
+    var investment = qty * buyPrice;
+    var totalProfit = qty * result.profit;
+    var revenue = qty * sellPrice;
+    var margin = revenue > 0 ? (totalProfit / revenue * 100) : 0;
+
+    var investEl = document.getElementById('sim-investment');
+    var profitEl = document.getElementById('sim-total-profit');
+    var revenueEl = document.getElementById('sim-revenue');
+    var marginEl = document.getElementById('sim-margin');
+
+    if (investEl) investEl.textContent = investment.toFixed(2) + ' \u20ac';
+    if (profitEl) profitEl.textContent = (totalProfit > 0 ? '+' : '') + totalProfit.toFixed(2) + ' \u20ac';
+    if (revenueEl) revenueEl.textContent = revenue.toFixed(2) + ' \u20ac';
+    if (marginEl) marginEl.textContent = margin.toFixed(1) + ' %';
+
+    // Couleur du profit total
+    if (profitEl) profitEl.className = 'text-2xl font-black ' + (totalProfit > 0 ? 'text-green-600' : 'text-red-600');
 }
 
 function getQuantityRecommendation(product, settings) {

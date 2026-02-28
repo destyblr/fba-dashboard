@@ -3210,28 +3210,61 @@
                                 <div class="text-4xl font-black text-green-600 mb-2"><i class="fas fa-check-circle mr-2"></i>GO — ACHETER</div>
                                 <p class="text-gray-600">5/5 verifications passees</p>
                             </div>
-                            <div class="grid grid-cols-2 gap-4 mb-4">
-                                <div class="bg-white rounded-lg p-4 text-center">
-                                    <div class="text-xs text-gray-400">Profit recalcule</div>
-                                    <div id="verdict-profit" class="text-2xl font-bold text-green-600"></div>
+
+                            <!-- Simulateur de gains -->
+                            <div class="bg-white rounded-xl p-5 mb-4">
+                                <h4 class="font-semibold text-gray-800 mb-3"><i class="fas fa-calculator mr-2 text-green-500"></i>Simulateur de gains</h4>
+
+                                <!-- Profit & ROI par unite -->
+                                <div class="grid grid-cols-2 gap-3 mb-4">
+                                    <div class="bg-gray-50 rounded-lg p-3 text-center">
+                                        <div class="text-xs text-gray-400">Profit / unite</div>
+                                        <div id="verdict-profit" class="text-xl font-bold text-green-600"></div>
+                                    </div>
+                                    <div class="bg-gray-50 rounded-lg p-3 text-center">
+                                        <div class="text-xs text-gray-400">ROI</div>
+                                        <div id="verdict-roi" class="text-xl font-bold text-indigo-600"></div>
+                                    </div>
                                 </div>
-                                <div class="bg-white rounded-lg p-4 text-center">
-                                    <div class="text-xs text-gray-400">ROI recalcule</div>
-                                    <div id="verdict-roi" class="text-2xl font-bold text-indigo-600"></div>
+
+                                <!-- Recommandation -->
+                                <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
+                                    <div id="verdict-recommendation" class="text-sm text-gray-700"></div>
+                                </div>
+
+                                <!-- Quantite + simulation en temps reel -->
+                                <div class="flex items-center gap-4 mb-3">
+                                    <label class="text-sm font-semibold text-gray-700 whitespace-nowrap">Quantite :</label>
+                                    <input type="number" id="verdict-quantity" value="2" min="1" max="50"
+                                        class="w-20 px-3 py-2 border-2 border-green-300 rounded-lg text-center font-bold text-lg"
+                                        oninput="updateGainSimulator()">
+                                    <div class="flex-1 text-right">
+                                        <span class="text-xs text-gray-400">Investissement</span>
+                                        <div id="sim-investment" class="font-bold text-gray-700"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Resultats simulation -->
+                                <div class="grid grid-cols-3 gap-3 bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-500">Gain total</div>
+                                        <div id="sim-total-profit" class="text-2xl font-black text-green-600"></div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-500">Chiffre d'affaires</div>
+                                        <div id="sim-revenue" class="text-lg font-bold text-gray-700"></div>
+                                    </div>
+                                    <div class="text-center">
+                                        <div class="text-xs text-gray-500">Marge nette</div>
+                                        <div id="sim-margin" class="text-lg font-bold text-indigo-600"></div>
+                                    </div>
                                 </div>
                             </div>
-                            <!-- Quantity recommendation -->
-                            <div class="bg-white rounded-lg p-4 mb-4">
-                                <h4 class="font-semibold text-gray-800 mb-2"><i class="fas fa-calculator mr-2"></i>Recommandation</h4>
-                                <div id="verdict-recommendation" class="text-sm text-gray-600"></div>
-                            </div>
+
                             <div class="flex items-center justify-center gap-4">
-                                <label class="text-sm font-semibold text-gray-700">Quantite :</label>
-                                <input type="number" id="verdict-quantity" value="2" min="1" max="10"
-                                    class="w-20 px-3 py-2 border-2 border-gray-200 rounded-lg text-center">
                                 <button onclick="confirmPurchaseFromChecklist()"
                                     class="px-8 py-3 bg-green-600 text-white rounded-lg font-bold text-lg hover:bg-green-700 transition">
-                                    <i class="fas fa-shopping-cart mr-2"></i>Acheter
+                                    <i class="fas fa-shopping-cart mr-2"></i>Ajouter a l'inventaire
                                 </button>
                             </div>
                         </div>
