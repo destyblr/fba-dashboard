@@ -97,6 +97,16 @@ function saveOASettings() {
         localStorage.setItem('oaSettings', JSON.stringify(settings));
         console.log('[OA] Parametres sauvegardes:', settings);
         showOANotification('Parametres sauvegardes !', 'success');
+
+        // Auto-refresh : recalculer les resultats si on a des donnees
+        if (oaScanResults.length > 0) {
+            console.log('[OA] Recalcul avec les nouveaux parametres...');
+            oaScanResults.forEach(p => calculateProfit(p, settings));
+            oaScanResults = sortProducts(oaScanResults);
+            const profitable = filterProducts(oaScanResults, settings);
+            renderScanResults(oaScanResults, profitable.length);
+            showOANotification('Resultats recalcules avec les nouveaux parametres (' + profitable.length + ' rentables)', 'success');
+        }
     } catch (e) {
         console.log('[OA] Erreur sauvegarde parametres:', e);
         showOANotification('Erreur sauvegarde parametres', 'error');
@@ -447,6 +457,8 @@ function mergeData(dataDE, dataFR) {
             merged.push({
                 asin: pDE.asin,
                 title: pDE.title || pFR.title,
+                titleFR: pFR.title || '',
+                titleDE: pDE.title || '',
                 pricDE: pDE.price,
                 pricFR: pFR.price,
                 bsr: pDE.bsr || pFR.bsr,
@@ -817,11 +829,12 @@ function renderScanResults(products, profitableCount, funnel) {
     html += '<th class="pb-3 pr-4 text-right">Prix FR</th>';
     html += '<th class="pb-3 pr-4 text-right">Prix DE</th>';
     html += '<th class="pb-3 pr-4 text-right">Ecart</th>';
-    html += '<th class="pb-3 pr-4 text-right">Frais</th>';
+    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Total des frais : Commission Amazon + FBA pick&pack + Inbound shipping (' + settings.inboundShipping + '\u20ac) + Prep (' + settings.prepCost + '\u20ac) + Amortissement outils (' + settings.toolAmortization + '\u20ac) + URSSAF (' + settings.urssafPct + '%)">Frais <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-right">Profit</th>';
     html += '<th class="pb-3 pr-4 text-right">ROI</th>';
-    html += '<th class="pb-3 pr-4 text-right">BSR</th>';
-    html += '<th class="pb-3 pr-4 text-right">FBA</th>';
+    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Best Sellers Rank : classement des ventes sur Amazon.de. Plus le chiffre est bas, plus le produit se vend. < 1000 = excellent, < 10 000 = bon, < 30 000 = correct">BSR <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
+    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Nombre de vendeurs FBA (Fulfilled by Amazon) sur cette fiche produit. Moins il y en a, moins il y a de concurrence.">Sellers <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
+    html += '<th class="pb-3 pr-4 text-center">Liens</th>';
     html += '<th class="pb-3 pr-4 text-center">Action</th>';
     html += '</tr></thead><tbody>';
 
@@ -835,32 +848,55 @@ function renderScanResults(products, profitableCount, funnel) {
                            p.profit >= -2 ? 'text-yellow-400' : 'text-red-400';
         const roiClass = p.roi >= 35 ? 'text-green-400' :
                         p.roi >= 0 ? 'text-yellow-400' : 'text-red-400';
-        const titleShort = p.title.length > 45 ? p.title.substring(0, 45) + '...' : p.title;
         const ecart = p.pricDE - p.pricFR;
         const ecartClass = ecart > 0 ? 'text-green-400' : 'text-red-400';
         const totalFeesDisplay = p.totalFees + p.urssaf;
 
+        // Nom FR (pour chercher deals) + nom DE
+        const titleFR = p.titleFR || p.title || '';
+        const titleDE = p.titleDE || p.title || '';
+        const titleShort = titleFR.length > 40 ? titleFR.substring(0, 40) + '...' : titleFR;
+        const titleDEShort = titleDE.length > 40 ? titleDE.substring(0, 40) + '...' : titleDE;
+
+        // Tooltip frais detailles
+        const feesTooltip = 'Commission: ' + (p.commission || 0).toFixed(2) + '\u20ac (' + (p.referralPct || settings.commissionPct) + '%)'
+            + '\nFBA pick&pack: ' + (p.fbaFeeUsed || settings.fbaFee).toFixed(2) + '\u20ac'
+            + '\nInbound shipping: ' + settings.inboundShipping.toFixed(2) + '\u20ac'
+            + '\nPrep: ' + settings.prepCost.toFixed(2) + '\u20ac'
+            + '\nOutils: ' + settings.toolAmortization.toFixed(2) + '\u20ac'
+            + '\nURSSAF: ' + (p.urssaf || 0).toFixed(2) + '\u20ac (' + settings.urssafPct + '%)'
+            + '\n---------'
+            + '\nTotal: ' + totalFeesDisplay.toFixed(2) + '\u20ac';
+
         html += '<tr class="border-b border-gray-800 hover:bg-gray-800/50 ' + rowBg + '">';
         html += '<td class="py-2 pr-3 text-gray-500 text-xs">' + (i + 1) + '</td>';
-        html += '<td class="py-2 pr-3">';
-        html += '<div class="font-medium text-white text-xs">' + escapeHTML(titleShort) + '</div>';
-        html += '<div class="text-xs text-gray-500">' + p.asin + '</div></td>';
+        html += '<td class="py-2 pr-3 max-w-xs">';
+        html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleFR) + '">' + escapeHTML(titleShort) + '</div>';
+        if (titleDE !== titleFR && titleDE) {
+            html += '<div class="text-xs text-gray-500 truncate" title="DE: ' + escapeHTML(titleDE) + '">DE: ' + escapeHTML(titleDEShort) + '</div>';
+        }
+        html += '<div class="text-xs text-gray-600 font-mono">' + p.asin + '</div></td>';
         html += '<td class="py-2 pr-3 text-right text-blue-400">' + p.pricFR.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right text-purple-400">' + p.pricDE.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right font-bold ' + ecartClass + '">' + (ecart > 0 ? '+' : '') + ecart.toFixed(2) + '</td>';
-        html += '<td class="py-2 pr-3 text-right text-gray-400 text-xs" title="Commission: ' + (p.commission || 0) + '€ + FBA: ' + (p.fbaFeeUsed || 0) + '€ + Inbound/Prep/Tool + URSSAF: ' + (p.urssaf || 0) + '€">' + totalFeesDisplay.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-gray-400 text-xs cursor-help" title="' + escapeHTML(feesTooltip) + '">' + totalFeesDisplay.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right font-bold ' + profitClass + '">' + p.profit.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right ' + roiClass + '">' + p.roi.toFixed(0) + '%</td>';
         html += '<td class="py-2 pr-3 text-right text-gray-300 text-xs">' + formatNumber(p.bsr) + '</td>';
         html += '<td class="py-2 pr-3 text-right text-gray-300 text-xs">' + p.fbaSellers + '</td>';
+
+        // Liens Amazon FR + DE
+        html += '<td class="py-2 pr-3 text-center whitespace-nowrap">';
+        html += '<a href="https://www.amazon.fr/dp/' + p.asin + '" target="_blank" class="text-blue-400 hover:text-blue-300 text-xs mr-2" title="Voir sur Amazon.fr">FR</a>';
+        html += '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="text-purple-400 hover:text-purple-300 text-xs" title="Voir sur Amazon.de">DE</a>';
+        html += '</td>';
 
         html += '<td class="py-2 pr-3 text-center">';
         if (p.profit > 0) {
             html += '<button onclick="startChecklist(' + i + ')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs">';
             html += '<i class="fas fa-clipboard-check mr-1"></i>Verifier</button>';
         } else {
-            html += '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="text-gray-500 hover:text-blue-400 text-xs">';
-            html += '<i class="fas fa-external-link-alt mr-1"></i>Voir</a>';
+            html += '<span class="text-gray-600 text-xs">-</span>';
         }
         html += '</td>';
         html += '</tr>';
