@@ -1245,10 +1245,6 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     summary += '<span class="text-xs text-gray-500 ml-2">' + (strictActive ? 'Criteres stricts' : 'Criteres assouplis — plus de resultats') + '</span>';
     summary += '</div>';
 
-    summary += '<div class="text-sm text-gray-400 mb-4">';
-    summary += 'Affichage de <b>' + Math.min(filteredProducts.length, maxDisplay) + '</b> produits sur ' + filteredProducts.length + ' (tries par profit decroissant)';
-    summary += '</div>';
-
     // Filtrer selon le mode actif puis limiter a 200
     const maxDisplay = 200;
     var activeFilters = getActiveFilters(settings);
@@ -1265,6 +1261,10 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
         return true;
     });
     const displayProducts = filteredProducts.slice(0, maxDisplay);
+
+    summary += '<div class="text-sm text-gray-400 mb-4">';
+    summary += 'Affichage de <b>' + Math.min(filteredProducts.length, maxDisplay) + '</b> produits sur ' + filteredProducts.length + ' (tries par profit decroissant)';
+    summary += '</div>';
 
     let html = '<div class="overflow-x-auto">';
     html += '<table class="w-full text-sm">';
