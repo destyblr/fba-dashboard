@@ -678,13 +678,19 @@ function parseKeepaCSV(csvText) {
 
     // Colonnes poids/dimensions (pour calcul inbound intelligent)
     const colPackageWeight = findColumn(headerMap, [
-        'package: weight (g)', 'emballage: poids (g)', 'package weight'
+        'package: weight (g)', 'emballage: poids (g)', 'package weight',
+        'verpackung: gewicht (g)', 'paquete: peso (g)', 'confezione: peso (g)',
+        'weight (g)', 'gewicht (g)', 'peso (g)', 'poids (g)'
     ]);
     const colItemWeight = findColumn(headerMap, [
-        'item: weight (g)', 'article: poids (g)', 'item weight'
+        'item: weight (g)', 'article: poids (g)', 'item weight',
+        'artikel: gewicht (g)', 'articulo: peso (g)', 'articolo: peso (g)'
     ]);
     const colPackageDim = findColumn(headerMap, [
-        'package: dimension (cm cubed)', 'emballage: dimension (cm cubed)'
+        'package: dimension (cm cubed)', 'emballage: dimension (cm cubed)',
+        'verpackung: abmessung (cm cubed)', 'paquete: dimension (cm cubed)',
+        'confezione: dimensione (cm cubed)', 'dimension (cm cubed)',
+        'package: dimension (cm³)', 'package dimension'
     ]);
 
     // Debug: afficher les colonnes detectees
@@ -696,6 +702,11 @@ function parseKeepaCSV(csvText) {
         PackageWeight: colPackageWeight, PackageDim: colPackageDim
     });
     console.log('[OA] Nb headers:', headers.length, '| Premieres colonnes:', headers.slice(0, 5));
+    // Debug poids/volume : lister les headers qui contiennent weight/poids/dimension/volume/gewicht
+    var weightHeaders = headers.filter(h => /weight|poids|gewicht|peso|dimension|volume|abmessung|packag|emballag|verpackung/i.test(h));
+    console.log('[OA] Headers poids/volume trouves:', weightHeaders);
+    if (colPackageWeight === -1 && colItemWeight === -1) console.warn('[OA] ATTENTION: aucune colonne poids detectee !');
+    if (colPackageDim === -1) console.warn('[OA] ATTENTION: aucune colonne volume/dimension detectee !');
 
     const products = [];
 
