@@ -1674,16 +1674,17 @@ function updateGainSimulator() {
     var investment = qty * buyPrice;
     var totalProfit = qty * result.profit;
     var revenue = qty * sellPrice;
+    var totalFees = revenue - totalProfit - investment;
     var margin = revenue > 0 ? (totalProfit / revenue * 100) : 0;
 
     var investEl = document.getElementById('sim-investment');
     var profitEl = document.getElementById('sim-total-profit');
-    var revenueEl = document.getElementById('sim-revenue');
+    var feesEl = document.getElementById('sim-revenue');
     var marginEl = document.getElementById('sim-margin');
 
     if (investEl) investEl.textContent = investment.toFixed(2) + ' \u20ac';
     if (profitEl) profitEl.textContent = (totalProfit > 0 ? '+' : '') + totalProfit.toFixed(2) + ' \u20ac';
-    if (revenueEl) revenueEl.textContent = revenue.toFixed(2) + ' \u20ac';
+    if (feesEl) feesEl.textContent = totalFees.toFixed(2) + ' \u20ac';
     if (marginEl) marginEl.textContent = margin.toFixed(1) + ' %';
 
     // Couleur du profit total
