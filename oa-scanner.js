@@ -1319,17 +1319,17 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     displayProducts.forEach((p, i) => {
         // Couleur de la ligne selon qualite du deal
         const isNonEligible = oaFilterMode === 'noneligible';
+        const isTopDeal = !isNonEligible && p.profit >= 8 && p.roi >= 50;
+        const isGoodDeal = !isNonEligible && !isTopDeal && p.profit >= 5 && p.roi >= 35;
         const rowBg = isNonEligible ? 'bg-gray-800/40' :
-                      (p.profit >= 8 && p.roi >= 50) ? 'bg-green-900/30' :
-                      (p.profit >= 5 && p.roi >= 35) ? 'bg-blue-900/20' : '';
-        const profitClass = p.profit >= 8 ? 'text-green-300 font-bold' :
-                           p.profit >= 5 ? 'text-emerald-200 font-bold' :
-                           p.profit >= 0 ? 'text-gray-200' : 'text-red-400';
-        const roiClass = p.roi >= 50 ? 'text-green-300' :
-                        p.roi >= 35 ? 'text-emerald-200' :
-                        p.roi >= 0 ? 'text-gray-200' : 'text-red-400';
+                      isTopDeal ? 'bg-green-900/30 border-l-4 border-l-green-400' :
+                      isGoodDeal ? 'bg-blue-900/20 border-l-4 border-l-blue-400' : '';
+        const profitClass = p.profit >= 5 ? 'text-white font-bold' :
+                           p.profit >= 0 ? 'text-gray-100' : 'text-red-400 font-bold';
+        const roiClass = p.roi >= 35 ? 'text-white' :
+                        p.roi >= 0 ? 'text-gray-100' : 'text-red-400';
         const ecart = p.pricDE - p.pricFR;
-        const ecartClass = ecart > 0 ? 'text-green-300' : 'text-red-400';
+        const ecartClass = ecart > 0 ? 'text-white' : 'text-red-400';
         const totalFeesDisplay = p.totalFees + p.urssaf;
 
         // Nom FR (pour chercher deals) + nom DE
