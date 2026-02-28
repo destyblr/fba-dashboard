@@ -1233,63 +1233,60 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     if (soupleCount === undefined) soupleCount = countFilteredProducts(products, settings, 'souple');
 
     // Toggle Strict / Souple / Non eligible
+    var soupleOnlyCount = soupleCount - strictCount; // extras souple (pas dans strict)
     var nonEligibleCount = products.length - soupleCount;
     summary += '<div class="flex items-center gap-3 mb-6">';
     summary += '<span class="text-sm text-gray-400">Filtrage :</span>';
     summary += '<button onclick="toggleFilterMode(\'strict\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
-        (oaFilterMode === 'strict' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
+        (oaFilterMode === 'strict' ? 'bg-indigo-600 text-white' : 'bg-gray-600 text-gray-200 hover:bg-gray-500') + '">';
     summary += 'Strict (' + strictCount + ')</button>';
     summary += '<button onclick="toggleFilterMode(\'souple\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
-        (oaFilterMode === 'souple' ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
-    summary += 'Souple (' + soupleCount + ')</button>';
+        (oaFilterMode === 'souple' ? 'bg-amber-600 text-white' : 'bg-gray-600 text-gray-200 hover:bg-gray-500') + '">';
+    summary += 'Souple (' + soupleOnlyCount + ')</button>';
     summary += '<button onclick="toggleFilterMode(\'noneligible\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
-        (oaFilterMode === 'noneligible' ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
+        (oaFilterMode === 'noneligible' ? 'bg-red-600 text-white' : 'bg-gray-600 text-gray-200 hover:bg-gray-500') + '">';
     summary += 'Non eligible (' + nonEligibleCount + ')</button>';
-    var modeLabel = oaFilterMode === 'strict' ? 'Criteres stricts' : oaFilterMode === 'souple' ? 'Criteres assouplis' : 'Produits qui ne passent aucun filtre';
-    summary += '<span class="text-xs text-gray-500 ml-2">' + modeLabel + '</span>';
+    var modeLabel = oaFilterMode === 'strict' ? 'Criteres stricts' : oaFilterMode === 'souple' ? 'Produits entre strict et souple' : 'Produits qui ne passent aucun filtre';
+    summary += '<span class="text-xs text-gray-400 ml-2">' + modeLabel + '</span>';
     summary += '</div>';
 
     // Filtrer selon le mode actif puis limiter a 200
     const maxDisplay = 200;
     var filteredProducts;
-    if (oaFilterMode === 'noneligible') {
-        // Non eligible = ne passe PAS les criteres souple (les plus permissifs)
-        var sf = {
-            minProfit: settings.soupleMinProfit || 2,
-            minROI: settings.soupleMinROI || 15,
-            maxBSR: settings.soupleMaxBSR || 100000,
-            maxFBASellers: settings.soupleMaxFBASellers || 8,
-            amazonSells: settings.amazonSells,
-            minPriceDE: settings.soupleMinPriceDE || 12,
-            maxPriceDE: settings.soupleMaxPriceDE || 100
-        };
-        filteredProducts = products.filter(function(p) {
-            // Garder ceux qui ECHOUENT au moins un critere souple
-            if (p.pricDE <= p.pricFR) return true;
-            if (p.profit <= 0) return true;
-            if (p.profit < sf.minProfit) return true;
-            if (p.roi < sf.minROI) return true;
-            if (sf.maxBSR > 0 && p.bsr > sf.maxBSR && p.bsr > 0) return true;
-            if (p.fbaSellers > sf.maxFBASellers) return true;
-            if (!sf.amazonSells && p.amazonSells) return true;
-            if (sf.minPriceDE > 0 && p.pricDE < sf.minPriceDE) return true;
-            if (sf.maxPriceDE > 0 && p.pricDE > sf.maxPriceDE) return true;
-            return false; // passe tous les filtres = eligible, donc on l'exclut
-        });
+
+    // Fonction helper pour tester si un produit passe un jeu de criteres
+    function passesFilters(p, f) {
+        if (p.pricDE <= p.pricFR) return false;
+        if (p.profit <= 0) return false;
+        if (p.profit < f.minProfit) return false;
+        if (p.roi < f.minROI) return false;
+        if (f.maxBSR > 0 && p.bsr > f.maxBSR && p.bsr > 0) return false;
+        if (p.fbaSellers > f.maxFBASellers) return false;
+        if (!f.amazonSells && p.amazonSells) return false;
+        if (f.minPriceDE > 0 && p.pricDE < f.minPriceDE) return false;
+        if (f.maxPriceDE > 0 && p.pricDE > f.maxPriceDE) return false;
+        return true;
+    }
+
+    var strictFilters = {
+        minProfit: settings.minProfit, minROI: settings.minROI,
+        maxBSR: settings.maxBSR, maxFBASellers: settings.maxFBASellers,
+        amazonSells: settings.amazonSells, minPriceDE: settings.minPriceDE, maxPriceDE: settings.maxPriceDE
+    };
+    var soupleFilters = {
+        minProfit: settings.soupleMinProfit || 2, minROI: settings.soupleMinROI || 15,
+        maxBSR: settings.soupleMaxBSR || 100000, maxFBASellers: settings.soupleMaxFBASellers || 8,
+        amazonSells: settings.amazonSells, minPriceDE: settings.soupleMinPriceDE || 12, maxPriceDE: settings.soupleMaxPriceDE || 100
+    };
+
+    if (oaFilterMode === 'strict') {
+        filteredProducts = products.filter(function(p) { return passesFilters(p, strictFilters); });
+    } else if (oaFilterMode === 'souple') {
+        // Souple = passe souple MAIS PAS strict (les extras uniquement)
+        filteredProducts = products.filter(function(p) { return passesFilters(p, soupleFilters) && !passesFilters(p, strictFilters); });
     } else {
-        var activeFilters = getActiveFilters(settings);
-        filteredProducts = products.filter(function(p) {
-            if (p.pricDE <= p.pricFR) return false;
-            if (p.profit <= 0) return false;
-            if (p.profit < activeFilters.minProfit) return false;
-            if (p.roi < activeFilters.minROI) return false;
-            if (activeFilters.maxBSR > 0 && p.bsr > activeFilters.maxBSR && p.bsr > 0) return false;
-            if (p.fbaSellers > activeFilters.maxFBASellers) return false;
-            if (!activeFilters.amazonSells && p.amazonSells) return false;
-            if (activeFilters.minPriceDE > 0 && p.pricDE < activeFilters.minPriceDE) return false;
-            if (activeFilters.maxPriceDE > 0 && p.pricDE > activeFilters.maxPriceDE) return false;
-            return true;
-        });
+        // Non eligible = ne passe PAS les criteres souple
+        filteredProducts = products.filter(function(p) { return !passesFilters(p, soupleFilters); });
     }
     const displayProducts = filteredProducts.slice(0, maxDisplay);
 
@@ -1320,12 +1317,12 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
         // Couleur de la ligne
         const isNonEligible = oaFilterMode === 'noneligible';
         const rowBg = isNonEligible ? 'bg-gray-800/40' : '';
-        const profitClass = p.profit >= 5 ? 'text-white font-bold' :
-                           p.profit >= 0 ? 'text-gray-100' : 'text-red-400 font-bold';
-        const roiClass = p.roi >= 35 ? 'text-white' :
-                        p.roi >= 0 ? 'text-gray-100' : 'text-red-400';
+        const profitClass = p.profit >= 5 ? 'text-green-400 font-bold' :
+                           p.profit >= 0 ? 'text-yellow-300' : 'text-red-400 font-bold';
+        const roiClass = p.roi >= 35 ? 'text-green-400' :
+                        p.roi >= 0 ? 'text-yellow-300' : 'text-red-400';
         const ecart = p.pricDE - p.pricFR;
-        const ecartClass = ecart > 0 ? 'text-white' : 'text-red-400';
+        const ecartClass = ecart > 0 ? 'text-green-400' : 'text-red-400';
         const totalFeesDisplay = p.totalFees + p.urssaf;
 
         // Nom FR (pour chercher deals) + nom DE
