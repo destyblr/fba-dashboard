@@ -291,6 +291,10 @@
                         <i class="fas fa-search mr-3"></i>
                         Scanner
                     </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-deal-scanner')">
+                        <i class="fas fa-tags mr-3"></i>
+                        Deal Scanner
+                    </div>
                     <div class="pt-3 pb-1 px-3">
                         <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Workflow</span>
                     </div>
@@ -3041,6 +3045,123 @@
                 </div>
             </section>
 
+            <!-- Section OA Deal Scanner -->
+            <section id="section-oa-deal-scanner" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-tags text-orange-500 mr-2"></i>Deal Scanner
+                    </h2>
+                    <p class="text-gray-500">Trouve des deals en promo et calcule la rentabilite FBA</p>
+                </div>
+
+                <!-- Barre de controles -->
+                <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+                    <div class="flex flex-wrap items-end gap-4">
+                        <!-- Source -->
+                        <div class="flex-1 min-w-[200px]">
+                            <label class="text-xs font-medium text-gray-600 mb-1 block">Source des deals</label>
+                            <select id="deal-source-select" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg bg-white text-sm" onchange="onDealSourceChange()">
+                                <optgroup label="Sites de promos (RSS auto)">
+                                    <option value="dealabs">&#127467;&#127479; Dealabs (FR)</option>
+                                    <option value="mydealz">&#127465;&#127466; MyDealz (DE)</option>
+                                    <option value="chollometro">&#127466;&#127480; Chollometro (ES)</option>
+                                    <option value="pepper_it">&#127470;&#127481; Pepper.it (IT)</option>
+                                </optgroup>
+                                <optgroup label="Retail FR (scraping)">
+                                    <option value="fnac">&#127467;&#127479; Fnac</option>
+                                    <option value="darty">&#127467;&#127479; Darty</option>
+                                    <option value="cdiscount">&#127467;&#127479; Cdiscount</option>
+                                    <option value="boulanger">&#127467;&#127479; Boulanger</option>
+                                    <option value="rueducommerce">&#127467;&#127479; Rue du Commerce</option>
+                                    <option value="ldlc">&#127467;&#127479; LDLC</option>
+                                    <option value="rakuten">&#127467;&#127479; Rakuten</option>
+                                    <option value="leclerc">&#127467;&#127479; E.Leclerc</option>
+                                    <option value="cultura">&#127467;&#127479; Cultura</option>
+                                    <option value="amazon_warehouse_fr">&#127467;&#127479; Amazon Warehouse FR</option>
+                                </optgroup>
+                                <optgroup label="Retail DE (scraping)">
+                                    <option value="mediamarkt">&#127465;&#127466; MediaMarkt</option>
+                                    <option value="saturn">&#127465;&#127466; Saturn</option>
+                                    <option value="notebooksbilliger">&#127465;&#127466; Notebooksbilliger</option>
+                                    <option value="amazon_warehouse_de">&#127465;&#127466; Amazon Warehouse DE</option>
+                                </optgroup>
+                                <optgroup label="Agrege">
+                                    <option value="all_rss">Tous les sites RSS</option>
+                                    <option value="all">Tous les sites</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                        <!-- Marketplace vente -->
+                        <div class="min-w-[180px]">
+                            <label class="text-xs font-medium text-gray-600 mb-1 block">Vendre sur</label>
+                            <select id="deal-sell-market" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg bg-white text-sm" onchange="dealSellMarket = this.value">
+                                <option value="fr">&#127467;&#127479; Amazon.fr</option>
+                                <option value="de" selected>&#127465;&#127466; Amazon.de</option>
+                                <option value="it">&#127470;&#127481; Amazon.it</option>
+                                <option value="es">&#127466;&#127480; Amazon.es</option>
+                            </select>
+                        </div>
+                        <!-- Bouton refresh -->
+                        <div>
+                            <button onclick="fetchDeals()" id="deal-fetch-btn" class="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold transition">
+                                <i class="fas fa-sync-alt mr-2"></i>Charger les deals
+                            </button>
+                        </div>
+                    </div>
+                    <!-- Stats -->
+                    <div id="deal-stats" class="mt-3 text-sm text-gray-500 hidden">
+                        <span id="deal-stats-total" class="mr-3"></span>
+                        <span id="deal-stats-amazon" class="mr-3 text-blue-600 font-medium"></span>
+                        <span id="deal-stats-profitable" class="mr-3 text-green-600 font-medium"></span>
+                        <span id="deal-stats-keepa" class="text-amber-500"></span>
+                    </div>
+                </div>
+
+                <!-- Filtres -->
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <button onclick="setDealFilter('all')" id="deal-filter-all" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Tous (0)</button>
+                    <button onclick="setDealFilter('amazon')" id="deal-filter-amazon" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Amazon (0)</button>
+                    <button onclick="setDealFilter('profitable')" id="deal-filter-profitable" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Rentables (0)</button>
+                    <!-- Categorie filter -->
+                    <select id="deal-category-filter" class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" onchange="renderDealResults()">
+                        <option value="">Toutes categories</option>
+                    </select>
+                </div>
+
+                <!-- Ajout manuel -->
+                <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+                    <h3 class="font-bold text-gray-800 mb-2"><i class="fas fa-plus-circle text-green-500 mr-2"></i>Ajouter un deal manuellement</h3>
+                    <p class="text-xs text-gray-400 mb-3">Deal trouve en magasin (Action, Stokomani, Noz...) ou sur un site non supporte ? Ajoute-le ici.</p>
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <label class="text-xs font-medium text-gray-600 mb-1 block">ASIN / Lien Amazon / EAN</label>
+                            <input type="text" id="deal-manual-input" placeholder="B0XXXXXXXX ou lien Amazon ou EAN..." class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-72">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-gray-600 mb-1 block">Prix promo (&euro;)</label>
+                            <input type="number" id="deal-manual-price" step="0.01" placeholder="29.99" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-32">
+                        </div>
+                        <div>
+                            <label class="text-xs font-medium text-gray-600 mb-1 block">Source (optionnel)</label>
+                            <input type="text" id="deal-manual-source" placeholder="Stokomani, Noz..." class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-40">
+                        </div>
+                        <button onclick="addManualDeal()" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold">
+                            <i class="fas fa-search-dollar mr-1"></i>Analyser
+                        </button>
+                    </div>
+                    <div id="deal-manual-result" class="mt-3"></div>
+                </div>
+
+                <!-- Tableau resultats -->
+                <div id="deal-scanner-results" class="rounded-xl shadow-sm overflow-hidden" style="background-color: #2d3748">
+                    <div class="p-8 text-center text-gray-400">
+                        <i class="fas fa-tags text-5xl mb-4"></i>
+                        <p class="text-lg">Selectionnez une source et cliquez "Charger les deals"</p>
+                        <p class="text-sm mt-2">Les deals des sites de promos seront analyses automatiquement</p>
+                    </div>
+                </div>
+            </section>
+
             <!-- Section OA Checklist -->
             <section id="section-oa-checklist" class="content-section hidden">
                 <div class="mb-6">
@@ -3587,6 +3708,25 @@
                         <button onclick="resetOASettings()" class="mt-6 w-full px-4 py-2 border-2 border-gray-300 text-gray-600 rounded-lg text-sm hover:bg-gray-50 transition">
                             <i class="fas fa-undo mr-2"></i>Reinitialiser les valeurs par defaut
                         </button>
+                    </div>
+
+                    <!-- API Keepa -->
+                    <div class="bg-white rounded-xl shadow-sm p-6">
+                        <h3 class="font-bold text-gray-800 mb-2"><i class="fas fa-key text-purple-500 mr-2"></i>API Keepa</h3>
+                        <p class="text-xs text-gray-400 mb-4">Necessaire pour le Deal Scanner. Permet de chercher automatiquement les prix Amazon par ASIN ou EAN.</p>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                                    Cle API Keepa
+                                    <span class="text-gray-400 cursor-help" title="Va sur keepa.com/#!api pour trouver ta cle API privee. Necessite un abonnement Keepa."><i class="fas fa-info-circle"></i></span>
+                                </label>
+                                <input type="password" id="oa-keepaApiKey" placeholder="Colle ta cle API ici..." class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg font-mono text-sm" onchange="saveOASettings()">
+                                <p class="text-xs text-gray-400 mt-1"><i class="fas fa-external-link-alt mr-1"></i><a href="https://keepa.com/#!api" target="_blank" class="text-indigo-500 hover:underline">keepa.com/#!api</a> &rarr; Private API access key</p>
+                            </div>
+                            <div id="keepa-api-status" class="hidden text-sm">
+                                <span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Cle API configuree</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </section>

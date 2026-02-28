@@ -1,0 +1,9 @@
+{
+  "name": "fba-dashboard-functions",
+  "version": "1.0.0",
+  "description": "Netlify Functions - Deal Scanner scrapers",
+  "dependencies": {
+    "node-fetch": "^2.7.0",
+    "cheerio": "^1.0.0"
+  }
+}

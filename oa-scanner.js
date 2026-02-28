@@ -15,6 +15,41 @@ let oaCurrentCheckIndex = -1; // Index dans oaScanResults
 let oaInventory = [];       // Inventaire OA
 let oaFilterMode = 'strict'; // Mode de filtrage actif (strict ou souple)
 
+// --- DEAL SCANNER ---
+let dealScannerResults = [];    // Tous les deals fetches
+let dealFilterMode = 'all';     // 'all', 'amazon', 'profitable'
+let dealSellMarket = 'de';      // Marketplace de vente cible
+let keepaCache = {};             // Cache ASIN → {price, bsr, timestamp}
+let keepaQueue = [];             // ASINs en attente de lookup Keepa
+let keepaProcessing = false;     // Flag pour eviter double processing queue
+
+const DEAL_SOURCES = {
+    // Groupe A — Pepper RSS (navigateur, proxy CORS)
+    dealabs:        { name: 'Dealabs', country: 'FR', type: 'rss', url: 'https://www.dealabs.com/rss/hot' },
+    mydealz:        { name: 'MyDealz', country: 'DE', type: 'rss', url: 'https://www.mydealz.de/rss/hot' },
+    chollometro:    { name: 'Chollometro', country: 'ES', type: 'rss', url: 'https://www.chollometro.com/rss/hot' },
+    pepper_it:      { name: 'Pepper.it', country: 'IT', type: 'rss', url: 'https://www.pepper.it/rss/hot' },
+    // Groupe B — Netlify Functions (scraping retail)
+    fnac:           { name: 'Fnac', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-fnac' },
+    darty:          { name: 'Darty', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-darty' },
+    cdiscount:      { name: 'Cdiscount', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-cdiscount' },
+    boulanger:      { name: 'Boulanger', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-boulanger' },
+    rueducommerce:  { name: 'Rue du Commerce', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-rueducommerce' },
+    ldlc:           { name: 'LDLC', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-ldlc' },
+    rakuten:        { name: 'Rakuten', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-rakuten' },
+    leclerc:        { name: 'Leclerc', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-leclerc' },
+    cultura:        { name: 'Cultura', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-cultura' },
+    amazon_warehouse_fr: { name: 'Amazon Warehouse FR', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-amazon-warehouse?domain=fr' },
+    mediamarkt:     { name: 'MediaMarkt', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-mediamarkt' },
+    saturn:         { name: 'Saturn', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-saturn' },
+    notebooksbilliger: { name: 'NBB', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-notebooksbilliger' },
+    amazon_warehouse_de: { name: 'Amazon Warehouse DE', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-amazon-warehouse?domain=de' }
+};
+
+const KEEPA_DOMAINS = { de: 3, fr: 4, it: 8, es: 9 };
+const KEEPA_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h en ms
+const KEEPA_RATE_LIMIT_MS = 65000; // 65 secondes entre chaque appel
+
 // Marketplaces Amazon Europe
 const OA_MARKETPLACES = {
     'fr': { code: 'FR', name: 'France', domain: 'amazon.fr', flag: '\ud83c\uddeb\ud83c\uddf7', keepaSearch: 'Recherche de Produit', keepaViewer: 'Visualiseur de Produit' },
@@ -61,6 +96,9 @@ const OA_DEFAULTS = {
     // Direction (marche source = achat, marche dest = vente)
     sourceMarket: 'de',
     destMarket: 'fr',
+
+    // API Keepa (pour Deal Scanner)
+    keepaApiKey: '',
 
     // Capital
     capitalTotal: 755,
@@ -219,7 +257,8 @@ function saveOASettings() {
         { id: 'oa-maxPerProduct', key: 'maxPerProduct', type: 'float' },
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy', type: 'int' },
         { id: 'oa-sourceMarket', key: 'sourceMarket', type: 'string' },
-        { id: 'oa-destMarket', key: 'destMarket', type: 'string' }
+        { id: 'oa-destMarket', key: 'destMarket', type: 'string' },
+        { id: 'oa-keepaApiKey', key: 'keepaApiKey', type: 'string' }
     ];
 
     fields.forEach(f => {
@@ -294,7 +333,8 @@ function initOASettings() {
         { id: 'oa-maxPerProduct', key: 'maxPerProduct' },
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy' },
         { id: 'oa-sourceMarket', key: 'sourceMarket' },
-        { id: 'oa-destMarket', key: 'destMarket' }
+        { id: 'oa-destMarket', key: 'destMarket' },
+        { id: 'oa-keepaApiKey', key: 'keepaApiKey' }
     ];
 
     fields.forEach(f => {
@@ -306,6 +346,12 @@ function initOASettings() {
             el.value = settings[f.key];
         }
     });
+
+    // Afficher le status API Keepa
+    var keepaStatus = document.getElementById('keepa-api-status');
+    if (keepaStatus && settings.keepaApiKey) {
+        keepaStatus.classList.remove('hidden');
+    }
 
     console.log('[OA] Parametres initialises');
 }
@@ -2542,6 +2588,950 @@ function formatNumber(num) {
 // INITIALISATION OA
 // ===========================
 
+// ===========================
+// DEAL SCANNER
+// ===========================
+
+// --- Keepa Cache ---
+function loadKeepaCache() {
+    try {
+        var raw = localStorage.getItem('keepaCache');
+        if (raw) {
+            keepaCache = JSON.parse(raw);
+            // Nettoyer les entrees expirees (> 24h)
+            var now = Date.now();
+            var cleaned = 0;
+            Object.keys(keepaCache).forEach(function(key) {
+                if (now - keepaCache[key].timestamp > KEEPA_CACHE_TTL) {
+                    delete keepaCache[key];
+                    cleaned++;
+                }
+            });
+            if (cleaned > 0) {
+                localStorage.setItem('keepaCache', JSON.stringify(keepaCache));
+                console.log('[DealScanner] Cache Keepa: ' + cleaned + ' entrees expirees nettoyees');
+            }
+            console.log('[DealScanner] Cache Keepa charge: ' + Object.keys(keepaCache).length + ' entrees');
+        }
+    } catch (e) {
+        keepaCache = {};
+        console.warn('[DealScanner] Erreur chargement cache Keepa:', e);
+    }
+}
+
+function saveKeepaCache() {
+    try {
+        localStorage.setItem('keepaCache', JSON.stringify(keepaCache));
+    } catch (e) {
+        console.warn('[DealScanner] Erreur sauvegarde cache Keepa:', e);
+    }
+}
+
+// --- Keepa API Lookup ---
+async function keepaLookup(identifier, type) {
+    // type = 'asin' ou 'ean'
+    var settings = loadOASettings();
+    var apiKey = settings.keepaApiKey;
+    if (!apiKey) {
+        console.warn('[DealScanner] Pas de cle API Keepa configuree');
+        return null;
+    }
+
+    var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
+    var url;
+    if (type === 'ean') {
+        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&ean=' + identifier + '&stats=1&offers=0';
+    } else {
+        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + identifier + '&stats=1&offers=0';
+    }
+
+    try {
+        var resp = await fetch(url);
+        var data = await resp.json();
+
+        if (data.error) {
+            console.warn('[DealScanner] Keepa API erreur:', data.error);
+            return null;
+        }
+
+        if (data.products && data.products.length > 0) {
+            var p = data.products[0];
+            var stats = p.stats || {};
+
+            // Extraire le prix actuel Amazon (csv[0] = prix Amazon, csv[1] = prix Marketplace)
+            var amazonPrice = -1;
+            var newPrice = -1;
+            if (p.csv && p.csv[0]) {
+                var csvAmazon = p.csv[0];
+                if (csvAmazon.length >= 2) {
+                    amazonPrice = csvAmazon[csvAmazon.length - 1]; // dernier prix connu
+                    if (amazonPrice > 0) amazonPrice = amazonPrice / 100; // Keepa stocke en centimes
+                }
+            }
+            if (p.csv && p.csv[1]) {
+                var csvNew = p.csv[1];
+                if (csvNew.length >= 2) {
+                    newPrice = csvNew[csvNew.length - 1];
+                    if (newPrice > 0) newPrice = newPrice / 100;
+                }
+            }
+
+            // Prendre le meilleur prix disponible (Amazon ou marketplace new)
+            var bestPrice = -1;
+            if (amazonPrice > 0) bestPrice = amazonPrice;
+            else if (newPrice > 0) bestPrice = newPrice;
+
+            var result = {
+                asin: p.asin,
+                title: p.title,
+                price: bestPrice,
+                amazonPrice: amazonPrice > 0 ? amazonPrice : null,
+                marketplacePrice: newPrice > 0 ? newPrice : null,
+                bsr: (stats.current && stats.current[3] >= 0) ? stats.current[3] : (p.salesRankReference || 0),
+                fbaSellers: (p.fbaOfferCount && p.fbaOfferCount.length > 0) ? p.fbaOfferCount[p.fbaOfferCount.length - 1] : 0,
+                category: p.categoryTree ? p.categoryTree.map(function(c) { return c.name; }).join(' > ') : '',
+                imageUrl: p.imagesCSV ? ('https://images-na.ssl-images-amazon.com/images/I/' + p.imagesCSV.split(',')[0]) : '',
+                timestamp: Date.now()
+            };
+
+            // Sauvegarder dans le cache
+            keepaCache[p.asin] = result;
+            saveKeepaCache();
+
+            console.log('[DealScanner] Keepa lookup OK: ' + p.asin + ' → ' + bestPrice + '€');
+            return result;
+        }
+
+        return null;
+    } catch (e) {
+        console.error('[DealScanner] Keepa API fetch erreur:', e);
+        return null;
+    }
+}
+
+// --- Queue Keepa ---
+async function processKeepaQueue() {
+    if (keepaProcessing || keepaQueue.length === 0) return;
+    keepaProcessing = true;
+    console.log('[DealScanner] Demarrage queue Keepa: ' + keepaQueue.length + ' ASINs en attente');
+
+    while (keepaQueue.length > 0) {
+        var item = keepaQueue.shift();
+        // item = { identifier, type, dealIndex }
+        var result = await keepaLookup(item.identifier, item.type);
+
+        if (result && item.dealIndex >= 0 && item.dealIndex < dealScannerResults.length) {
+            var deal = dealScannerResults[item.dealIndex];
+            if (!deal.asin && result.asin) deal.asin = result.asin;
+            deal.amazonPrice = result.price;
+            deal.keepaData = result;
+
+            // Recalculer le profit
+            if (deal.price > 0 && result.price > 0) {
+                var profitResult = calculateDealProfit(deal, result);
+                deal.profit = profitResult.profit;
+                deal.roi = profitResult.roi;
+                deal.fees = profitResult.fees;
+            }
+
+            // Mettre a jour la ligne dans le tableau
+            updateDealRow(item.dealIndex, deal);
+        }
+
+        // Mettre a jour le compteur queue
+        var keepaStatsEl = document.getElementById('deal-stats-keepa');
+        if (keepaStatsEl) {
+            if (keepaQueue.length > 0) {
+                keepaStatsEl.textContent = '⏳ ' + keepaQueue.length + ' en attente Keepa';
+            } else {
+                keepaStatsEl.textContent = '';
+            }
+        }
+
+        // Respecter le rate limit (65s entre chaque appel)
+        if (keepaQueue.length > 0) {
+            await new Promise(function(resolve) { setTimeout(resolve, KEEPA_RATE_LIMIT_MS); });
+        }
+    }
+
+    keepaProcessing = false;
+    console.log('[DealScanner] Queue Keepa terminee');
+    // Re-render les stats finales
+    updateDealStats();
+}
+
+// --- Chercher dans les donnees CSV deja chargees ---
+function findProductInCSV(asin) {
+    if (!asin) return null;
+    // Chercher dans oaDataDE (marche de vente)
+    if (oaDataDE.length > 0) {
+        var found = oaDataDE.find(function(p) { return p.asin === asin; });
+        if (found && found.price > 0) return found;
+    }
+    // Chercher dans oaScanResults
+    if (oaScanResults.length > 0) {
+        var fromScan = oaScanResults.find(function(p) { return p.asin === asin; });
+        if (fromScan) return { price: fromScan.pricDE, asin: asin, bsr: fromScan.bsr, fbaSellers: fromScan.fbaSellers };
+    }
+    return null;
+}
+
+// --- Calcul du profit pour un deal ---
+function calculateDealProfit(deal, amazonData) {
+    var settings = loadOASettings();
+    var buyPrice = deal.price;
+    var sellPrice = amazonData.price;
+
+    if (!buyPrice || buyPrice <= 0 || !sellPrice || sellPrice <= 0) {
+        return { profit: 0, roi: 0, fees: 0 };
+    }
+
+    var commPct = settings.commissionPct;
+    var commission = sellPrice * (commPct / 100);
+    var fbaFee = settings.fbaFee;
+    var inbound = settings.inboundShipping;
+    var prep = settings.prepCost;
+    var urssaf = sellPrice * (settings.urssafPct / 100);
+
+    var totalFees = commission + fbaFee + inbound + prep;
+    var profit = sellPrice - buyPrice - totalFees - urssaf;
+    var roi = buyPrice > 0 ? (profit / buyPrice) * 100 : 0;
+
+    return {
+        profit: Math.round(profit * 100) / 100,
+        roi: Math.round(roi * 100) / 100,
+        fees: Math.round(totalFees * 100) / 100,
+        commission: Math.round(commission * 100) / 100,
+        fbaFee: Math.round(fbaFee * 100) / 100,
+        urssaf: Math.round(urssaf * 100) / 100
+    };
+}
+
+// --- Helpers d'extraction ---
+function extractASINFromURL(url) {
+    if (!url) return null;
+    var match = url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+    return match ? match[1].toUpperCase() : null;
+}
+
+function extractASINFromText(text) {
+    if (!text) return null;
+    var match = text.match(/\b(B[A-Z0-9]{9})\b/);
+    return match ? match[1] : null;
+}
+
+function isAmazonDeal(deal) {
+    var text = ((deal.merchant || '') + ' ' + (deal.link || '') + ' ' + (deal.title || '')).toLowerCase();
+    return text.includes('amazon');
+}
+
+function extractPriceFromText(text) {
+    if (!text) return 0;
+    // Patterns: "499€", "499,99€", "499.99 €", "EUR 499", "499 euros"
+    var patterns = [
+        /(\d+[\.,]?\d*)\s*€/,
+        /EUR\s*(\d+[\.,]?\d*)/i,
+        /(\d+[\.,]?\d*)\s*euros?/i
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+        var match = text.match(patterns[i]);
+        if (match) return parseFloat(match[1].replace(',', '.'));
+    }
+    return 0;
+}
+
+function extractOriginalPrice(text) {
+    if (!text) return 0;
+    // Chercher le prix barre (souvent dans des balises <del> ou apres "au lieu de")
+    var patterns = [
+        /au\s+lieu\s+de\s+(\d+[\.,]?\d*)\s*€/i,
+        /(?:PVR|PPC|prix\s+conseill[eé])\s*:?\s*(\d+[\.,]?\d*)\s*€/i,
+        /<del[^>]*>.*?(\d+[\.,]?\d*)\s*€/i,
+        /<s>.*?(\d+[\.,]?\d*)\s*€/i,
+        /(\d+[\.,]?\d*)\s*€\s*(?:au\s+lieu)/i
+    ];
+    for (var i = 0; i < patterns.length; i++) {
+        var match = text.match(patterns[i]);
+        if (match) return parseFloat(match[1].replace(',', '.'));
+    }
+    return 0;
+}
+
+function extractTemperature(title) {
+    if (!title) return 0;
+    var match = title.match(/(\d+)°/);
+    return match ? parseInt(match[1]) : 0;
+}
+
+function extractImageFromDesc(description) {
+    if (!description) return '';
+    var match = description.match(/<img[^>]+src=["']([^"']+)["']/i);
+    return match ? match[1] : '';
+}
+
+// --- Parse un item RSS Pepper ---
+function parsePepperRSSItem(item, sourceKey) {
+    var title = (item.title || '').replace(/\s*\d+°\s*$/, '').trim(); // Enlever la temperature du titre
+    var temperature = extractTemperature(item.title || '');
+    var description = item.description || item.content || '';
+    var price = extractPriceFromText(title + ' ' + description);
+    var origPrice = extractOriginalPrice(description);
+    var discount = 0;
+    if (origPrice > 0 && price > 0 && origPrice > price) {
+        discount = Math.round((1 - price / origPrice) * 100);
+    }
+
+    // Detecter le marchand
+    var merchant = '';
+    if (item.categories && item.categories.length > 0) {
+        merchant = item.categories[0];
+    }
+    // Essayer d'extraire depuis la description
+    var merchantMatch = description.match(/chez\s+([A-Za-z0-9\s\.\-]+?)(?:\s|<|$)/i);
+    if (merchantMatch) merchant = merchantMatch[1].trim();
+
+    var link = item.link || '';
+    var isAmz = isAmazonDeal({ merchant: merchant, link: link, title: title + ' ' + description });
+    var asin = null;
+
+    if (isAmz) {
+        asin = extractASINFromURL(link) || extractASINFromURL(description) || extractASINFromText(description);
+    }
+
+    var image = item.thumbnail || item.enclosure && item.enclosure.link || extractImageFromDesc(description);
+
+    return {
+        title: title,
+        link: link,
+        image: image,
+        price: price,
+        originalPrice: origPrice,
+        discount: discount,
+        merchant: merchant,
+        isAmazon: isAmz,
+        asin: asin,
+        ean: null,
+        amazonPrice: null,
+        keepaData: null,
+        profit: null,
+        roi: null,
+        fees: null,
+        category: (item.categories || []).join(', '),
+        temperature: temperature,
+        date: item.pubDate ? new Date(item.pubDate) : new Date(),
+        source: sourceKey,
+        sourceName: DEAL_SOURCES[sourceKey] ? DEAL_SOURCES[sourceKey].name : sourceKey,
+        manual: false
+    };
+}
+
+// --- Parse un item de scraper Netlify ---
+function parseScraperItem(item, sourceKey) {
+    var discount = 0;
+    if (item.originalPrice > 0 && item.price > 0 && item.originalPrice > item.price) {
+        discount = Math.round((1 - item.price / item.originalPrice) * 100);
+    }
+
+    var isAmz = isAmazonDeal({ merchant: item.merchant || '', link: item.link || '', title: item.title || '' });
+    var asin = null;
+    if (isAmz) {
+        asin = extractASINFromURL(item.link) || extractASINFromText(item.title);
+    }
+
+    return {
+        title: item.title || '',
+        link: item.link || '',
+        image: item.image || '',
+        price: parseFloat(item.price) || 0,
+        originalPrice: parseFloat(item.originalPrice) || 0,
+        discount: discount,
+        merchant: item.merchant || DEAL_SOURCES[sourceKey].name,
+        isAmazon: isAmz,
+        asin: asin,
+        ean: item.ean || null,
+        amazonPrice: null,
+        keepaData: null,
+        profit: null,
+        roi: null,
+        fees: null,
+        category: item.category || '',
+        temperature: 0,
+        date: item.date ? new Date(item.date) : new Date(),
+        source: sourceKey,
+        sourceName: DEAL_SOURCES[sourceKey] ? DEAL_SOURCES[sourceKey].name : sourceKey,
+        manual: false
+    };
+}
+
+// --- Fetch deals depuis une source ---
+async function fetchDealsFromSource(sourceKey) {
+    var source = DEAL_SOURCES[sourceKey];
+    if (!source) {
+        console.warn('[DealScanner] Source inconnue: ' + sourceKey);
+        return [];
+    }
+
+    if (source.type === 'rss') {
+        // Fetch via proxy CORS rss2json.com
+        var proxyUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(source.url);
+        try {
+            var resp = await fetch(proxyUrl);
+            var data = await resp.json();
+            if (data.status === 'ok' && data.items) {
+                console.log('[DealScanner] RSS ' + source.name + ': ' + data.items.length + ' items');
+                return data.items.map(function(item) { return parsePepperRSSItem(item, sourceKey); });
+            } else {
+                console.warn('[DealScanner] RSS ' + source.name + ' erreur:', data.message || 'status != ok');
+                return [];
+            }
+        } catch (e) {
+            console.error('[DealScanner] Erreur fetch RSS ' + source.name + ':', e);
+            return [];
+        }
+    } else if (source.type === 'scraper') {
+        // Fetch via Netlify Function
+        try {
+            var resp = await fetch(source.endpoint);
+            if (!resp.ok) {
+                console.warn('[DealScanner] Scraper ' + source.name + ' erreur HTTP ' + resp.status);
+                return [];
+            }
+            var items = await resp.json();
+            console.log('[DealScanner] Scraper ' + source.name + ': ' + items.length + ' items');
+            return items.map(function(item) { return parseScraperItem(item, sourceKey); });
+        } catch (e) {
+            console.error('[DealScanner] Erreur fetch scraper ' + source.name + ':', e);
+            return [];
+        }
+    }
+
+    return [];
+}
+
+// --- Fetch principal ---
+async function fetchDeals() {
+    var sourceSelect = document.getElementById('deal-source-select');
+    var sourceKey = sourceSelect ? sourceSelect.value : 'dealabs';
+    var fetchBtn = document.getElementById('deal-fetch-btn');
+
+    // Afficher loading
+    if (fetchBtn) {
+        fetchBtn.disabled = true;
+        fetchBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Chargement...';
+    }
+    var container = document.getElementById('deal-scanner-results');
+    if (container) {
+        container.innerHTML = '<div class="p-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-4xl mb-4"></i><p class="text-lg">Chargement des deals...</p></div>';
+    }
+
+    var allDeals = [];
+
+    if (sourceKey === 'all_rss') {
+        // Toutes les sources RSS en parallele
+        var rssKeys = Object.keys(DEAL_SOURCES).filter(function(k) { return DEAL_SOURCES[k].type === 'rss'; });
+        var promises = rssKeys.map(function(k) { return fetchDealsFromSource(k); });
+        var results = await Promise.all(promises);
+        results.forEach(function(deals) { allDeals = allDeals.concat(deals); });
+    } else if (sourceKey === 'all') {
+        // Toutes les sources en parallele
+        var allKeys = Object.keys(DEAL_SOURCES);
+        var promises = allKeys.map(function(k) { return fetchDealsFromSource(k); });
+        var results = await Promise.all(promises);
+        results.forEach(function(deals) { allDeals = allDeals.concat(deals); });
+    } else {
+        allDeals = await fetchDealsFromSource(sourceKey);
+    }
+
+    dealScannerResults = allDeals;
+    console.log('[DealScanner] Total deals: ' + allDeals.length);
+
+    // Analyser les deals (detection Amazon, lookup prix)
+    await analyzeDeals(allDeals);
+
+    // Afficher les resultats
+    renderDealResults();
+
+    // Restaurer le bouton
+    if (fetchBtn) {
+        fetchBtn.disabled = false;
+        fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger les deals';
+    }
+}
+
+// --- Analyser les deals ---
+async function analyzeDeals(deals) {
+    var settings = loadOASettings();
+    keepaQueue = [];
+
+    deals.forEach(function(deal, index) {
+        // 1. Detecter deals Amazon
+        if (!deal.isAmazon) {
+            deal.isAmazon = isAmazonDeal(deal);
+        }
+
+        // 2. Extraire ASIN si Amazon
+        if (deal.isAmazon && !deal.asin) {
+            deal.asin = extractASINFromURL(deal.link) || extractASINFromText(deal.title);
+        }
+
+        // 3. Chercher le prix Amazon
+        if (deal.asin) {
+            // D'abord dans le cache Keepa
+            if (keepaCache[deal.asin] && (Date.now() - keepaCache[deal.asin].timestamp) < KEEPA_CACHE_TTL) {
+                var cached = keepaCache[deal.asin];
+                deal.amazonPrice = cached.price;
+                deal.keepaData = cached;
+                if (deal.price > 0 && cached.price > 0) {
+                    var profitResult = calculateDealProfit(deal, cached);
+                    deal.profit = profitResult.profit;
+                    deal.roi = profitResult.roi;
+                    deal.fees = profitResult.fees;
+                }
+                return;
+            }
+
+            // Ensuite dans les CSV charges
+            var csvData = findProductInCSV(deal.asin);
+            if (csvData) {
+                deal.amazonPrice = csvData.price;
+                if (deal.price > 0 && csvData.price > 0) {
+                    var profitResult = calculateDealProfit(deal, csvData);
+                    deal.profit = profitResult.profit;
+                    deal.roi = profitResult.roi;
+                    deal.fees = profitResult.fees;
+                }
+                return;
+            }
+
+            // Sinon → queue Keepa API
+            if (settings.keepaApiKey) {
+                keepaQueue.push({ identifier: deal.asin, type: 'asin', dealIndex: index });
+            }
+        } else if (deal.ean && settings.keepaApiKey) {
+            // Deals non-Amazon avec EAN → chercher par EAN
+            keepaQueue.push({ identifier: deal.ean, type: 'ean', dealIndex: index });
+        }
+    });
+
+    // Lancer la queue Keepa en arriere-plan (ne pas attendre)
+    if (keepaQueue.length > 0) {
+        console.log('[DealScanner] ' + keepaQueue.length + ' ASINs/EANs en queue Keepa');
+        processKeepaQueue(); // async, tourne en arriere-plan
+    }
+}
+
+// --- Callback quand la source change ---
+function onDealSourceChange() {
+    // Rien de special pour l'instant, l'utilisateur doit cliquer "Charger"
+}
+
+// --- Filtres ---
+function setDealFilter(mode) {
+    dealFilterMode = mode;
+
+    // Mettre a jour les boutons actifs
+    ['all', 'amazon', 'profitable'].forEach(function(m) {
+        var btn = document.getElementById('deal-filter-' + m);
+        if (btn) {
+            if (m === mode) {
+                btn.className = 'px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold';
+            } else {
+                btn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold';
+            }
+        }
+    });
+
+    renderDealResults();
+}
+
+// --- Mettre a jour les stats ---
+function updateDealStats() {
+    var deals = dealScannerResults;
+    var amazonCount = deals.filter(function(d) { return d.isAmazon; }).length;
+    var profitableCount = deals.filter(function(d) { return d.profit !== null && d.profit > 0; }).length;
+
+    var totalEl = document.getElementById('deal-stats-total');
+    var amazonEl = document.getElementById('deal-stats-amazon');
+    var profitEl = document.getElementById('deal-stats-profitable');
+    var statsEl = document.getElementById('deal-stats');
+
+    if (totalEl) totalEl.textContent = deals.length + ' deals';
+    if (amazonEl) amazonEl.textContent = amazonCount + ' Amazon';
+    if (profitEl) profitEl.textContent = profitableCount + ' rentables';
+    if (statsEl) statsEl.classList.remove('hidden');
+
+    // Mettre a jour les filtres
+    var filterAll = document.getElementById('deal-filter-all');
+    var filterAmazon = document.getElementById('deal-filter-amazon');
+    var filterProfitable = document.getElementById('deal-filter-profitable');
+    if (filterAll) filterAll.textContent = 'Tous (' + deals.length + ')';
+    if (filterAmazon) filterAmazon.textContent = 'Amazon (' + amazonCount + ')';
+    if (filterProfitable) filterProfitable.textContent = 'Rentables (' + profitableCount + ')';
+}
+
+// --- Mettre a jour une ligne du tableau ---
+function updateDealRow(index, deal) {
+    var row = document.getElementById('deal-row-' + index);
+    if (!row) return;
+
+    // Mettre a jour les cellules profit/ROI
+    var profitCell = row.querySelector('.deal-profit');
+    var roiCell = row.querySelector('.deal-roi');
+    var actionsCell = row.querySelector('.deal-actions');
+
+    if (profitCell) {
+        if (deal.profit !== null) {
+            var profitClass = deal.profit > 0 ? 'text-green-400 font-bold' : 'text-red-400';
+            profitCell.innerHTML = '<span class="' + profitClass + '">' + (deal.profit > 0 ? '+' : '') + deal.profit.toFixed(2) + '€</span>';
+        }
+    }
+    if (roiCell) {
+        if (deal.roi !== null) {
+            var roiClass = deal.roi > 0 ? 'text-green-400' : 'text-red-400';
+            roiCell.innerHTML = '<span class="' + roiClass + '">' + deal.roi.toFixed(0) + '%</span>';
+        }
+    }
+    if (actionsCell && deal.asin && deal.profit !== null && deal.profit > 0) {
+        actionsCell.innerHTML = '<a href="' + escapeHTML(deal.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>' +
+            '<button onclick="sendDealToChecklist(' + index + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
+    }
+
+    // Mettre a jour les stats globales
+    updateDealStats();
+}
+
+// --- Rendu du tableau ---
+function renderDealResults() {
+    var container = document.getElementById('deal-scanner-results');
+    if (!container) return;
+
+    var deals = dealScannerResults;
+    if (deals.length === 0) {
+        container.innerHTML = '<div class="p-8 text-center text-gray-400"><i class="fas fa-inbox text-5xl mb-4"></i><p class="text-lg">Aucun deal trouve</p><p class="text-sm mt-2">Essayez une autre source ou verifiez votre connexion</p></div>';
+        return;
+    }
+
+    // Filtrage par categorie
+    var categoryFilter = document.getElementById('deal-category-filter');
+    var selectedCategory = categoryFilter ? categoryFilter.value : '';
+
+    // Appliquer les filtres
+    var filtered = deals;
+    if (dealFilterMode === 'amazon') {
+        filtered = deals.filter(function(d) { return d.isAmazon; });
+    } else if (dealFilterMode === 'profitable') {
+        filtered = deals.filter(function(d) { return d.profit !== null && d.profit > 0; });
+    }
+
+    if (selectedCategory) {
+        filtered = filtered.filter(function(d) { return d.category && d.category.toLowerCase().includes(selectedCategory.toLowerCase()); });
+    }
+
+    // Tri : rentables d'abord (par profit desc), puis par temperature desc
+    filtered.sort(function(a, b) {
+        if (a.profit !== null && b.profit !== null) return b.profit - a.profit;
+        if (a.profit !== null) return -1;
+        if (b.profit !== null) return 1;
+        return (b.temperature || 0) - (a.temperature || 0);
+    });
+
+    // Mettre a jour les stats
+    updateDealStats();
+
+    // Remplir le select categories
+    if (categoryFilter && categoryFilter.options.length <= 1) {
+        var cats = {};
+        deals.forEach(function(d) {
+            if (d.category) {
+                d.category.split(',').forEach(function(c) {
+                    c = c.trim();
+                    if (c) cats[c] = (cats[c] || 0) + 1;
+                });
+            }
+        });
+        Object.keys(cats).sort().forEach(function(cat) {
+            var opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat + ' (' + cats[cat] + ')';
+            categoryFilter.appendChild(opt);
+        });
+    }
+
+    // Construire le tableau
+    var html = '<div class="p-4">';
+
+    // Tableau
+    html += '<div class="overflow-x-auto">';
+    html += '<table class="w-full text-sm">';
+    html += '<thead><tr class="text-gray-300 border-b border-gray-600">';
+    html += '<th class="text-left p-2 w-8">#</th>';
+    html += '<th class="text-left p-2 w-12"></th>';
+    html += '<th class="text-left p-2">Deal</th>';
+    html += '<th class="text-right p-2">Prix</th>';
+    html += '<th class="text-right p-2">-%</th>';
+    html += '<th class="text-left p-2">Source</th>';
+    html += '<th class="text-center p-2">ASIN</th>';
+    html += '<th class="text-right p-2">Amazon</th>';
+    html += '<th class="text-right p-2">Profit</th>';
+    html += '<th class="text-right p-2">ROI</th>';
+    html += '<th class="text-center p-2">Actions</th>';
+    html += '</tr></thead><tbody>';
+
+    var maxDisplay = Math.min(filtered.length, 100);
+    for (var i = 0; i < maxDisplay; i++) {
+        var d = filtered[i];
+        var origIndex = dealScannerResults.indexOf(d);
+
+        // Couleur de fond selon rentabilite
+        var rowBg = '';
+        if (d.profit !== null && d.profit > 0) rowBg = 'bg-green-900/20';
+        else if (d.profit !== null && d.profit < 0) rowBg = 'bg-red-900/10';
+
+        var profitHtml = '';
+        var roiHtml = '';
+        if (d.profit !== null) {
+            var profitClass = d.profit > 0 ? 'text-green-400 font-bold' : 'text-red-400';
+            profitHtml = '<span class="' + profitClass + '">' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€</span>';
+            var roiClass = d.roi > 0 ? 'text-green-400' : 'text-red-400';
+            roiHtml = '<span class="' + roiClass + '">' + d.roi.toFixed(0) + '%</span>';
+        } else if (d.asin && keepaQueue.some(function(q) { return q.identifier === d.asin; })) {
+            profitHtml = '<span class="text-amber-400 text-xs">⏳</span>';
+            roiHtml = '<span class="text-amber-400 text-xs">⏳</span>';
+        } else {
+            profitHtml = '<span class="text-gray-500">—</span>';
+            roiHtml = '<span class="text-gray-500">—</span>';
+        }
+
+        // ASIN
+        var asinHtml = '';
+        if (d.asin) {
+            var mktDomain = OA_MARKETPLACES[dealSellMarket] ? OA_MARKETPLACES[dealSellMarket].domain : 'amazon.de';
+            asinHtml = '<a href="https://www.' + mktDomain + '/dp/' + d.asin + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs">' + d.asin.substring(0, 5) + '...</a>';
+        } else if (d.isAmazon) {
+            asinHtml = '<span class="text-amber-400 text-xs">detect.</span>';
+        } else {
+            asinHtml = '<button onclick="promptLinkASIN(' + origIndex + ')" class="text-gray-400 hover:text-gray-200 text-xs" title="Lier a un ASIN Amazon"><i class="fas fa-link"></i></button>';
+        }
+
+        // Amazon price
+        var amazonPriceHtml = '';
+        if (d.amazonPrice && d.amazonPrice > 0) {
+            amazonPriceHtml = '<span class="text-purple-300">' + d.amazonPrice.toFixed(2) + '€</span>';
+        } else if (d.asin) {
+            amazonPriceHtml = '<span class="text-amber-400 text-xs">⏳</span>';
+        } else {
+            amazonPriceHtml = '<span class="text-gray-500">—</span>';
+        }
+
+        // Actions
+        var actionsHtml = '<a href="' + escapeHTML(d.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
+        if (d.asin && d.profit !== null && d.profit > 0) {
+            actionsHtml += '<button onclick="sendDealToChecklist(' + origIndex + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
+        }
+
+        // Image
+        var imgHtml = d.image ? '<img src="' + escapeHTML(d.image) + '" class="w-10 h-10 object-cover rounded" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-700 rounded flex items-center justify-center"><i class="fas fa-image text-gray-500 text-xs"></i></div>';
+
+        // Temperature badge
+        var tempBadge = d.temperature > 0 ? ' <span class="text-orange-400 text-xs">' + d.temperature + '°</span>' : '';
+
+        // Amazon badge
+        var amazonBadge = d.isAmazon ? ' <span class="bg-orange-500/30 text-orange-300 text-xs px-1 rounded">AMZ</span>' : '';
+
+        html += '<tr id="deal-row-' + origIndex + '" class="border-b border-gray-700/50 hover:bg-gray-700/30 ' + rowBg + '">';
+        html += '<td class="p-2 text-gray-400">' + (i + 1) + '</td>';
+        html += '<td class="p-2">' + imgHtml + '</td>';
+        html += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + amazonBadge + tempBadge + '</div></td>';
+        html += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
+        html += '<td class="p-2 text-right">' + (d.discount > 0 ? '<span class="text-green-400">-' + d.discount + '%</span>' : '<span class="text-gray-500">—</span>') + '</td>';
+        html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName) + '</td>';
+        html += '<td class="p-2 text-center">' + asinHtml + '</td>';
+        html += '<td class="p-2 text-right">' + amazonPriceHtml + '</td>';
+        html += '<td class="p-2 text-right deal-profit">' + profitHtml + '</td>';
+        html += '<td class="p-2 text-right deal-roi">' + roiHtml + '</td>';
+        html += '<td class="p-2 text-center deal-actions">' + actionsHtml + '</td>';
+        html += '</tr>';
+    }
+
+    html += '</tbody></table></div>';
+
+    if (filtered.length > maxDisplay) {
+        html += '<div class="p-4 text-center text-gray-400 text-sm">Affichage limite a ' + maxDisplay + ' / ' + filtered.length + ' deals</div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+// --- Lier manuellement un ASIN a un deal ---
+function promptLinkASIN(dealIndex) {
+    var asin = prompt('Entre l\'ASIN Amazon pour ce deal :');
+    if (!asin || asin.length < 10) return;
+    asin = asin.trim().toUpperCase();
+
+    var deal = dealScannerResults[dealIndex];
+    if (!deal) return;
+
+    deal.asin = asin;
+    deal.isAmazon = true;
+
+    // Chercher dans le cache / CSV / queue Keepa
+    var settings = loadOASettings();
+    if (keepaCache[asin] && (Date.now() - keepaCache[asin].timestamp) < KEEPA_CACHE_TTL) {
+        var cached = keepaCache[asin];
+        deal.amazonPrice = cached.price;
+        deal.keepaData = cached;
+        if (deal.price > 0 && cached.price > 0) {
+            var profitResult = calculateDealProfit(deal, cached);
+            deal.profit = profitResult.profit;
+            deal.roi = profitResult.roi;
+            deal.fees = profitResult.fees;
+        }
+        renderDealResults();
+    } else if (settings.keepaApiKey) {
+        keepaQueue.push({ identifier: asin, type: 'asin', dealIndex: dealIndex });
+        renderDealResults();
+        processKeepaQueue();
+    } else {
+        renderDealResults();
+    }
+}
+
+// --- Ajout manuel d'un deal ---
+async function addManualDeal() {
+    var inputEl = document.getElementById('deal-manual-input');
+    var priceEl = document.getElementById('deal-manual-price');
+    var sourceEl = document.getElementById('deal-manual-source');
+    var resultEl = document.getElementById('deal-manual-result');
+
+    var input = inputEl ? inputEl.value.trim() : '';
+    var price = priceEl ? parseFloat(priceEl.value) : 0;
+    var sourceName = sourceEl ? sourceEl.value.trim() : 'Manuel';
+
+    if (!input) {
+        if (resultEl) resultEl.innerHTML = '<p class="text-red-500 text-sm">Entre un ASIN, un lien Amazon ou un EAN</p>';
+        return;
+    }
+    if (!price || price <= 0) {
+        if (resultEl) resultEl.innerHTML = '<p class="text-red-500 text-sm">Entre le prix promo</p>';
+        return;
+    }
+
+    // Detecter le type d'entree
+    var asin = null;
+    var ean = null;
+    var isUrl = input.startsWith('http');
+
+    if (isUrl) {
+        asin = extractASINFromURL(input);
+    } else if (/^B[A-Z0-9]{9}$/i.test(input)) {
+        asin = input.toUpperCase();
+    } else if (/^\d{8,13}$/.test(input)) {
+        ean = input;
+    } else {
+        if (resultEl) resultEl.innerHTML = '<p class="text-red-500 text-sm">Format non reconnu. Entre un ASIN (B0XXXXXXXX), un lien Amazon ou un EAN (code-barre).</p>';
+        return;
+    }
+
+    if (resultEl) resultEl.innerHTML = '<p class="text-amber-500 text-sm"><i class="fas fa-spinner fa-spin mr-1"></i>Recherche Keepa en cours...</p>';
+
+    // Creer le deal
+    var deal = {
+        title: asin ? ('Produit ' + asin) : ('EAN ' + ean),
+        link: asin ? ('https://www.' + (OA_MARKETPLACES[dealSellMarket] || OA_MARKETPLACES['de']).domain + '/dp/' + asin) : '',
+        image: '',
+        price: price,
+        originalPrice: 0,
+        discount: 0,
+        merchant: sourceName || 'Manuel',
+        isAmazon: true,
+        asin: asin,
+        ean: ean,
+        amazonPrice: null,
+        keepaData: null,
+        profit: null,
+        roi: null,
+        fees: null,
+        category: '',
+        temperature: 0,
+        date: new Date(),
+        source: 'manual',
+        sourceName: sourceName || 'Manuel',
+        manual: true
+    };
+
+    // Lookup Keepa
+    var settings = loadOASettings();
+    if (settings.keepaApiKey) {
+        var result = await keepaLookup(asin || ean, asin ? 'asin' : 'ean');
+        if (result) {
+            deal.asin = result.asin;
+            deal.title = result.title || deal.title;
+            deal.image = result.imageUrl || '';
+            deal.amazonPrice = result.price;
+            deal.keepaData = result;
+            deal.link = 'https://www.' + (OA_MARKETPLACES[dealSellMarket] || OA_MARKETPLACES['de']).domain + '/dp/' + result.asin;
+
+            if (deal.price > 0 && result.price > 0) {
+                var profitCalc = calculateDealProfit(deal, result);
+                deal.profit = profitCalc.profit;
+                deal.roi = profitCalc.roi;
+                deal.fees = profitCalc.fees;
+            }
+
+            if (resultEl) {
+                if (deal.profit !== null && deal.profit > 0) {
+                    resultEl.innerHTML = '<p class="text-green-500 text-sm"><i class="fas fa-check-circle mr-1"></i>Deal ajoute ! Profit: +' + deal.profit.toFixed(2) + '€ (ROI ' + deal.roi.toFixed(0) + '%)</p>';
+                } else if (deal.profit !== null) {
+                    resultEl.innerHTML = '<p class="text-red-500 text-sm"><i class="fas fa-times-circle mr-1"></i>Deal non rentable. Profit: ' + deal.profit.toFixed(2) + '€</p>';
+                } else {
+                    resultEl.innerHTML = '<p class="text-amber-500 text-sm"><i class="fas fa-info-circle mr-1"></i>Deal ajoute mais prix Amazon non disponible.</p>';
+                }
+            }
+        } else {
+            if (resultEl) resultEl.innerHTML = '<p class="text-amber-500 text-sm"><i class="fas fa-exclamation-triangle mr-1"></i>Produit non trouve sur Keepa. Deal ajoute sans prix Amazon.</p>';
+        }
+    } else {
+        if (resultEl) resultEl.innerHTML = '<p class="text-amber-500 text-sm"><i class="fas fa-key mr-1"></i>Cle API Keepa non configuree. Va dans Parametres OA. Deal ajoute sans analyse.</p>';
+    }
+
+    // Ajouter au tableau
+    dealScannerResults.unshift(deal); // En premier
+    renderDealResults();
+
+    // Vider les champs
+    if (inputEl) inputEl.value = '';
+    if (priceEl) priceEl.value = '';
+}
+
+// --- Envoyer un deal a la Checklist ---
+function sendDealToChecklist(dealIndex) {
+    var deal = dealScannerResults[dealIndex];
+    if (!deal || !deal.asin) return;
+
+    // Creer un objet produit compatible avec la checklist
+    var product = {
+        asin: deal.asin,
+        title: deal.title,
+        pricDE: deal.amazonPrice || 0,
+        pricFR: deal.price,
+        profit: deal.profit || 0,
+        roi: deal.roi || 0,
+        bsr: deal.keepaData ? deal.keepaData.bsr : 0,
+        fbaSellers: deal.keepaData ? deal.keepaData.fbaSellers : 0,
+        estSales: 0,
+        amazonSells: false,
+        category: deal.category,
+        dealSource: deal.sourceName
+    };
+
+    // Ajouter temporairement dans oaScanResults pour que startChecklist fonctionne
+    oaScanResults.push(product);
+    var tempIndex = oaScanResults.length - 1;
+    startChecklist(tempIndex);
+    showOANotification('Deal envoye a la Checklist : ' + deal.title.substring(0, 50), 'success');
+}
+
 function initOA() {
     console.log('[OA] Initialisation du module OA Scanner...');
 
@@ -2550,6 +3540,9 @@ function initOA() {
 
     // Restaurer les resultats du dernier scan
     loadScanResults();
+
+    // Charger le cache Keepa pour le Deal Scanner
+    loadKeepaCache();
 
     // Mettre a jour le dashboard charges fixes
     updateFixedChargesDashboard();

@@ -4,6 +4,10 @@
   # Pas de build necessaire (site statique)
   publish = "."
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 # Redirections pour SPA (Single Page App)
 [[redirects]]
   from = "/*"
