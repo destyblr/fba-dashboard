@@ -54,6 +54,22 @@ function getInboundCost(weightGrams, settings) {
     return 4.50;
 }
 
+// Estimation frais de stockage FBA
+// volume en cm3, estSales = ventes mensuelles estimees, fbaSellers = nb vendeurs FBA
+function getStorageCost(volumeCm3, estSales, fbaSellers, settings) {
+    if (!volumeCm3 || volumeCm3 <= 0) return 0; // pas de volume = on ne peut pas estimer
+    const volumeM3 = volumeCm3 / 1000000;
+    const storageFeePerM3 = settings.storageFee || 26;
+
+    // Estimer combien de temps ton unite reste en stock
+    // Ta part des ventes = ventes totales / (nb vendeurs + 1 pour toi)
+    const yourSalesPerMonth = estSales > 0 ? estSales / ((fbaSellers || 1) + 1) : 1;
+    // Duree en stock pour vendre 1 unite (en mois), cap a 3 mois max
+    const monthsInStock = Math.min(3, 1 / Math.max(0.1, yourSalesPerMonth));
+
+    return Math.round(volumeM3 * storageFeePerM3 * monthsInStock * 100) / 100;
+}
+
 function getInboundLabel(weightGrams) {
     if (!weightGrams || weightGrams <= 0) return 'defaut (pas de poids)';
     if (weightGrams < 500) return '< 500g';
@@ -515,7 +531,8 @@ function parseKeepaCSV(csvText) {
         ASIN: colASIN, Titre: colTitle, BSR: colBSR, BuyBox: colBuyBox,
         FBASellers: colNewOffers, Amazon: colAmazonPrice, NewPrice: colNewPrice,
         EstSales: colEstSales, BuyBox90: colBuyBox90, BuyBox90Drop: colBuyBox90Drop,
-        FBAFee: colFBAFee, ReferralPct: colReferralPct, ReferralAmt: colReferralAmt
+        FBAFee: colFBAFee, ReferralPct: colReferralPct, ReferralAmt: colReferralAmt,
+        PackageWeight: colPackageWeight, PackageDim: colPackageDim
     });
     console.log('[OA] Nb headers:', headers.length, '| Premieres colonnes:', headers.slice(0, 5));
 
@@ -552,6 +569,9 @@ function parseKeepaCSV(csvText) {
         const itemWeight = parseInt(getVal(values, colItemWeight, '0').replace(/[^0-9]/g, '')) || 0;
         const weight = packageWeight || itemWeight;
 
+        // Volume colis (cm3) — pour estimation frais de stockage
+        const volumeCm3 = parseInt(getVal(values, colPackageDim, '0').replace(/[^0-9]/g, '')) || 0;
+
         products.push({
             asin: asin,
             title: getVal(values, colTitle, 'Sans titre').trim(),
@@ -570,7 +590,8 @@ function parseKeepaCSV(csvText) {
             price90drop: price90drop,
             price90min: price90min,
             price90max: price90max,
-            weight: weight
+            weight: weight,
+            volumeCm3: volumeCm3
         });
     }
 
@@ -684,6 +705,7 @@ function mergeData(dataDE, dataFR) {
                 category: pDE.category || pFR.category,
                 estSales: pDE.estSales || pFR.estSales,
                 weight: pDE.weight || pFR.weight || 0,
+                volumeCm3: pDE.volumeCm3 || pFR.volumeCm3 || 0,
                 stability: stability,
                 profit: 0,
                 roi: 0
@@ -754,7 +776,10 @@ function calculateProfit(product, settings) {
     // Inbound intelligent base sur le poids du produit
     const inbound = getInboundCost(product.weight, settings);
 
-    const totalFees = commission + fbaFee + inbound + settings.prepCost;
+    // Estimation frais de stockage FBA
+    const storageCost = getStorageCost(product.volumeCm3, product.estSales, product.fbaSellers, settings);
+
+    const totalFees = commission + fbaFee + inbound + settings.prepCost + storageCost;
     const urssaf = product.pricDE * (settings.urssafPct / 100);
     const profit = product.pricDE - totalFees - urssaf - product.pricFR;
     const roi = product.pricFR > 0 ? (profit / product.pricFR) * 100 : 0;
@@ -764,6 +789,7 @@ function calculateProfit(product, settings) {
     product.commission = Math.round(commission * 100) / 100;
     product.fbaFeeUsed = Math.round(fbaFee * 100) / 100;
     product.inboundUsed = Math.round(inbound * 100) / 100;
+    product.storageCost = Math.round(storageCost * 100) / 100;
     product.totalFees = Math.round(totalFees * 100) / 100;
     product.urssaf = Math.round(urssaf * 100) / 100;
 
@@ -1077,9 +1103,13 @@ function renderScanResults(products, profitableCount, funnel) {
         // Tooltip frais detailles
         const weightLabel = p.weight > 0 ? p.weight + 'g' : 'inconnu';
         const inboundTier = getInboundLabel(p.weight);
+        const storageLabel = p.storageCost > 0
+            ? p.storageCost.toFixed(2) + '\u20ac (vol: ' + (p.volumeCm3 || 0) + 'cm3)'
+            : '0.00\u20ac (pas de volume)';
         const feesTooltip = 'Commission: ' + (p.commission || 0).toFixed(2) + '\u20ac (' + (p.referralPct || settings.commissionPct) + '%)'
             + '\nFBA pick&pack: ' + (p.fbaFeeUsed || settings.fbaFee).toFixed(2) + '\u20ac (Keepa)'
             + '\nEnvoi a AMZ: ' + (p.inboundUsed || settings.inboundShipping).toFixed(2) + '\u20ac (auto: ' + inboundTier + ', ' + weightLabel + ')'
+            + '\nStockage FBA: ' + storageLabel
             + '\nEtiquetage: ' + settings.prepCost.toFixed(2) + '\u20ac (FNSKU)'
             + '\nURSSAF: ' + (p.urssaf || 0).toFixed(2) + '\u20ac (' + settings.urssafPct + '%)'
             + '\n---------'
@@ -1303,7 +1333,8 @@ function recalculateWithRealPrices() {
     const commission = pricDE * (commPct / 100);
     const fbaFee = (oaCurrentCheck.fbaFeeReal > 0) ? oaCurrentCheck.fbaFeeReal : settings.fbaFee;
     const inbound = getInboundCost(oaCurrentCheck.weight, settings);
-    const totalFees = commission + fbaFee + inbound + settings.prepCost;
+    const storageCost = getStorageCost(oaCurrentCheck.volumeCm3, oaCurrentCheck.estSales, oaCurrentCheck.fbaSellers, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost + storageCost;
     const urssaf = pricDE * (settings.urssafPct / 100);
     const profit = pricDE - totalFees - urssaf - pricFR;
     const roi = pricFR > 0 ? (profit / pricFR) * 100 : 0;
@@ -1318,40 +1349,49 @@ function recalculateWithRealPrices() {
 
 function getQuantityRecommendation(product, settings) {
     const estSales = product.estSales || 0;
+    const costPerUnit = product.realPricFR || product.pricFR;
 
-    if (estSales <= 0) {
-        return { quantity: settings.maxUnitsFirstBuy, text: 'Ventes estimees inconnues, limiter a ' + settings.maxUnitsFirstBuy + ' unites', scale: '' };
+    // Helper pour generer un retour consistant
+    function makeResult(qty, message) {
+        const html = '<p>' + message + '</p>' +
+            (qty > 0 ? '<p>Cout : ' + qty + ' x ' + costPerUnit.toFixed(2) + '\u20ac = ' + (qty * costPerUnit).toFixed(2) + '\u20ac</p>' : '');
+        return { qty: qty, html: html, quantity: qty, text: message, scale: '' };
     }
 
-    const estimatedSalesForYou = estSales / (product.fbaSellers + 1);
+    if (estSales <= 0) {
+        const qty = Math.min(1, settings.maxUnitsFirstBuy);
+        return makeResult(qty, 'Ventes estimees inconnues, limiter a ' + qty + ' unite(s)');
+    }
+
+    const estimatedSalesForYou = estSales / ((product.fbaSellers || 1) + 1);
 
     if (estimatedSalesForYou < 10) {
-        return { quantity: 0, text: 'Trop lent, passe', scale: 'skip' };
+        return makeResult(1, 'Vitesse de vente lente (~' + estimatedSalesForYou.toFixed(0) + ' ventes/mois pour toi). Limiter a 1 unite test.');
     }
 
     const timeToSell1Unit = 30 / estimatedSalesForYou;
 
     // Premier achat
     const firstBuyQty = Math.min(2, settings.maxUnitsFirstBuy);
-    const costPerUnit = product.realPricFR || product.pricFR;
     const totalCost = firstBuyQty * costPerUnit;
 
     // Verifier les limites de capital
     if (totalCost > settings.maxPerProduct) {
         const maxQty = Math.floor(settings.maxPerProduct / costPerUnit);
         if (maxQty < 1) {
-            return { quantity: 0, text: 'Trop cher pour le budget par produit', scale: 'skip' };
+            return makeResult(0, 'Trop cher pour le budget par produit (' + settings.maxPerProduct + '\u20ac max)');
         }
-        return { quantity: maxQty, text: maxQty + ' unite(s) (limite budget)', scale: 'limited' };
+        return makeResult(maxQty, maxQty + ' unite(s) (limite budget ' + settings.maxPerProduct + '\u20ac)');
     }
 
     const capitalAvailable = calculateCapital().available;
     if (totalCost > capitalAvailable * 0.15) {
         const maxQty = Math.floor((capitalAvailable * 0.15) / costPerUnit);
         if (maxQty < 1) {
-            return { quantity: 0, text: 'Capital insuffisant (15% max)', scale: 'skip' };
+            return makeResult(0, 'Capital insuffisant (15% max = ' + (capitalAvailable * 0.15).toFixed(2) + '\u20ac)');
         }
-        return { quantity: Math.min(maxQty, firstBuyQty), text: Math.min(maxQty, firstBuyQty) + ' unite(s) (limite capital)', scale: 'limited' };
+        const qty = Math.min(maxQty, firstBuyQty);
+        return makeResult(qty, qty + ' unite(s) (limite capital 15%)');
     }
 
     // Recommandation de scale
@@ -1408,7 +1448,8 @@ function confirmPurchase(product, quantity, costPerUnit) {
     const commission = sellPrice * (commPct / 100);
     const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
     const inbound = getInboundCost(product.weight, settings);
-    const totalFees = commission + fbaFee + inbound + settings.prepCost;
+    const storageCost = getStorageCost(product.volumeCm3, product.estSales, product.fbaSellers, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost + storageCost;
     const urssaf = sellPrice * (settings.urssafPct / 100);
     const unitProfit = sellPrice - totalFees - urssaf - costPerUnit;
 
@@ -1423,6 +1464,9 @@ function confirmPurchase(product, quantity, costPerUnit) {
         totalCost: totalCost,
         expectedProfit: Math.round(unitProfit * quantity * 100) / 100,
         weight: product.weight || 0,
+        volumeCm3: product.volumeCm3 || 0,
+        estSales: product.estSales || 0,
+        fbaSellers: product.fbaSellers || 0,
         fbaFeeReal: product.fbaFeeReal || 0,
         referralPct: product.referralPct || 0,
         status: 'achete',
@@ -1824,7 +1868,8 @@ function markAsSold(productId, actualSalePrice) {
     const commission = actualSalePrice * (commPct / 100);
     const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
     const inbound = getInboundCost(product.weight, settings);
-    const totalFees = commission + fbaFee + inbound + settings.prepCost;
+    const storageCost = getStorageCost(product.volumeCm3, product.estSales, product.fbaSellers, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost + storageCost;
     const urssaf = actualSalePrice * (settings.urssafPct / 100);
     const realProfit = (actualSalePrice - totalFees - urssaf - product.costPerUnit) * product.quantity;
 
@@ -1859,7 +1904,8 @@ function recheckPrice(productId) {
     const commission = newPriceDE * (commPct / 100);
     const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
     const inbound = getInboundCost(product.weight, settings);
-    const totalFees = commission + fbaFee + inbound + settings.prepCost;
+    const storageCost = getStorageCost(product.volumeCm3, product.estSales, product.fbaSellers, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost + storageCost;
     const urssaf = newPriceDE * (settings.urssafPct / 100);
     const newProfit = (newPriceDE - totalFees - urssaf - product.costPerUnit) * product.quantity;
 
