@@ -280,11 +280,26 @@ function parseKeepaCSV(csvText) {
         'buy box: 90 days max', 'buy box: highest 90'
     ]);
 
+    // Colonnes de frais reels Keepa (par produit)
+    const colFBAFee = findColumn(headerMap, [
+        "fba pick & pack fee", "fba fees", "frais d'enl\u00e8vement et d'emballage fba",
+        "frais d'enlèvement et d'emballage fba"
+    ]);
+    const colReferralPct = findColumn(headerMap, [
+        '% referral fee', 'referral fee %', '% de frais de parrainage'
+    ]);
+    const colReferralAmt = findColumn(headerMap, [
+        'referral fee based on current buy box price',
+        "frais de parrainage bas\u00e9s sur le prix actuel de la buy box",
+        "frais de parrainage basés sur le prix actuel de la buy box"
+    ]);
+
     // Debug: afficher les colonnes detectees
     console.log('[OA] Colonnes detectees:', {
         ASIN: colASIN, Titre: colTitle, BSR: colBSR, BuyBox: colBuyBox,
         FBASellers: colNewOffers, Amazon: colAmazonPrice, NewPrice: colNewPrice,
-        EstSales: colEstSales, BuyBox90: colBuyBox90, BuyBox90Drop: colBuyBox90Drop
+        EstSales: colEstSales, BuyBox90: colBuyBox90, BuyBox90Drop: colBuyBox90Drop,
+        FBAFee: colFBAFee, ReferralPct: colReferralPct, ReferralAmt: colReferralAmt
     });
     console.log('[OA] Nb headers:', headers.length, '| Premieres colonnes:', headers.slice(0, 5));
 
@@ -310,6 +325,12 @@ function parseKeepaCSV(csvText) {
         const price90min = parsePrice(getVal(values, colBuyBoxMin90, ''));
         const price90max = parsePrice(getVal(values, colBuyBoxMax90, ''));
 
+        // Frais reels Keepa (par produit)
+        const fbaFeeReal = parsePrice(getVal(values, colFBAFee, ''));
+        const referralPctRaw = getVal(values, colReferralPct, '');
+        const referralPct = parseFloat(referralPctRaw.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
+        const referralAmt = parsePrice(getVal(values, colReferralAmt, ''));
+
         products.push({
             asin: asin,
             title: getVal(values, colTitle, 'Sans titre').trim(),
@@ -319,6 +340,9 @@ function parseKeepaCSV(csvText) {
             amazonPrice: amazonPrice,
             amazonSells: amazonPrice > 0,
             fbaSellers: fbaSellers,
+            fbaFeeReal: fbaFeeReal,
+            referralPct: referralPct,
+            referralAmt: referralAmt,
             category: getVal(values, colCategory, '').trim(),
             estSales: estSales,
             price90avg: price90avg,
@@ -430,6 +454,9 @@ function mergeData(dataDE, dataFR) {
                 amazonSells: pDE.amazonSells,
                 amazonPriceDE: pDE.amazonPrice,
                 fbaSellers: pDE.fbaSellers,
+                fbaFeeReal: pDE.fbaFeeReal || 0,
+                referralPct: pDE.referralPct || 0,
+                referralAmt: pDE.referralAmt || 0,
                 category: pDE.category || pFR.category,
                 estSales: pDE.estSales || pFR.estSales,
                 stability: stability,
@@ -494,8 +521,12 @@ function calculateStability(product) {
 }
 
 function calculateProfit(product, settings) {
-    const commission = product.pricDE * (settings.commissionPct / 100);
-    const totalFees = commission + settings.fbaFee + settings.inboundShipping + settings.prepCost + settings.toolAmortization;
+    // Utiliser les frais reels Keepa si disponibles, sinon les parametres
+    const commPct = (product.referralPct > 0) ? product.referralPct : settings.commissionPct;
+    const commission = product.pricDE * (commPct / 100);
+    const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
+
+    const totalFees = commission + fbaFee + settings.inboundShipping + settings.prepCost + settings.toolAmortization;
     const urssaf = product.pricDE * (settings.urssafPct / 100);
     const profit = product.pricDE - totalFees - urssaf - product.pricFR;
     const roi = product.pricFR > 0 ? (profit / product.pricFR) * 100 : 0;
@@ -503,6 +534,7 @@ function calculateProfit(product, settings) {
     product.profit = Math.round(profit * 100) / 100;
     product.roi = Math.round(roi * 100) / 100;
     product.commission = Math.round(commission * 100) / 100;
+    product.fbaFeeUsed = Math.round(fbaFee * 100) / 100;
     product.totalFees = Math.round(totalFees * 100) / 100;
     product.urssaf = Math.round(urssaf * 100) / 100;
 
