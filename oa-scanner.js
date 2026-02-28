@@ -1172,7 +1172,7 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     // === ENTONNOIR DE FILTRAGE ===
     let funnelHtml = '';
     if (funnel && funnel.length > 0) {
-        funnelHtml += '<div class="bg-gray-800 rounded-xl p-5 mb-6">';
+        funnelHtml += '<div class="bg-gray-700 rounded-xl p-5 mb-6">';
         funnelHtml += '<h4 class="font-bold text-gray-300 mb-3"><i class="fas fa-filter mr-2"></i>Entonnoir de filtrage</h4>';
         funnelHtml += '<div class="flex flex-wrap items-center gap-2">';
 
@@ -1214,18 +1214,18 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
 
     // Resume chiffres cles
     let summary = '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="bg-gray-700 rounded-lg p-4 text-center">';
     summary += '<div class="text-2xl font-bold text-white">' + products.length + '</div>';
-    summary += '<div class="text-xs text-gray-400">Produits en commun</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-xs text-gray-300">Produits en commun</div></div>';
+    summary += '<div class="bg-gray-700 rounded-lg p-4 text-center">';
     summary += '<div class="text-2xl font-bold ' + (positiveProfit.length > 0 ? 'text-emerald-400' : 'text-red-400') + '">' + positiveProfit.length + '</div>';
-    summary += '<div class="text-xs text-gray-400">Profit positif</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
-    summary += '<div class="text-2xl font-bold text-purple-400">' + bestProfit.toFixed(2) + ' &euro;</div>';
-    summary += '<div class="text-xs text-gray-400">Meilleur profit</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-xs text-gray-300">Profit positif</div></div>';
+    summary += '<div class="bg-gray-700 rounded-lg p-4 text-center">';
+    summary += '<div class="text-2xl font-bold text-purple-300">' + bestProfit.toFixed(2) + ' &euro;</div>';
+    summary += '<div class="text-xs text-gray-300">Meilleur profit</div></div>';
+    summary += '<div class="bg-gray-700 rounded-lg p-4 text-center">';
     summary += '<div class="text-2xl font-bold ' + (avgDiff > 0 ? 'text-green-400' : 'text-red-400') + '">' + avgDiff.toFixed(2) + ' &euro;</div>';
-    summary += '<div class="text-xs text-gray-400">Ecart moyen DE-FR</div></div>';
+    summary += '<div class="text-xs text-gray-300">Ecart moyen DE-FR</div></div>';
     summary += '</div>';
 
     // Calculer les counts si pas fournis
