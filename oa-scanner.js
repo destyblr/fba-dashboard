@@ -731,7 +731,13 @@ function parseKeepaCSV(csvText) {
         const weight = packageWeight || itemWeight;
 
         // Volume colis (cm3) — pour estimation frais de stockage
-        const volumeCm3 = parseInt(getVal(values, colPackageDim, '0').replace(/[^0-9]/g, '')) || 0;
+        var volumeRaw = getVal(values, colPackageDim, '0').replace(/,/g, '.').replace(/[^0-9.]/g, '');
+        var volumeCm3 = Math.round(parseFloat(volumeRaw) || 0);
+        // Fallback : estimer le volume depuis le poids si Keepa ne fournit pas le volume
+        if (volumeCm3 <= 0 && weight > 0) {
+            // Estimation grossiere : 1g ~ 2.5 cm3 (densite moyenne produits consumer)
+            volumeCm3 = Math.round(weight * 2.5);
+        }
 
         products.push({
             asin: asin,
