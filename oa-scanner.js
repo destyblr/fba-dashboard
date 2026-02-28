@@ -13,6 +13,7 @@ let oaScanResults = [];     // Resultats du scan filtre
 let oaCurrentCheck = null;  // Produit en cours de verification
 let oaCurrentCheckIndex = -1; // Index dans oaScanResults
 let oaInventory = [];       // Inventaire OA
+let oaFilterMode = 'strict'; // Mode de filtrage actif (strict ou souple)
 
 // Marketplaces Amazon Europe
 const OA_MARKETPLACES = {
@@ -40,7 +41,7 @@ const OA_DEFAULTS = {
     keepaCost: 29,             // Keepa 29€/mois
     sellerAmpCost: 19,         // SellerAmp 19€/mois
 
-    // Criteres de selection
+    // Criteres de selection — Strict (par defaut)
     minProfit: 5.00,
     minROI: 35,
     maxBSR: 30000,
@@ -48,6 +49,14 @@ const OA_DEFAULTS = {
     amazonSells: false,
     minPriceDE: 15,
     maxPriceDE: 80,
+
+    // Criteres de selection — Souple
+    soupleMinProfit: 2.00,
+    soupleMinROI: 15,
+    soupleMaxBSR: 100000,
+    soupleMaxFBASellers: 8,
+    soupleMinPriceDE: 12,
+    soupleMaxPriceDE: 100,
 
     // Direction (marche source = achat, marche dest = vente)
     sourceMarket: 'de',
@@ -83,6 +92,77 @@ function getStorageCost(volumeCm3, estSales, fbaSellers, settings) {
     const monthsInStock = Math.min(3, 1 / Math.max(0.1, yourSalesPerMonth));
 
     return Math.round(volumeM3 * storageFeePerM3 * monthsInStock * 100) / 100;
+}
+
+// Retourne les criteres de filtrage selon le mode actif (strict ou souple)
+function getActiveFilters(settings) {
+    if (oaFilterMode === 'souple') {
+        return {
+            minProfit: settings.soupleMinProfit || 2,
+            minROI: settings.soupleMinROI || 15,
+            maxBSR: settings.soupleMaxBSR || 100000,
+            maxFBASellers: settings.soupleMaxFBASellers || 8,
+            amazonSells: settings.amazonSells,
+            minPriceDE: settings.soupleMinPriceDE || 12,
+            maxPriceDE: settings.soupleMaxPriceDE || 100
+        };
+    }
+    return {
+        minProfit: settings.minProfit,
+        minROI: settings.minROI,
+        maxBSR: settings.maxBSR,
+        maxFBASellers: settings.maxFBASellers,
+        amazonSells: settings.amazonSells,
+        minPriceDE: settings.minPriceDE,
+        maxPriceDE: settings.maxPriceDE
+    };
+}
+
+// Compter les resultats pour un mode donne
+function countFilteredProducts(products, settings, mode) {
+    var f = mode === 'souple' ? {
+        minProfit: settings.soupleMinProfit || 2,
+        minROI: settings.soupleMinROI || 15,
+        maxBSR: settings.soupleMaxBSR || 100000,
+        maxFBASellers: settings.soupleMaxFBASellers || 8,
+        amazonSells: settings.amazonSells,
+        minPriceDE: settings.soupleMinPriceDE || 12,
+        maxPriceDE: settings.soupleMaxPriceDE || 100
+    } : {
+        minProfit: settings.minProfit,
+        minROI: settings.minROI,
+        maxBSR: settings.maxBSR,
+        maxFBASellers: settings.maxFBASellers,
+        amazonSells: settings.amazonSells,
+        minPriceDE: settings.minPriceDE,
+        maxPriceDE: settings.maxPriceDE
+    };
+    return products.filter(function(p) {
+        if (p.pricDE <= p.pricFR) return false;
+        if (p.profit <= 0) return false;
+        if (p.profit < f.minProfit) return false;
+        if (p.roi < f.minROI) return false;
+        if (f.maxBSR > 0 && p.bsr > f.maxBSR && p.bsr > 0) return false;
+        if (p.fbaSellers > f.maxFBASellers) return false;
+        if (!f.amazonSells && p.amazonSells) return false;
+        if (f.minPriceDE > 0 && p.pricDE < f.minPriceDE) return false;
+        if (f.maxPriceDE > 0 && p.pricDE > f.maxPriceDE) return false;
+        return true;
+    }).length;
+}
+
+// Toggle entre strict et souple (sans relancer le scan)
+function toggleFilterMode(mode) {
+    oaFilterMode = mode;
+    if (oaScanResults.length === 0) return;
+
+    var settings = loadOASettings();
+    var strictCount = countFilteredProducts(oaScanResults, settings, 'strict');
+    var soupleCount = countFilteredProducts(oaScanResults, settings, 'souple');
+    var activeCount = mode === 'souple' ? soupleCount : strictCount;
+
+    renderScanResults(oaScanResults, activeCount, null, strictCount, soupleCount);
+    console.log('[OA] Mode filtre: ' + mode + ' (' + activeCount + ' resultats)');
 }
 
 function getInboundLabel(weightGrams) {
@@ -129,6 +209,12 @@ function saveOASettings() {
         { id: 'oa-amazonSells', key: 'amazonSells', type: 'bool' },
         { id: 'oa-minPriceDE', key: 'minPriceDE', type: 'float' },
         { id: 'oa-maxPriceDE', key: 'maxPriceDE', type: 'float' },
+        { id: 'oa-souple-minProfit', key: 'soupleMinProfit', type: 'float' },
+        { id: 'oa-souple-minROI', key: 'soupleMinROI', type: 'float' },
+        { id: 'oa-souple-maxBSR', key: 'soupleMaxBSR', type: 'int' },
+        { id: 'oa-souple-maxFBASellers', key: 'soupleMaxFBASellers', type: 'int' },
+        { id: 'oa-souple-minPriceDE', key: 'soupleMinPriceDE', type: 'float' },
+        { id: 'oa-souple-maxPriceDE', key: 'soupleMaxPriceDE', type: 'float' },
         { id: 'oa-capitalTotal', key: 'capitalTotal', type: 'float' },
         { id: 'oa-maxPerProduct', key: 'maxPerProduct', type: 'float' },
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy', type: 'int' },
@@ -166,9 +252,11 @@ function saveOASettings() {
             console.log('[OA] Recalcul avec les nouveaux parametres...');
             oaScanResults.forEach(p => calculateProfit(p, settings));
             oaScanResults = sortProducts(oaScanResults);
-            const profitable = filterProducts(oaScanResults, settings);
-            renderScanResults(oaScanResults, profitable.length);
-            showOANotification('Resultats recalcules avec les nouveaux parametres (' + profitable.length + ' rentables)', 'success');
+            var strictC = countFilteredProducts(oaScanResults, settings, 'strict');
+            var soupleC = countFilteredProducts(oaScanResults, settings, 'souple');
+            var activeC = oaFilterMode === 'souple' ? soupleC : strictC;
+            renderScanResults(oaScanResults, activeC, null, strictC, soupleC);
+            showOANotification('Resultats recalcules (' + activeC + ' rentables en mode ' + oaFilterMode + ')', 'success');
         }
         updateFixedChargesDashboard();
         updateMarketplaceLabels();
@@ -196,6 +284,12 @@ function initOASettings() {
         { id: 'oa-amazonSells', key: 'amazonSells' },
         { id: 'oa-minPriceDE', key: 'minPriceDE' },
         { id: 'oa-maxPriceDE', key: 'maxPriceDE' },
+        { id: 'oa-souple-minProfit', key: 'soupleMinProfit' },
+        { id: 'oa-souple-minROI', key: 'soupleMinROI' },
+        { id: 'oa-souple-maxBSR', key: 'soupleMaxBSR' },
+        { id: 'oa-souple-maxFBASellers', key: 'soupleMaxFBASellers' },
+        { id: 'oa-souple-minPriceDE', key: 'soupleMinPriceDE' },
+        { id: 'oa-souple-maxPriceDE', key: 'soupleMaxPriceDE' },
         { id: 'oa-capitalTotal', key: 'capitalTotal' },
         { id: 'oa-maxPerProduct', key: 'maxPerProduct' },
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy' },
@@ -1006,9 +1100,14 @@ function runScan() {
     oaScanResults = products;
     saveScanResults();
 
-    console.log('[OA] Scan termine: ' + finalFiltered.length + ' rentables sur ' + products.length + ' en commun');
-    renderScanResults(products, finalFiltered.length, funnel);
-    showOANotification(finalFiltered.length + ' produits rentables sur ' + products.length + ' en commun', finalFiltered.length > 0 ? 'success' : 'info');
+    // Compter pour les 2 modes
+    var strictCount = countFilteredProducts(products, settings, 'strict');
+    var soupleCount = countFilteredProducts(products, settings, 'souple');
+    var activeCount = oaFilterMode === 'souple' ? soupleCount : strictCount;
+
+    console.log('[OA] Scan termine: strict=' + strictCount + ', souple=' + soupleCount + ' sur ' + products.length + ' en commun');
+    renderScanResults(products, activeCount, funnel, strictCount, soupleCount);
+    showOANotification(activeCount + ' produits rentables sur ' + products.length + ' en commun', activeCount > 0 ? 'success' : 'info');
 }
 
 function saveScanResults() {
@@ -1051,7 +1150,7 @@ function loadScanResults() {
     return false;
 }
 
-function renderScanResults(products, profitableCount, funnel) {
+function renderScanResults(products, profitableCount, funnel, strictCount, soupleCount) {
     const container = document.getElementById('oa-scan-results');
     if (!container) return;
 
@@ -1065,7 +1164,9 @@ function renderScanResults(products, profitableCount, funnel) {
 
     const settings = loadOASettings();
     if (profitableCount === undefined) {
-        profitableCount = filterProducts(products, settings).length;
+        strictCount = countFilteredProducts(products, settings, 'strict');
+        soupleCount = countFilteredProducts(products, settings, 'souple');
+        profitableCount = oaFilterMode === 'souple' ? soupleCount : strictCount;
     }
 
     // === ENTONNOIR DE FILTRAGE ===
@@ -1127,13 +1228,43 @@ function renderScanResults(products, profitableCount, funnel) {
     summary += '<div class="text-xs text-gray-400">Ecart moyen DE-FR</div></div>';
     summary += '</div>';
 
-    summary += '<div class="text-sm text-gray-400 mb-4">';
-    summary += 'Affichage des <b>200 meilleurs</b> produits tries par profit decroissant';
+    // Calculer les counts si pas fournis
+    if (strictCount === undefined) strictCount = countFilteredProducts(products, settings, 'strict');
+    if (soupleCount === undefined) soupleCount = countFilteredProducts(products, settings, 'souple');
+
+    // Toggle Strict / Souple
+    var strictActive = oaFilterMode === 'strict';
+    summary += '<div class="flex items-center gap-3 mb-4">';
+    summary += '<span class="text-sm text-gray-400">Filtrage :</span>';
+    summary += '<button onclick="toggleFilterMode(\'strict\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
+        (strictActive ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
+    summary += 'Strict (' + strictCount + ')</button>';
+    summary += '<button onclick="toggleFilterMode(\'souple\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
+        (!strictActive ? 'bg-amber-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
+    summary += 'Souple (' + soupleCount + ')</button>';
+    summary += '<span class="text-xs text-gray-500 ml-2">' + (strictActive ? 'Criteres stricts' : 'Criteres assouplis — plus de resultats') + '</span>';
     summary += '</div>';
 
-    // Tableau — max 200 produits
+    summary += '<div class="text-sm text-gray-400 mb-4">';
+    summary += 'Affichage de <b>' + Math.min(filteredProducts.length, maxDisplay) + '</b> produits sur ' + filteredProducts.length + ' (tries par profit decroissant)';
+    summary += '</div>';
+
+    // Filtrer selon le mode actif puis limiter a 200
     const maxDisplay = 200;
-    const displayProducts = products.slice(0, maxDisplay);
+    var activeFilters = getActiveFilters(settings);
+    const filteredProducts = products.filter(function(p) {
+        if (p.pricDE <= p.pricFR) return false;
+        if (p.profit <= 0) return false;
+        if (p.profit < activeFilters.minProfit) return false;
+        if (p.roi < activeFilters.minROI) return false;
+        if (activeFilters.maxBSR > 0 && p.bsr > activeFilters.maxBSR && p.bsr > 0) return false;
+        if (p.fbaSellers > activeFilters.maxFBASellers) return false;
+        if (!activeFilters.amazonSells && p.amazonSells) return false;
+        if (activeFilters.minPriceDE > 0 && p.pricDE < activeFilters.minPriceDE) return false;
+        if (activeFilters.maxPriceDE > 0 && p.pricDE > activeFilters.maxPriceDE) return false;
+        return true;
+    });
+    const displayProducts = filteredProducts.slice(0, maxDisplay);
 
     let html = '<div class="overflow-x-auto">';
     html += '<table class="w-full text-sm">';

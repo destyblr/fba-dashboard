@@ -3437,59 +3437,85 @@
                         </div>
                     </div>
 
-                    <!-- Criteres de selection -->
+                    <!-- Criteres de selection — Strict & Souple -->
                     <div class="bg-white rounded-xl shadow-sm p-6">
                         <h3 class="font-bold text-gray-800 mb-4"><i class="fas fa-filter text-blue-500 mr-2"></i>Criteres de selection</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                                    Profit minimum (&euro;)
-                                    <span class="text-gray-400 cursor-help" title="Profit net minimum par unite apres TOUS les frais. 4e minimum recommande pour que ca vaille le coup."><i class="fas fa-info-circle"></i></span>
-                                </label>
-                                <input type="number" id="oa-minProfit" step="0.5" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+
+                        <!-- En-tete colonnes -->
+                        <div class="grid grid-cols-3 gap-3 mb-3">
+                            <div class="text-sm font-medium text-gray-500"></div>
+                            <div class="text-center">
+                                <span class="inline-block bg-indigo-100 text-indigo-700 text-xs font-bold px-3 py-1 rounded-full">Strict</span>
                             </div>
-                            <div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                                    ROI minimum (%)
-                                    <span class="text-gray-400 cursor-help" title="Retour sur investissement minimum. 30% = tu gagnes 30% de ce que tu as investi. En dessous de 30% c'est trop risque."><i class="fas fa-info-circle"></i></span>
-                                </label>
-                                <input type="number" id="oa-minROI" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                            <div class="text-center">
+                                <span class="inline-block bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full">Souple</span>
                             </div>
-                            <div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                                    BSR maximum
-                                    <span class="text-gray-400 cursor-help" title="Best Seller Rank maximum. Plus le chiffre est bas, plus le produit se vend. < 50 000 = bon. < 10 000 = tres bon."><i class="fas fa-info-circle"></i></span>
+                        </div>
+
+                        <div class="space-y-3">
+                            <!-- Profit minimum -->
+                            <div class="grid grid-cols-3 gap-3 items-center">
+                                <label class="flex items-center gap-1 text-sm font-medium text-gray-700">
+                                    Profit min (&euro;)
+                                    <span class="text-gray-400 cursor-help" title="Profit net minimum par unite apres TOUS les frais."><i class="fas fa-info-circle text-xs"></i></span>
                                 </label>
-                                <input type="number" id="oa-maxBSR" step="1000" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                                <input type="number" id="oa-minProfit" step="0.5" class="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg text-center" onchange="saveOASettings()">
+                                <input type="number" id="oa-souple-minProfit" step="0.5" class="w-full px-3 py-2 border-2 border-amber-200 rounded-lg text-center" onchange="saveOASettings()">
                             </div>
-                            <div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                                    Vendeurs FBA maximum
-                                    <span class="text-gray-400 cursor-help" title="Nombre maximum de vendeurs FBA sur le listing. Plus il y en a, plus la Buy Box est partagee. 5 max recommande."><i class="fas fa-info-circle"></i></span>
+                            <!-- ROI minimum -->
+                            <div class="grid grid-cols-3 gap-3 items-center">
+                                <label class="flex items-center gap-1 text-sm font-medium text-gray-700">
+                                    ROI min (%)
+                                    <span class="text-gray-400 cursor-help" title="Retour sur investissement minimum. 30% = tu gagnes 30% de ce que tu as investi."><i class="fas fa-info-circle text-xs"></i></span>
                                 </label>
-                                <input type="number" id="oa-maxFBASellers" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                                <input type="number" id="oa-minROI" step="1" class="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg text-center" onchange="saveOASettings()">
+                                <input type="number" id="oa-souple-minROI" step="1" class="w-full px-3 py-2 border-2 border-amber-200 rounded-lg text-center" onchange="saveOASettings()">
                             </div>
-                            <div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                    <input type="checkbox" id="oa-amazonSells" class="w-4 h-4 rounded border-gray-300 text-indigo-600" onchange="saveOASettings()">
-                                    Inclure produits ou Amazon vend
-                                    <span class="text-gray-400 cursor-help" title="Par defaut NON. Si Amazon vend le meme produit, il domine la Buy Box et les vendeurs tiers ont tres peu de chances de vendre."><i class="fas fa-info-circle"></i></span>
+                            <!-- BSR maximum -->
+                            <div class="grid grid-cols-3 gap-3 items-center">
+                                <label class="flex items-center gap-1 text-sm font-medium text-gray-700">
+                                    BSR max
+                                    <span class="text-gray-400 cursor-help" title="Best Seller Rank max. Plus c'est bas, plus ca se vend."><i class="fas fa-info-circle text-xs"></i></span>
                                 </label>
+                                <input type="number" id="oa-maxBSR" step="1000" class="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg text-center" onchange="saveOASettings()">
+                                <input type="number" id="oa-souple-maxBSR" step="1000" class="w-full px-3 py-2 border-2 border-amber-200 rounded-lg text-center" onchange="saveOASettings()">
                             </div>
-                            <div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                                    <span id="label-minPriceDE">Prix vente min (DE)</span> (&euro;)
-                                    <span class="text-gray-400 cursor-help" title="Prix de vente minimum. En dessous de 15&euro;, les frais fixes (FBA + envoi + prep) mangent tout le profit."><i class="fas fa-info-circle"></i></span>
+                            <!-- FBA Sellers max -->
+                            <div class="grid grid-cols-3 gap-3 items-center">
+                                <label class="flex items-center gap-1 text-sm font-medium text-gray-700">
+                                    Sellers FBA max
+                                    <span class="text-gray-400 cursor-help" title="Nombre max de vendeurs FBA. Plus il y en a, plus la Buy Box est partagee."><i class="fas fa-info-circle text-xs"></i></span>
                                 </label>
-                                <input type="number" id="oa-minPriceDE" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                                <input type="number" id="oa-maxFBASellers" step="1" class="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg text-center" onchange="saveOASettings()">
+                                <input type="number" id="oa-souple-maxFBASellers" step="1" class="w-full px-3 py-2 border-2 border-amber-200 rounded-lg text-center" onchange="saveOASettings()">
                             </div>
-                            <div>
-                                <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                                    <span id="label-maxPriceDE">Prix vente max (DE)</span> (&euro;)
-                                    <span class="text-gray-400 cursor-help" title="Prix de vente maximum. Au-dessus de 80&euro;, trop de capital immobilise sur 1 seule unite."><i class="fas fa-info-circle"></i></span>
+                            <!-- Prix vente min -->
+                            <div class="grid grid-cols-3 gap-3 items-center">
+                                <label class="flex items-center gap-1 text-sm font-medium text-gray-700">
+                                    <span id="label-minPriceDE">Prix vente min</span> (&euro;)
+                                    <span class="text-gray-400 cursor-help" title="En dessous de 15e, les frais fixes mangent tout le profit."><i class="fas fa-info-circle text-xs"></i></span>
                                 </label>
-                                <input type="number" id="oa-maxPriceDE" step="1" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg" onchange="saveOASettings()">
+                                <input type="number" id="oa-minPriceDE" step="1" class="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg text-center" onchange="saveOASettings()">
+                                <input type="number" id="oa-souple-minPriceDE" step="1" class="w-full px-3 py-2 border-2 border-amber-200 rounded-lg text-center" onchange="saveOASettings()">
                             </div>
+                            <!-- Prix vente max -->
+                            <div class="grid grid-cols-3 gap-3 items-center">
+                                <label class="flex items-center gap-1 text-sm font-medium text-gray-700">
+                                    <span id="label-maxPriceDE">Prix vente max</span> (&euro;)
+                                    <span class="text-gray-400 cursor-help" title="Au-dessus de 80e, trop de capital immobilise sur 1 unite."><i class="fas fa-info-circle text-xs"></i></span>
+                                </label>
+                                <input type="number" id="oa-maxPriceDE" step="1" class="w-full px-3 py-2 border-2 border-indigo-200 rounded-lg text-center" onchange="saveOASettings()">
+                                <input type="number" id="oa-souple-maxPriceDE" step="1" class="w-full px-3 py-2 border-2 border-amber-200 rounded-lg text-center" onchange="saveOASettings()">
+                            </div>
+                        </div>
+
+                        <!-- Amazon vend (commun aux 2 modes) -->
+                        <div class="mt-4 pt-3 border-t border-gray-100">
+                            <label class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                                <input type="checkbox" id="oa-amazonSells" class="w-4 h-4 rounded border-gray-300 text-indigo-600" onchange="saveOASettings()">
+                                Inclure produits ou Amazon vend
+                                <span class="text-gray-400 cursor-help" title="Par defaut NON. Si Amazon vend le meme produit, il domine la Buy Box."><i class="fas fa-info-circle text-xs"></i></span>
+                            </label>
                         </div>
                     </div>
 
