@@ -621,21 +621,21 @@ function runScan() {
     // Calculer profits
     products = products.map(p => calculateProfit(p, settings));
 
-    // Filtrer
-    let unfilteredCount = products.length;
-    products = filterProducts(products, settings);
-
-    // Trier
+    // Trier par profit decroissant (tous les produits)
     products = sortProducts(products);
 
+    // Separer rentables vs tous
+    let profitable = filterProducts(products, settings);
+
+    // Stocker TOUS les produits (pas seulement les filtrés)
     oaScanResults = products;
 
     // Sauvegarder les resultats pour ne pas perdre au refresh
     saveScanResults();
 
-    console.log('[OA] Scan termine: ' + products.length + ' produits rentables sur ' + unfilteredCount + ' en commun');
-    renderScanResults(products);
-    showOANotification(products.length + ' produits rentables sur ' + unfilteredCount + ' en commun (DE: ' + oaDataDE.length + ' / FR: ' + oaDataFR.length + ')', products.length > 0 ? 'success' : 'info');
+    console.log('[OA] Scan termine: ' + profitable.length + ' rentables sur ' + products.length + ' en commun');
+    renderScanResults(products, profitable.length);
+    showOANotification(profitable.length + ' produits rentables sur ' + products.length + ' en commun (DE: ' + oaDataDE.length + ' / FR: ' + oaDataFR.length + ')', profitable.length > 0 ? 'success' : 'info');
 }
 
 function saveScanResults() {
@@ -678,7 +678,7 @@ function loadScanResults() {
     return false;
 }
 
-function renderScanResults(products) {
+function renderScanResults(products, profitableCount) {
     const container = document.getElementById('oa-scan-results');
     if (!container) return;
 
@@ -690,6 +690,46 @@ function renderScanResults(products) {
         return;
     }
 
+    const settings = loadOASettings();
+    if (profitableCount === undefined) {
+        profitableCount = filterProducts(products, settings).length;
+    }
+
+    // Stats
+    const positiveProfit = products.filter(p => p.profit > 0);
+    const nearBreakEven = products.filter(p => p.profit > -2 && p.profit <= 0);
+    const bestProfit = products[0] ? products[0].profit : 0;
+    const avgDiff = products.reduce((s, p) => s + (p.pricDE - p.pricFR), 0) / products.length;
+
+    // Resume en haut
+    let summary = '<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">';
+    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-2xl font-bold text-white">' + products.length + '</div>';
+    summary += '<div class="text-xs text-gray-400">Produits en commun</div></div>';
+    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-2xl font-bold text-green-400">' + profitableCount + '</div>';
+    summary += '<div class="text-xs text-gray-400">Rentables (criteres)</div></div>';
+    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-2xl font-bold ' + (positiveProfit.length > 0 ? 'text-emerald-400' : 'text-red-400') + '">' + positiveProfit.length + '</div>';
+    summary += '<div class="text-xs text-gray-400">Profit positif</div></div>';
+    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-2xl font-bold text-yellow-400">' + nearBreakEven.length + '</div>';
+    summary += '<div class="text-xs text-gray-400">Presque rentable</div></div>';
+    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-2xl font-bold text-purple-400">' + bestProfit.toFixed(2) + ' &euro;</div>';
+    summary += '<div class="text-xs text-gray-400">Meilleur profit</div></div>';
+    summary += '</div>';
+
+    // Info ecart moyen
+    summary += '<div class="text-sm text-gray-400 mb-4">';
+    summary += 'Ecart moyen DE-FR : <b class="' + (avgDiff > 0 ? 'text-green-400' : 'text-red-400') + '">' + avgDiff.toFixed(2) + ' &euro;</b>';
+    summary += ' | Affichage des <b>200 meilleurs</b> produits tries par profit decroissant';
+    summary += '</div>';
+
+    // Tableau — max 200 produits
+    const maxDisplay = 200;
+    const displayProducts = products.slice(0, maxDisplay);
+
     let html = '<div class="overflow-x-auto">';
     html += '<table class="w-full text-sm">';
     html += '<thead><tr class="text-left text-gray-400 border-b border-gray-700">';
@@ -697,66 +737,57 @@ function renderScanResults(products) {
     html += '<th class="pb-3 pr-4">Produit</th>';
     html += '<th class="pb-3 pr-4 text-right">Prix FR</th>';
     html += '<th class="pb-3 pr-4 text-right">Prix DE</th>';
+    html += '<th class="pb-3 pr-4 text-right">Ecart</th>';
+    html += '<th class="pb-3 pr-4 text-right">Frais</th>';
     html += '<th class="pb-3 pr-4 text-right">Profit</th>';
     html += '<th class="pb-3 pr-4 text-right">ROI</th>';
     html += '<th class="pb-3 pr-4 text-right">BSR</th>';
     html += '<th class="pb-3 pr-4 text-right">FBA</th>';
-    html += '<th class="pb-3 pr-4 text-center">Stabilite</th>';
     html += '<th class="pb-3 pr-4 text-center">Action</th>';
     html += '</tr></thead><tbody>';
 
-    products.forEach((p, i) => {
-        const profitClass = p.profit >= 5 ? 'text-green-400' : (p.profit >= 3 ? 'text-yellow-400' : 'text-orange-400');
-        const roiClass = p.roi >= 50 ? 'text-green-400' : (p.roi >= 30 ? 'text-yellow-400' : 'text-orange-400');
-        const titleShort = p.title.length > 50 ? p.title.substring(0, 50) + '...' : p.title;
+    displayProducts.forEach((p, i) => {
+        // Couleur de la ligne selon profit
+        const rowBg = p.profit >= 5 ? 'bg-green-900/20' :
+                      p.profit >= 0 ? 'bg-yellow-900/10' :
+                      p.profit >= -2 ? 'bg-orange-900/10' : '';
+        const profitClass = p.profit >= 5 ? 'text-green-400' :
+                           p.profit >= 0 ? 'text-emerald-300' :
+                           p.profit >= -2 ? 'text-yellow-400' : 'text-red-400';
+        const roiClass = p.roi >= 35 ? 'text-green-400' :
+                        p.roi >= 0 ? 'text-yellow-400' : 'text-red-400';
+        const titleShort = p.title.length > 45 ? p.title.substring(0, 45) + '...' : p.title;
+        const ecart = p.pricDE - p.pricFR;
+        const ecartClass = ecart > 0 ? 'text-green-400' : 'text-red-400';
+        const totalFeesDisplay = p.totalFees + p.urssaf;
 
-        html += '<tr class="border-b border-gray-800 hover:bg-gray-800/50">';
-        html += '<td class="py-3 pr-4 text-gray-500">' + (i + 1) + '</td>';
-        html += '<td class="py-3 pr-4">';
-        html += '<div class="font-medium text-white">' + escapeHTML(titleShort) + '</div>';
+        html += '<tr class="border-b border-gray-800 hover:bg-gray-800/50 ' + rowBg + '">';
+        html += '<td class="py-2 pr-3 text-gray-500 text-xs">' + (i + 1) + '</td>';
+        html += '<td class="py-2 pr-3">';
+        html += '<div class="font-medium text-white text-xs">' + escapeHTML(titleShort) + '</div>';
         html += '<div class="text-xs text-gray-500">' + p.asin + '</div></td>';
-        html += '<td class="py-3 pr-4 text-right text-blue-400">' + p.pricFR.toFixed(2) + ' &euro;</td>';
-        html += '<td class="py-3 pr-4 text-right text-purple-400">' + p.pricDE.toFixed(2) + ' &euro;</td>';
-        html += '<td class="py-3 pr-4 text-right font-bold ' + profitClass + '">' + p.profit.toFixed(2) + ' &euro;</td>';
-        html += '<td class="py-3 pr-4 text-right font-bold ' + roiClass + '">' + p.roi.toFixed(0) + '%</td>';
-        html += '<td class="py-3 pr-4 text-right text-gray-300">' + formatNumber(p.bsr) + '</td>';
-        html += '<td class="py-3 pr-4 text-right text-gray-300">' + p.fbaSellers + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-blue-400">' + p.pricFR.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-purple-400">' + p.pricDE.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right font-bold ' + ecartClass + '">' + (ecart > 0 ? '+' : '') + ecart.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-gray-400 text-xs" title="Commission: ' + (p.commission || 0) + '€ + FBA: ' + (p.fbaFeeUsed || 0) + '€ + Inbound/Prep/Tool + URSSAF: ' + (p.urssaf || 0) + '€">' + totalFeesDisplay.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right font-bold ' + profitClass + '">' + p.profit.toFixed(2) + '</td>';
+        html += '<td class="py-2 pr-3 text-right ' + roiClass + '">' + p.roi.toFixed(0) + '%</td>';
+        html += '<td class="py-2 pr-3 text-right text-gray-300 text-xs">' + formatNumber(p.bsr) + '</td>';
+        html += '<td class="py-2 pr-3 text-right text-gray-300 text-xs">' + p.fbaSellers + '</td>';
 
-        // Colonne stabilite prix
-        const stab = p.stability || { score: 0, label: 'Inconnu', color: 'gray', detail: '' };
-        const stabColorClass = stab.color === 'green' ? 'text-green-400 bg-green-900/30' :
-                               stab.color === 'yellow' ? 'text-yellow-400 bg-yellow-900/30' :
-                               stab.color === 'red' ? 'text-red-400 bg-red-900/30' : 'text-gray-400 bg-gray-800';
-        html += '<td class="py-3 pr-4 text-center">';
-        html += '<span class="px-2 py-1 rounded text-xs font-bold ' + stabColorClass + '" title="' + escapeHTML(stab.detail) + '">';
-        html += stab.label + (stab.score > 0 ? ' ' + stab.score : '') + '</span></td>';
-
-        html += '<td class="py-3 pr-4 text-center">';
-        html += '<button onclick="startChecklist(' + i + ')" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs">';
-        html += '<i class="fas fa-clipboard-check mr-1"></i>Verifier</button></td>';
+        html += '<td class="py-2 pr-3 text-center">';
+        if (p.profit > 0) {
+            html += '<button onclick="startChecklist(' + i + ')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs">';
+            html += '<i class="fas fa-clipboard-check mr-1"></i>Verifier</button>';
+        } else {
+            html += '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="text-gray-500 hover:text-blue-400 text-xs">';
+            html += '<i class="fas fa-external-link-alt mr-1"></i>Voir</a>';
+        }
+        html += '</td>';
         html += '</tr>';
     });
 
     html += '</tbody></table></div>';
-
-    // Resume en haut
-    const avgProfit = products.reduce((s, p) => s + p.profit, 0) / products.length;
-    const avgROI = products.reduce((s, p) => s + p.roi, 0) / products.length;
-
-    let summary = '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
-    summary += '<div class="text-2xl font-bold text-white">' + products.length + '</div>';
-    summary += '<div class="text-xs text-gray-400">Produits trouves</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
-    summary += '<div class="text-2xl font-bold text-green-400">' + avgProfit.toFixed(2) + ' &euro;</div>';
-    summary += '<div class="text-xs text-gray-400">Profit moyen</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
-    summary += '<div class="text-2xl font-bold text-blue-400">' + avgROI.toFixed(0) + '%</div>';
-    summary += '<div class="text-xs text-gray-400">ROI moyen</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
-    summary += '<div class="text-2xl font-bold text-purple-400">' + products[0].profit.toFixed(2) + ' &euro;</div>';
-    summary += '<div class="text-xs text-gray-400">Meilleur profit</div></div>';
-    summary += '</div>';
 
     container.innerHTML = summary + html;
 }
