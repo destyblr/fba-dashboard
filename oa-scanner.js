@@ -1234,7 +1234,7 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
 
     // Toggle Strict / Souple / Non eligible
     var nonEligibleCount = products.length - soupleCount;
-    summary += '<div class="flex items-center gap-3 mb-4">';
+    summary += '<div class="flex items-center gap-3 mb-6">';
     summary += '<span class="text-sm text-gray-400">Filtrage :</span>';
     summary += '<button onclick="toggleFilterMode(\'strict\')" class="px-4 py-2 rounded-lg text-sm font-bold transition ' +
         (oaFilterMode === 'strict' ? 'bg-indigo-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600') + '">';
@@ -1293,7 +1293,7 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
     }
     const displayProducts = filteredProducts.slice(0, maxDisplay);
 
-    summary += '<div class="text-sm text-gray-400 mb-4">';
+    summary += '<div class="text-sm text-gray-400 mb-6 mt-2">';
     summary += 'Affichage de <b>' + Math.min(filteredProducts.length, maxDisplay) + '</b> produits sur ' + filteredProducts.length + ' (tries par profit decroissant)';
     summary += '</div>';
 
@@ -1396,7 +1396,7 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
 
     html += '</tbody></table></div>';
 
-    container.innerHTML = funnelHtml + summary + html;
+    container.innerHTML = '<div class="p-6">' + funnelHtml + summary + html + '</div>';
 }
 
 // ===========================
