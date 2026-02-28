@@ -608,34 +608,80 @@ function runScan() {
         return;
     }
 
+    // Construire l'entonnoir de filtrage
+    const funnel = [];
+
+    funnel.push({ step: 'CSV DE charges', count: oaDataDE.length, icon: 'file-csv', color: 'gray' });
+    funnel.push({ step: 'CSV FR charges', count: oaDataFR.length, icon: 'file-csv', color: 'gray' });
+
     // Fusionner
     let products = mergeData(oaDataDE, oaDataFR);
+    funnel.push({ step: 'ASINs en commun (fusion DE+FR)', count: products.length, icon: 'link', color: 'blue' });
 
     if (products.length === 0) {
         showOANotification('0 ASINs en commun entre DE et FR. Utilise le bouton "Copier les ASINs" pour chercher les memes produits sur Amazon.fr via Keepa Product Viewer.', 'error');
         showASINExtractGuide(oaDataDE.length);
-        renderScanResults([]);
+        renderScanResults([], 0, funnel);
         return;
     }
 
     // Calculer profits
     products = products.map(p => calculateProfit(p, settings));
 
+    // Entonnoir detaille — appliquer chaque filtre un par un
+    let remaining = products.slice();
+
+    // Filtre prix DE
+    if (settings.minPriceDE > 0 || settings.maxPriceDE > 0) {
+        remaining = remaining.filter(p =>
+            (settings.minPriceDE <= 0 || p.pricDE >= settings.minPriceDE) &&
+            (settings.maxPriceDE <= 0 || p.pricDE <= settings.maxPriceDE)
+        );
+        funnel.push({ step: 'Prix DE ' + settings.minPriceDE + '-' + settings.maxPriceDE + ' \u20ac', count: remaining.length, icon: 'euro-sign', color: 'purple' });
+    }
+
+    // Filtre BSR
+    if (settings.maxBSR > 0) {
+        remaining = remaining.filter(p => p.bsr <= settings.maxBSR || p.bsr === 0);
+        funnel.push({ step: 'BSR \u2264 ' + formatNumber(settings.maxBSR), count: remaining.length, icon: 'chart-line', color: 'blue' });
+    }
+
+    // Filtre FBA sellers
+    remaining = remaining.filter(p => p.fbaSellers <= settings.maxFBASellers);
+    funnel.push({ step: 'Vendeurs FBA \u2264 ' + settings.maxFBASellers, count: remaining.length, icon: 'store', color: 'indigo' });
+
+    // Filtre Amazon vend
+    if (!settings.amazonSells) {
+        remaining = remaining.filter(p => !p.amazonSells);
+        funnel.push({ step: 'Amazon ne vend pas', count: remaining.length, icon: 'ban', color: 'orange' });
+    }
+
+    // Filtre ecart positif (FR < DE)
+    let positiveGap = remaining.filter(p => p.pricDE > p.pricFR);
+    funnel.push({ step: 'Prix DE > Prix FR (ecart positif)', count: positiveGap.length, icon: 'arrow-up', color: 'green' });
+
+    // Filtre profit positif
+    let profitPositive = remaining.filter(p => p.profit > 0);
+    funnel.push({ step: 'Profit > 0 \u20ac (apres frais)', count: profitPositive.length, icon: 'coins', color: 'emerald' });
+
+    // Filtre profit minimum
+    let profitMin = remaining.filter(p => p.profit >= settings.minProfit);
+    funnel.push({ step: 'Profit \u2265 ' + settings.minProfit + ' \u20ac', count: profitMin.length, icon: 'check-circle', color: 'green' });
+
+    // Filtre ROI minimum
+    let finalFiltered = profitMin.filter(p => p.roi >= settings.minROI);
+    funnel.push({ step: 'ROI \u2265 ' + settings.minROI + '%', count: finalFiltered.length, icon: 'percentage', color: 'green' });
+
     // Trier par profit decroissant (tous les produits)
     products = sortProducts(products);
 
-    // Separer rentables vs tous
-    let profitable = filterProducts(products, settings);
-
-    // Stocker TOUS les produits (pas seulement les filtrés)
+    // Stocker TOUS les produits
     oaScanResults = products;
-
-    // Sauvegarder les resultats pour ne pas perdre au refresh
     saveScanResults();
 
-    console.log('[OA] Scan termine: ' + profitable.length + ' rentables sur ' + products.length + ' en commun');
-    renderScanResults(products, profitable.length);
-    showOANotification(profitable.length + ' produits rentables sur ' + products.length + ' en commun (DE: ' + oaDataDE.length + ' / FR: ' + oaDataFR.length + ')', profitable.length > 0 ? 'success' : 'info');
+    console.log('[OA] Scan termine: ' + finalFiltered.length + ' rentables sur ' + products.length + ' en commun');
+    renderScanResults(products, finalFiltered.length, funnel);
+    showOANotification(finalFiltered.length + ' produits rentables sur ' + products.length + ' en commun', finalFiltered.length > 0 ? 'success' : 'info');
 }
 
 function saveScanResults() {
@@ -678,11 +724,11 @@ function loadScanResults() {
     return false;
 }
 
-function renderScanResults(products, profitableCount) {
+function renderScanResults(products, profitableCount, funnel) {
     const container = document.getElementById('oa-scan-results');
     if (!container) return;
 
-    if (products.length === 0) {
+    if (products.length === 0 && (!funnel || funnel.length === 0)) {
         container.innerHTML = '<div class="text-center py-8 text-gray-400">' +
             '<i class="fas fa-search fa-3x mb-4"></i>' +
             '<p>Aucun produit ne correspond aux criteres.</p>' +
@@ -695,35 +741,68 @@ function renderScanResults(products, profitableCount) {
         profitableCount = filterProducts(products, settings).length;
     }
 
+    // === ENTONNOIR DE FILTRAGE ===
+    let funnelHtml = '';
+    if (funnel && funnel.length > 0) {
+        funnelHtml += '<div class="bg-gray-800 rounded-xl p-5 mb-6">';
+        funnelHtml += '<h4 class="font-bold text-gray-300 mb-3"><i class="fas fa-filter mr-2"></i>Entonnoir de filtrage</h4>';
+        funnelHtml += '<div class="flex flex-wrap items-center gap-2">';
+
+        funnel.forEach((f, i) => {
+            // Couleur du badge selon le nombre
+            const bgColor = f.count === 0 ? 'bg-red-900/50 text-red-400 border-red-700' :
+                           f.count <= 10 ? 'bg-orange-900/50 text-orange-400 border-orange-700' :
+                           f.count <= 100 ? 'bg-yellow-900/50 text-yellow-300 border-yellow-700' :
+                           'bg-gray-700 text-gray-200 border-gray-600';
+
+            funnelHtml += '<div class="flex items-center gap-2">';
+            funnelHtml += '<div class="border rounded-lg px-3 py-2 text-sm ' + bgColor + '">';
+            funnelHtml += '<i class="fas fa-' + f.icon + ' mr-1 opacity-60"></i>';
+            funnelHtml += '<span class="font-bold">' + formatNumber(f.count) + '</span>';
+            funnelHtml += '<span class="text-xs ml-1 opacity-70">' + f.step + '</span>';
+            funnelHtml += '</div>';
+
+            // Fleche entre les etapes
+            if (i < funnel.length - 1) {
+                const drop = (i >= 2 && funnel[i - 1]) ? funnel[i].count - funnel[i + 1].count : 0;
+                funnelHtml += '<i class="fas fa-chevron-right text-gray-600 text-xs"></i>';
+            }
+            funnelHtml += '</div>';
+        });
+
+        funnelHtml += '</div></div>';
+    }
+
+    if (products.length === 0) {
+        container.innerHTML = funnelHtml + '<div class="text-center py-8 text-gray-400">' +
+            '<i class="fas fa-search fa-3x mb-4"></i>' +
+            '<p>Aucun produit dans la liste.</p></div>';
+        return;
+    }
+
     // Stats
     const positiveProfit = products.filter(p => p.profit > 0);
-    const nearBreakEven = products.filter(p => p.profit > -2 && p.profit <= 0);
     const bestProfit = products[0] ? products[0].profit : 0;
     const avgDiff = products.reduce((s, p) => s + (p.pricDE - p.pricFR), 0) / products.length;
 
-    // Resume en haut
-    let summary = '<div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">';
+    // Resume chiffres cles
+    let summary = '<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">';
     summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
     summary += '<div class="text-2xl font-bold text-white">' + products.length + '</div>';
     summary += '<div class="text-xs text-gray-400">Produits en commun</div></div>';
     summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
-    summary += '<div class="text-2xl font-bold text-green-400">' + profitableCount + '</div>';
-    summary += '<div class="text-xs text-gray-400">Rentables (criteres)</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
     summary += '<div class="text-2xl font-bold ' + (positiveProfit.length > 0 ? 'text-emerald-400' : 'text-red-400') + '">' + positiveProfit.length + '</div>';
     summary += '<div class="text-xs text-gray-400">Profit positif</div></div>';
     summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
-    summary += '<div class="text-2xl font-bold text-yellow-400">' + nearBreakEven.length + '</div>';
-    summary += '<div class="text-xs text-gray-400">Presque rentable</div></div>';
-    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
     summary += '<div class="text-2xl font-bold text-purple-400">' + bestProfit.toFixed(2) + ' &euro;</div>';
     summary += '<div class="text-xs text-gray-400">Meilleur profit</div></div>';
+    summary += '<div class="bg-gray-800 rounded-lg p-4 text-center">';
+    summary += '<div class="text-2xl font-bold ' + (avgDiff > 0 ? 'text-green-400' : 'text-red-400') + '">' + avgDiff.toFixed(2) + ' &euro;</div>';
+    summary += '<div class="text-xs text-gray-400">Ecart moyen DE-FR</div></div>';
     summary += '</div>';
 
-    // Info ecart moyen
     summary += '<div class="text-sm text-gray-400 mb-4">';
-    summary += 'Ecart moyen DE-FR : <b class="' + (avgDiff > 0 ? 'text-green-400' : 'text-red-400') + '">' + avgDiff.toFixed(2) + ' &euro;</b>';
-    summary += ' | Affichage des <b>200 meilleurs</b> produits tries par profit decroissant';
+    summary += 'Affichage des <b>200 meilleurs</b> produits tries par profit decroissant';
     summary += '</div>';
 
     // Tableau — max 200 produits
