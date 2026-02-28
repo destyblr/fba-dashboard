@@ -1048,7 +1048,7 @@ function renderScanResults(products, profitableCount, funnel) {
     html += '<th class="pb-3 pr-4 text-right cursor-help" title="Deja precis ! Le scanner utilise le vrai montant Keepa par produit (FBA pick&pack). L\'envoi a AMZ est calcule automatiquement selon le poids. Survolez chaque ligne pour voir le detail.">Frais <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-right">Profit</th>';
     html += '<th class="pb-3 pr-4 text-right">ROI</th>';
-    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Best Sellers Rank : classement des ventes sur Amazon.de. Plus le chiffre est bas, plus le produit se vend. < 1000 = excellent, < 10 000 = bon, < 30 000 = correct">BSR <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
+    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Best Sellers Rank : classement des ventes sur Amazon.de. Plus le chiffre est bas, plus le produit se vend. 1-100 = top ventes, 100-1000 = tres populaire, 1000-10000 = bon vendeur, 10000-30000 = ventes regulieres, 30000+ = ventes lentes">BSR <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-right cursor-help" title="Nombre de vendeurs FBA (Fulfilled by Amazon) sur cette fiche produit. Moins il y en a, moins il y a de concurrence.">Sellers <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-center">Liens</th>';
     html += '<th class="pb-3 pr-4 text-center">Action</th>';
@@ -1098,7 +1098,7 @@ function renderScanResults(products, profitableCount, funnel) {
         if (!titleFR && titleDE) {
             html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">DE</span>' + escapeHTML(titleMainShort) + '</div>';
         }
-        html += '<div class="text-xs text-gray-600 font-mono">' + p.asin + '</div></td>';
+        html += '<div class="text-xs font-mono"><a href="https://www.amazon.fr/dp/' + p.asin + '" target="_blank" class="text-gray-500 hover:text-blue-400">' + p.asin + '</a></div></td>';
         html += '<td class="py-2 pr-3 text-right text-blue-400">' + p.pricFR.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right text-purple-400">' + p.pricDE.toFixed(2) + '</td>';
         html += '<td class="py-2 pr-3 text-right font-bold ' + ecartClass + '">' + (ecart > 0 ? '+' : '') + ecart.toFixed(2) + '</td>';
