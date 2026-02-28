@@ -215,24 +215,71 @@ function parseKeepaCSV(csvText) {
         headerMap[h.trim().toLowerCase()] = i;
     });
 
-    // Mapper les colonnes Keepa (recherche flexible)
+    // Mapper les colonnes Keepa (recherche flexible — EN + FR)
     const colASIN = findColumn(headerMap, ['asin']);
     const colTitle = findColumn(headerMap, ['title', 'titre', 'product name', 'nom']);
-    const colBSR = findColumn(headerMap, ['sales rank: current', 'sales rank current', 'salesrank', 'sales rank', 'bsr']);
-    const colBSR90 = findColumn(headerMap, ['sales rank: 90 days avg', 'sales rank 90 days avg', 'sales rank: 90']);
-    const colBuyBox = findColumn(headerMap, ['buy box: current', 'buy box current', 'buybox', 'buy box']);
-    const colNewOffers = findColumn(headerMap, ['new offer count: current', 'new offer count current', 'new offer count', 'new offers', 'count of retrieved live offers: new, fba']);
-    const colAmazonPrice = findColumn(headerMap, ['amazon: current', 'amazon current', 'amazon']);
-    const colCategory = findColumn(headerMap, ['categories: root', 'categories root', 'category', 'categories']);
-    const colNewPrice = findColumn(headerMap, ['new: current', 'new current', 'new price', 'new']);
-    const colEstSales = findColumn(headerMap, ['estimated sales', 'est. sales', 'sales estimate', 'estimated monthly sales']);
+    const colBSR = findColumn(headerMap, [
+        'sales rank: current', 'classement des ventes: courant',
+        'sales rank current', 'salesrank', 'sales rank', 'bsr'
+    ]);
+    const colBSR90 = findColumn(headerMap, [
+        'sales rank: 90 days avg', 'classement des ventes: moyenne sur 90 jours',
+        'sales rank 90 days avg'
+    ]);
+    const colBuyBox = findColumn(headerMap, [
+        'buy box: current', 'buy box: courant',
+        'buy box current', 'buybox'
+    ]);
+    const colNewOffers = findColumn(headerMap, [
+        "new offer count: current", "nombre d'offre neuf fba: courant",
+        "count of retrieved live offers: new, fba",
+        "new offer count current", "new offer count", "new offers"
+    ]);
+    const colAmazonPrice = findColumn(headerMap, [
+        'amazon: current', 'amazon: courant', 'amazon current'
+    ]);
+    const colCategory = findColumn(headerMap, [
+        'categories: root', "cat\u00e9gories: principale",
+        'categories root', 'category', 'categories'
+    ]);
+    const colNewPrice = findColumn(headerMap, [
+        'new: current', 'nouveau: courant',
+        'nouveau, tierce partie fba: courant',
+        'new current', 'new price'
+    ]);
+    const colEstSales = findColumn(headerMap, [
+        'bought in past month', "achet\u00e9s au cours du mois dernier",
+        'estimated sales', 'est. sales', 'sales estimate', 'estimated monthly sales'
+    ]);
 
-    // Colonnes de stabilite prix (Keepa 90 jours)
-    const colBuyBox90 = findColumn(headerMap, ['buy box: 90 days avg', 'buy box 90 days avg', 'buy box: 90']);
-    const colBuyBox90Drop = findColumn(headerMap, ['buy box: 90 days drop %', 'buy box 90 days drop', 'buy box: drops 90']);
-    const colNew90 = findColumn(headerMap, ['new: 90 days avg', 'new 90 days avg', 'new: 90']);
-    const colBuyBoxMin90 = findColumn(headerMap, ['buy box: 90 days min', 'buy box: lowest 90']);
-    const colBuyBoxMax90 = findColumn(headerMap, ['buy box: 90 days max', 'buy box: highest 90']);
+    // Colonnes de stabilite prix (Keepa 90 jours — EN + FR)
+    const colBuyBox90 = findColumn(headerMap, [
+        'buy box: 90 days avg', 'buy box: moyenne sur 90 jours',
+        'buy box 90 days avg'
+    ]);
+    const colBuyBox90Drop = findColumn(headerMap, [
+        'buy box: 90 days drop %', 'buy box: baisse sur 90 jours %',
+        'buy box 90 days drop'
+    ]);
+    const colNew90 = findColumn(headerMap, [
+        'new: 90 days avg', 'nouveau: moyenne sur 90 jours',
+        'nouveau, tierce partie fba: moyenne sur 90 jours',
+        'new 90 days avg'
+    ]);
+    const colBuyBoxMin90 = findColumn(headerMap, [
+        'buy box: 90 days min', 'buy box: lowest 90'
+    ]);
+    const colBuyBoxMax90 = findColumn(headerMap, [
+        'buy box: 90 days max', 'buy box: highest 90'
+    ]);
+
+    // Debug: afficher les colonnes detectees
+    console.log('[OA] Colonnes detectees:', {
+        ASIN: colASIN, Titre: colTitle, BSR: colBSR, BuyBox: colBuyBox,
+        FBASellers: colNewOffers, Amazon: colAmazonPrice, NewPrice: colNewPrice,
+        EstSales: colEstSales, BuyBox90: colBuyBox90, BuyBox90Drop: colBuyBox90Drop
+    });
+    console.log('[OA] Nb headers:', headers.length, '| Premieres colonnes:', headers.slice(0, 5));
 
     const products = [];
 
