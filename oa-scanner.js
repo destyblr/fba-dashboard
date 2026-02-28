@@ -15,16 +15,19 @@ let oaCurrentCheckIndex = -1; // Index dans oaScanResults
 let oaInventory = [];       // Inventaire OA
 
 const OA_DEFAULTS = {
-    // Frais Amazon
+    // Frais Amazon (FBA fee est par produit depuis Keepa, ce default est le fallback)
     commissionPct: 15,
-    fbaFee: 5.00,
+    fbaFee: 3.50,
     storageFee: 26.00,
 
     // Couts utilisateur
-    inboundShipping: 1.50,
-    prepCost: 0.30,
+    inboundShipping: 2.00,     // Fallback si pas de poids Keepa
+    prepCost: 0.25,            // Machine 22€ + etiquettes 20€ = 42€/an / ~170 prod
     urssafPct: 12.3,
-    toolAmortization: 0.70,
+
+    // Charges fixes mensuelles (affichees dans le dashboard, PAS dans le calcul par produit)
+    keepaCost: 29,             // Keepa 29€/mois
+    sellerAmpCost: 19,         // SellerAmp 19€/mois
 
     // Criteres de selection
     minProfit: 5.00,
@@ -40,6 +43,24 @@ const OA_DEFAULTS = {
     maxPerProduct: 40,
     maxUnitsFirstBuy: 2
 };
+
+// Paliers inbound par poids (Envoi a AMZ)
+// Basé sur envoi petit lot UPS/DHL FR→DE
+function getInboundCost(weightGrams, settings) {
+    if (!weightGrams || weightGrams <= 0) return settings.inboundShipping; // fallback
+    if (weightGrams < 500) return 1.50;
+    if (weightGrams < 2000) return 2.00;
+    if (weightGrams < 5000) return 3.00;
+    return 4.50;
+}
+
+function getInboundLabel(weightGrams) {
+    if (!weightGrams || weightGrams <= 0) return 'defaut (pas de poids)';
+    if (weightGrams < 500) return '< 500g';
+    if (weightGrams < 2000) return '500g-2kg';
+    if (weightGrams < 5000) return '2-5kg';
+    return '> 5kg';
+}
 
 // ===========================
 // 1. OA SETTINGS
@@ -68,7 +89,8 @@ function saveOASettings() {
         { id: 'oa-inboundShipping', key: 'inboundShipping', type: 'float' },
         { id: 'oa-prepCost', key: 'prepCost', type: 'float' },
         { id: 'oa-urssafPct', key: 'urssafPct', type: 'float' },
-        { id: 'oa-toolAmortization', key: 'toolAmortization', type: 'float' },
+        { id: 'oa-keepaCost', key: 'keepaCost', type: 'float' },
+        { id: 'oa-sellerAmpCost', key: 'sellerAmpCost', type: 'float' },
         { id: 'oa-minProfit', key: 'minProfit', type: 'float' },
         { id: 'oa-minROI', key: 'minROI', type: 'float' },
         { id: 'oa-maxBSR', key: 'maxBSR', type: 'int' },
@@ -107,6 +129,7 @@ function saveOASettings() {
             renderScanResults(oaScanResults, profitable.length);
             showOANotification('Resultats recalcules avec les nouveaux parametres (' + profitable.length + ' rentables)', 'success');
         }
+        updateFixedChargesDashboard();
     } catch (e) {
         console.log('[OA] Erreur sauvegarde parametres:', e);
         showOANotification('Erreur sauvegarde parametres', 'error');
@@ -122,7 +145,8 @@ function initOASettings() {
         { id: 'oa-inboundShipping', key: 'inboundShipping' },
         { id: 'oa-prepCost', key: 'prepCost' },
         { id: 'oa-urssafPct', key: 'urssafPct' },
-        { id: 'oa-toolAmortization', key: 'toolAmortization' },
+        { id: 'oa-keepaCost', key: 'keepaCost' },
+        { id: 'oa-sellerAmpCost', key: 'sellerAmpCost' },
         { id: 'oa-minProfit', key: 'minProfit' },
         { id: 'oa-minROI', key: 'minROI' },
         { id: 'oa-maxBSR', key: 'maxBSR' },
@@ -155,6 +179,177 @@ function resetOASettings() {
     showOANotification('Parametres reinitialises aux valeurs par defaut', 'success');
     console.log('[OA] Parametres reinitialises');
 }
+
+// Dashboard charges fixes (bandeau persistant en haut de toutes les sections OA)
+let oaCurrentPeriod = 'month';
+
+function setOAPeriod(period) {
+    oaCurrentPeriod = period;
+    // Mettre a jour les boutons actifs
+    document.querySelectorAll('.oa-period-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.period === period);
+    });
+    updateFixedChargesDashboard();
+}
+
+function getDateFilter(period) {
+    const now = new Date();
+    if (period === 'month') {
+        return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    } else if (period === 'lastmonth') {
+        const last = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return last.getFullYear() + '-' + String(last.getMonth() + 1).padStart(2, '0');
+    } else if (period === 'year') {
+        return String(now.getFullYear());
+    }
+    return ''; // 'all' — pas de filtre
+}
+
+function getPeriodLabel(period) {
+    if (period === 'month') return 'ce mois';
+    if (period === 'lastmonth') return 'mois dernier';
+    if (period === 'year') return 'cette annee';
+    return 'depuis le debut';
+}
+
+// Retourne le nombre de mois TERMINES (charges prelevees fin de mois)
+function getCompletedMonths(period) {
+    const now = new Date();
+    if (period === 'month') return 0;       // mois en cours = pas encore preleve
+    if (period === 'lastmonth') return 1;    // mois dernier = deja preleve
+    if (period === 'year') return now.getMonth(); // mois termines cette annee (jan=0 si on est en jan, etc.)
+    return 0; // 'all' — on calcule ci-dessous
+}
+
+function updateFixedChargesDashboard() {
+    const settings = loadOASettings();
+    const fixedMonthly = (settings.keepaCost || 29) + (settings.sellerAmpCost || 19);
+    const period = oaCurrentPeriod;
+    const dateFilter = getDateFilter(period);
+    const periodLabel = getPeriodLabel(period);
+
+    // Filtrer l'inventaire par periode
+    const inventory = loadOAInventory();
+
+    const filterByDate = function(item, dateField) {
+        if (!dateFilter) return true; // 'all'
+        const d = item[dateField];
+        return d && d.startsWith(dateFilter);
+    };
+
+    // Produits achetes dans la periode
+    const boughtInPeriod = inventory.filter(function(p) { return filterByDate(p, 'dateAdded'); });
+    const boughtCount = boughtInPeriod.length;
+
+    // Produits vendus dans la periode
+    const soldInPeriod = inventory.filter(function(p) {
+        return p.status === 'vendu' && filterByDate(p, 'dateSold');
+    });
+    const salesCount = soldInPeriod.length;
+    const totalProfit = soldInPeriod.reduce(function(s, p) { return s + (p.realProfit || 0); }, 0);
+
+    // Charges fixes : seulement les mois TERMINES (prelevees en fin de mois)
+    var completedMonths = getCompletedMonths(period);
+    var isCurrentMonth = (period === 'month');
+    if (period === 'all' && inventory.length > 0) {
+        // Nombre de mois termines depuis le premier achat
+        const dates = inventory.map(function(p) { return new Date(p.dateAdded); }).filter(function(d) { return !isNaN(d); });
+        if (dates.length > 0) {
+            const oldest = new Date(Math.min.apply(null, dates));
+            const now = new Date();
+            // Mois termines = total - 1 (le mois en cours n'est pas termine)
+            completedMonths = Math.max(0, Math.ceil((now - oldest) / (30.44 * 24 * 60 * 60 * 1000)) - 1);
+        }
+    }
+    const totalFixedCharges = fixedMonthly * completedMonths;
+    const pendingCharges = isCurrentMonth ? fixedMonthly : 0; // charges du mois en cours (pas encore prelevees)
+
+    // Cout par vente (sur les charges deja prelevees)
+    const costPerSale = salesCount > 0 && totalFixedCharges > 0 ? totalFixedCharges / salesCount : 0;
+    const netResult = totalProfit - totalFixedCharges;
+
+    // Mettre a jour le DOM
+    var el;
+    el = document.getElementById('oa-fixed-total');
+    if (el) {
+        if (isCurrentMonth) {
+            el.textContent = fixedMonthly.toFixed(0) + ' \u20ac';
+        } else {
+            el.textContent = totalFixedCharges.toFixed(0) + ' \u20ac';
+        }
+    }
+
+    el = document.getElementById('oa-fixed-period-label');
+    if (el) {
+        if (isCurrentMonth) {
+            el.textContent = 'a deduire fin de mois';
+        } else if (completedMonths > 1) {
+            el.textContent = periodLabel + ' (' + completedMonths + ' mois)';
+        } else {
+            el.textContent = periodLabel;
+        }
+    }
+
+    el = document.getElementById('oa-fixed-bought');
+    if (el) el.textContent = boughtCount;
+
+    el = document.getElementById('oa-fixed-sales');
+    if (el) el.textContent = salesCount;
+
+    el = document.getElementById('oa-fixed-per-sale');
+    if (el) {
+        if (isCurrentMonth) {
+            // Mois en cours : on montre combien il faudrait vendre pour couvrir les charges
+            el.textContent = salesCount > 0 ? (fixedMonthly / salesCount).toFixed(2) + ' \u20ac' : '- \u20ac';
+        } else {
+            el.textContent = salesCount > 0 && totalFixedCharges > 0 ? costPerSale.toFixed(2) + ' \u20ac' : '- \u20ac';
+        }
+    }
+
+    el = document.getElementById('oa-fixed-profit');
+    if (el) {
+        el.textContent = totalProfit.toFixed(2) + ' \u20ac';
+        el.className = 'text-lg font-bold ' + (totalProfit >= 0 ? 'text-green-300' : 'text-red-300');
+    }
+
+    el = document.getElementById('oa-fixed-net');
+    if (el) {
+        if (isCurrentMonth) {
+            // Mois en cours : montrer le profit brut (charges pas encore prelevees)
+            // mais indiquer ce que ca donnera apres charges
+            var projected = totalProfit - fixedMonthly;
+            el.textContent = totalProfit.toFixed(2) + ' \u20ac';
+            el.className = 'text-lg font-bold text-cyan-300';
+            el.title = 'Apres charges fin de mois : ' + (projected >= 0 ? '+' : '') + projected.toFixed(2) + '\u20ac';
+        } else {
+            el.textContent = (netResult >= 0 ? '+' : '') + netResult.toFixed(2) + ' \u20ac';
+            el.className = 'text-lg font-bold ' + (netResult >= 0 ? 'text-green-300' : 'text-red-300');
+            el.title = '';
+        }
+    }
+
+    // Label sous resultat net
+    var netLabel = document.getElementById('oa-fixed-net-label');
+    if (netLabel) {
+        if (isCurrentMonth) {
+            netLabel.textContent = 'avant charges (-' + fixedMonthly + '\u20ac)';
+        } else {
+            netLabel.textContent = 'profit - charges';
+        }
+    }
+
+    var card = document.getElementById('oa-fixed-net-card');
+    if (card) {
+        if (isCurrentMonth) {
+            card.className = 'bg-gray-700/50 rounded-xl p-3 text-center border-2 border-cyan-500/50';
+        } else {
+            card.className = 'bg-gray-700/50 rounded-xl p-3 text-center border-2 ' +
+                (netResult >= 0 ? 'border-green-500/50' : 'border-red-500/50');
+        }
+    }
+}
+
+// loadOAInventory() est definie plus bas dans la section inventaire
 
 // ===========================
 // 2. CSV PARSER & SCANNER
@@ -304,6 +499,17 @@ function parseKeepaCSV(csvText) {
         "frais de parrainage basés sur le prix actuel de la buy box"
     ]);
 
+    // Colonnes poids/dimensions (pour calcul inbound intelligent)
+    const colPackageWeight = findColumn(headerMap, [
+        'package: weight (g)', 'emballage: poids (g)', 'package weight'
+    ]);
+    const colItemWeight = findColumn(headerMap, [
+        'item: weight (g)', 'article: poids (g)', 'item weight'
+    ]);
+    const colPackageDim = findColumn(headerMap, [
+        'package: dimension (cm cubed)', 'emballage: dimension (cm cubed)'
+    ]);
+
     // Debug: afficher les colonnes detectees
     console.log('[OA] Colonnes detectees:', {
         ASIN: colASIN, Titre: colTitle, BSR: colBSR, BuyBox: colBuyBox,
@@ -331,7 +537,7 @@ function parseKeepaCSV(csvText) {
 
         // Donnees stabilite prix
         const price90avg = parsePrice(getVal(values, colBuyBox90, '')) || parsePrice(getVal(values, colNew90, ''));
-        const price90drop = parseInt(getVal(values, colBuyBox90Drop, '0').replace(/[^0-9]/g, '')) || 0;
+        const price90drop = parseInt(getVal(values, colBuyBox90Drop, '0').replace(/[^0-9\-]/g, '')) || 0;
         const price90min = parsePrice(getVal(values, colBuyBoxMin90, ''));
         const price90max = parsePrice(getVal(values, colBuyBoxMax90, ''));
 
@@ -340,6 +546,11 @@ function parseKeepaCSV(csvText) {
         const referralPctRaw = getVal(values, colReferralPct, '');
         const referralPct = parseFloat(referralPctRaw.replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
         const referralAmt = parsePrice(getVal(values, colReferralAmt, ''));
+
+        // Poids (grammes) — prend le poids emballage en priorite, sinon article
+        const packageWeight = parseInt(getVal(values, colPackageWeight, '0').replace(/[^0-9]/g, '')) || 0;
+        const itemWeight = parseInt(getVal(values, colItemWeight, '0').replace(/[^0-9]/g, '')) || 0;
+        const weight = packageWeight || itemWeight;
 
         products.push({
             asin: asin,
@@ -358,7 +569,8 @@ function parseKeepaCSV(csvText) {
             price90avg: price90avg,
             price90drop: price90drop,
             price90min: price90min,
-            price90max: price90max
+            price90max: price90max,
+            weight: weight
         });
     }
 
@@ -471,6 +683,7 @@ function mergeData(dataDE, dataFR) {
                 referralAmt: pDE.referralAmt || 0,
                 category: pDE.category || pFR.category,
                 estSales: pDE.estSales || pFR.estSales,
+                weight: pDE.weight || pFR.weight || 0,
                 stability: stability,
                 profit: 0,
                 roi: 0
@@ -538,7 +751,10 @@ function calculateProfit(product, settings) {
     const commission = product.pricDE * (commPct / 100);
     const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
 
-    const totalFees = commission + fbaFee + settings.inboundShipping + settings.prepCost + settings.toolAmortization;
+    // Inbound intelligent base sur le poids du produit
+    const inbound = getInboundCost(product.weight, settings);
+
+    const totalFees = commission + fbaFee + inbound + settings.prepCost;
     const urssaf = product.pricDE * (settings.urssafPct / 100);
     const profit = product.pricDE - totalFees - urssaf - product.pricFR;
     const roi = product.pricFR > 0 ? (profit / product.pricFR) * 100 : 0;
@@ -547,6 +763,7 @@ function calculateProfit(product, settings) {
     product.roi = Math.round(roi * 100) / 100;
     product.commission = Math.round(commission * 100) / 100;
     product.fbaFeeUsed = Math.round(fbaFee * 100) / 100;
+    product.inboundUsed = Math.round(inbound * 100) / 100;
     product.totalFees = Math.round(totalFees * 100) / 100;
     product.urssaf = Math.round(urssaf * 100) / 100;
 
@@ -668,20 +885,20 @@ function runScan() {
         funnel.push({ step: 'Amazon ne vend pas', count: remaining.length, icon: 'ban', color: 'orange' });
     }
 
-    // Filtre ecart positif (FR < DE)
-    let positiveGap = remaining.filter(p => p.pricDE > p.pricFR);
-    funnel.push({ step: 'Prix DE > Prix FR (ecart positif)', count: positiveGap.length, icon: 'arrow-up', color: 'green' });
+    // Filtre ecart positif (FR < DE) — cascade
+    remaining = remaining.filter(p => p.pricDE > p.pricFR);
+    funnel.push({ step: 'Prix DE > Prix FR (ecart positif)', count: remaining.length, icon: 'arrow-up', color: 'green' });
 
-    // Filtre profit positif
-    let profitPositive = remaining.filter(p => p.profit > 0);
-    funnel.push({ step: 'Profit > 0 \u20ac (apres frais)', count: profitPositive.length, icon: 'coins', color: 'emerald' });
+    // Filtre profit positif — cascade
+    remaining = remaining.filter(p => p.profit > 0);
+    funnel.push({ step: 'Profit > 0 \u20ac (apres frais)', count: remaining.length, icon: 'coins', color: 'emerald' });
 
-    // Filtre profit minimum
-    let profitMin = remaining.filter(p => p.profit >= settings.minProfit);
-    funnel.push({ step: 'Profit \u2265 ' + settings.minProfit + ' \u20ac', count: profitMin.length, icon: 'check-circle', color: 'green' });
+    // Filtre profit minimum — cascade
+    remaining = remaining.filter(p => p.profit >= settings.minProfit);
+    funnel.push({ step: 'Profit \u2265 ' + settings.minProfit + ' \u20ac', count: remaining.length, icon: 'check-circle', color: 'green' });
 
-    // Filtre ROI minimum
-    let finalFiltered = profitMin.filter(p => p.roi >= settings.minROI);
+    // Filtre ROI minimum — cascade
+    let finalFiltered = remaining.filter(p => p.roi >= settings.minROI);
     funnel.push({ step: 'ROI \u2265 ' + settings.minROI + '%', count: finalFiltered.length, icon: 'percentage', color: 'green' });
 
     // Trier par profit decroissant (tous les produits)
@@ -776,7 +993,6 @@ function renderScanResults(products, profitableCount, funnel) {
 
             // Fleche entre les etapes
             if (i < funnel.length - 1) {
-                const drop = (i >= 2 && funnel[i - 1]) ? funnel[i].count - funnel[i + 1].count : 0;
                 funnelHtml += '<i class="fas fa-chevron-right text-gray-600 text-xs"></i>';
             }
             funnelHtml += '</div>';
@@ -829,7 +1045,7 @@ function renderScanResults(products, profitableCount, funnel) {
     html += '<th class="pb-3 pr-4 text-right">Prix FR</th>';
     html += '<th class="pb-3 pr-4 text-right">Prix DE</th>';
     html += '<th class="pb-3 pr-4 text-right">Ecart</th>';
-    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Total des frais : Commission Amazon + FBA pick&pack + Inbound shipping (' + settings.inboundShipping + '\u20ac) + Prep (' + settings.prepCost + '\u20ac) + Amortissement outils (' + settings.toolAmortization + '\u20ac) + URSSAF (' + settings.urssafPct + '%)">Frais <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
+    html += '<th class="pb-3 pr-4 text-right cursor-help" title="Deja precis ! Le scanner utilise le vrai montant Keepa par produit (FBA pick&pack). L\'envoi a AMZ est calcule automatiquement selon le poids. Survolez chaque ligne pour voir le detail.">Frais <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
     html += '<th class="pb-3 pr-4 text-right">Profit</th>';
     html += '<th class="pb-3 pr-4 text-right">ROI</th>';
     html += '<th class="pb-3 pr-4 text-right cursor-help" title="Best Sellers Rank : classement des ventes sur Amazon.de. Plus le chiffre est bas, plus le produit se vend. < 1000 = excellent, < 10 000 = bon, < 30 000 = correct">BSR <i class="fas fa-info-circle text-xs opacity-50"></i></th>';
@@ -853,17 +1069,18 @@ function renderScanResults(products, profitableCount, funnel) {
         const totalFeesDisplay = p.totalFees + p.urssaf;
 
         // Nom FR (pour chercher deals) + nom DE
-        const titleFR = p.titleFR || p.title || '';
+        const titleFR = p.titleFR || '';
         const titleDE = p.titleDE || p.title || '';
-        const titleShort = titleFR.length > 40 ? titleFR.substring(0, 40) + '...' : titleFR;
-        const titleDEShort = titleDE.length > 40 ? titleDE.substring(0, 40) + '...' : titleDE;
+        const titleMain = titleFR || titleDE;
+        const titleMainShort = titleMain.length > 50 ? titleMain.substring(0, 50) + '...' : titleMain;
 
         // Tooltip frais detailles
+        const weightLabel = p.weight > 0 ? p.weight + 'g' : 'inconnu';
+        const inboundTier = getInboundLabel(p.weight);
         const feesTooltip = 'Commission: ' + (p.commission || 0).toFixed(2) + '\u20ac (' + (p.referralPct || settings.commissionPct) + '%)'
-            + '\nFBA pick&pack: ' + (p.fbaFeeUsed || settings.fbaFee).toFixed(2) + '\u20ac'
-            + '\nInbound shipping: ' + settings.inboundShipping.toFixed(2) + '\u20ac'
-            + '\nPrep: ' + settings.prepCost.toFixed(2) + '\u20ac'
-            + '\nOutils: ' + settings.toolAmortization.toFixed(2) + '\u20ac'
+            + '\nFBA pick&pack: ' + (p.fbaFeeUsed || settings.fbaFee).toFixed(2) + '\u20ac (Keepa)'
+            + '\nEnvoi a AMZ: ' + (p.inboundUsed || settings.inboundShipping).toFixed(2) + '\u20ac (auto: ' + inboundTier + ', ' + weightLabel + ')'
+            + '\nEtiquetage: ' + settings.prepCost.toFixed(2) + '\u20ac (FNSKU)'
             + '\nURSSAF: ' + (p.urssaf || 0).toFixed(2) + '\u20ac (' + settings.urssafPct + '%)'
             + '\n---------'
             + '\nTotal: ' + totalFeesDisplay.toFixed(2) + '\u20ac';
@@ -871,9 +1088,15 @@ function renderScanResults(products, profitableCount, funnel) {
         html += '<tr class="border-b border-gray-800 hover:bg-gray-800/50 ' + rowBg + '">';
         html += '<td class="py-2 pr-3 text-gray-500 text-xs">' + (i + 1) + '</td>';
         html += '<td class="py-2 pr-3 max-w-xs">';
-        html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleFR) + '">' + escapeHTML(titleShort) + '</div>';
-        if (titleDE !== titleFR && titleDE) {
-            html += '<div class="text-xs text-gray-500 truncate" title="DE: ' + escapeHTML(titleDE) + '">DE: ' + escapeHTML(titleDEShort) + '</div>';
+        if (titleFR) {
+            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleFR) + '"><span class="text-blue-400 font-bold mr-1">FR</span>' + escapeHTML(titleMainShort) + '</div>';
+        }
+        if (titleDE && titleDE !== titleFR) {
+            const titleDEShort = titleDE.length > 50 ? titleDE.substring(0, 50) + '...' : titleDE;
+            html += '<div class="text-xs text-gray-400 truncate" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">DE</span>' + escapeHTML(titleDEShort) + '</div>';
+        }
+        if (!titleFR && titleDE) {
+            html += '<div class="font-medium text-white text-xs" title="' + escapeHTML(titleDE) + '"><span class="text-purple-400 font-bold mr-1">DE</span>' + escapeHTML(titleMainShort) + '</div>';
         }
         html += '<div class="text-xs text-gray-600 font-mono">' + p.asin + '</div></td>';
         html += '<td class="py-2 pr-3 text-right text-blue-400">' + p.pricFR.toFixed(2) + '</td>';
@@ -891,12 +1114,17 @@ function renderScanResults(products, profitableCount, funnel) {
         html += '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="text-purple-400 hover:text-purple-300 text-xs" title="Voir sur Amazon.de">DE</a>';
         html += '</td>';
 
-        html += '<td class="py-2 pr-3 text-center">';
+        html += '<td class="py-2 pr-3 text-center whitespace-nowrap">';
         if (p.profit > 0) {
             html += '<button onclick="startChecklist(' + i + ')" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-xs">';
             html += '<i class="fas fa-clipboard-check mr-1"></i>Verifier</button>';
+        } else if (p.profit > -3) {
+            // Presque rentable — Quick Check pour voir si un deal existe
+            const searchQuery = encodeURIComponent((titleFR || titleDE).substring(0, 60));
+            html += '<a href="https://www.amazon.fr/s?k=' + searchQuery + '" target="_blank" class="bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1 rounded text-xs inline-block" title="Chercher un deal sur Amazon.fr">';
+            html += '<i class="fas fa-search mr-1"></i>Deal?</a>';
         } else {
-            html += '<span class="text-gray-600 text-xs">-</span>';
+            html += '<span class="text-gray-600 text-xs" title="Profit trop negatif (' + p.profit.toFixed(2) + '\u20ac)">-</span>';
         }
         html += '</td>';
         html += '</tr>';
@@ -904,7 +1132,7 @@ function renderScanResults(products, profitableCount, funnel) {
 
     html += '</tbody></table></div>';
 
-    container.innerHTML = summary + html;
+    container.innerHTML = funnelHtml + summary + html;
 }
 
 // ===========================
@@ -1071,8 +1299,11 @@ function recalculateWithRealPrices() {
     const pricDE = oaCurrentCheck.realPricDE || oaCurrentCheck.pricDE;
     const pricFR = oaCurrentCheck.realPricFR || oaCurrentCheck.pricFR;
 
-    const commission = pricDE * (settings.commissionPct / 100);
-    const totalFees = commission + settings.fbaFee + settings.inboundShipping + settings.prepCost + settings.toolAmortization;
+    const commPct = (oaCurrentCheck.referralPct > 0) ? oaCurrentCheck.referralPct : settings.commissionPct;
+    const commission = pricDE * (commPct / 100);
+    const fbaFee = (oaCurrentCheck.fbaFeeReal > 0) ? oaCurrentCheck.fbaFeeReal : settings.fbaFee;
+    const inbound = getInboundCost(oaCurrentCheck.weight, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost;
     const urssaf = pricDE * (settings.urssafPct / 100);
     const profit = pricDE - totalFees - urssaf - pricFR;
     const roi = pricFR > 0 ? (profit / pricFR) * 100 : 0;
@@ -1170,16 +1401,30 @@ function confirmPurchase(product, quantity, costPerUnit) {
         return;
     }
 
+    // Calculer le profit attendu directement (pas via la globale oaCurrentCheck)
+    const settings = loadOASettings();
+    const sellPrice = product.realPricDE || product.pricDE;
+    const commPct = (product.referralPct > 0) ? product.referralPct : settings.commissionPct;
+    const commission = sellPrice * (commPct / 100);
+    const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
+    const inbound = getInboundCost(product.weight, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost;
+    const urssaf = sellPrice * (settings.urssafPct / 100);
+    const unitProfit = sellPrice - totalFees - urssaf - costPerUnit;
+
     const inventoryItem = {
         id: Date.now() + Math.random().toString(36).substr(2, 9),
         asin: product.asin,
         title: product.title,
         pricFR: costPerUnit,
-        pricDE: product.realPricDE || product.pricDE,
+        pricDE: sellPrice,
         quantity: quantity,
         costPerUnit: costPerUnit,
         totalCost: totalCost,
-        expectedProfit: (product.realPricDE || product.pricDE) > 0 ? recalculateWithRealPrices().profit * quantity : product.profit * quantity,
+        expectedProfit: Math.round(unitProfit * quantity * 100) / 100,
+        weight: product.weight || 0,
+        fbaFeeReal: product.fbaFeeReal || 0,
+        referralPct: product.referralPct || 0,
         status: 'achete',
         dateAdded: new Date().toISOString(),
         dateUpdated: new Date().toISOString(),
@@ -1326,7 +1571,7 @@ function quickCheckASIN() {
     if (!productDE && oaScanResults.length > 0) {
         const fromScan = oaScanResults.find(p => p.asin === asin);
         if (fromScan) {
-            productDE = { price: fromScan.pricDE, asin: asin, title: fromScan.title, bsr: fromScan.bsr, fbaSellers: fromScan.fbaSellers, estSales: fromScan.estSales, amazonSells: fromScan.amazonSells, price90avg: 0, price90drop: 0, price90min: 0, price90max: 0 };
+            productDE = { price: fromScan.pricDE, asin: asin, title: fromScan.title, bsr: fromScan.bsr, fbaSellers: fromScan.fbaSellers, estSales: fromScan.estSales, amazonSells: fromScan.amazonSells, fbaFeeReal: fromScan.fbaFeeReal || 0, referralPct: fromScan.referralPct || 0, weight: fromScan.weight || 0, price90avg: 0, price90drop: 0, price90min: 0, price90max: 0 };
         }
     }
 
@@ -1342,6 +1587,9 @@ function quickCheckASIN() {
             amazonSells: productDE.amazonSells || false,
             fbaSellers: productDE.fbaSellers || 0,
             estSales: productDE.estSales || 0,
+            fbaFeeReal: productDE.fbaFeeReal || 0,
+            referralPct: productDE.referralPct || 0,
+            weight: productDE.weight || 0,
             stability: calculateStability(productDE),
             profit: 0,
             roi: 0
@@ -1572,8 +1820,11 @@ function markAsSold(productId, actualSalePrice) {
     if (!product) return;
 
     const settings = loadOASettings();
-    const commission = actualSalePrice * (settings.commissionPct / 100);
-    const totalFees = commission + settings.fbaFee;
+    const commPct = (product.referralPct > 0) ? product.referralPct : settings.commissionPct;
+    const commission = actualSalePrice * (commPct / 100);
+    const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
+    const inbound = getInboundCost(product.weight, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost;
     const urssaf = actualSalePrice * (settings.urssafPct / 100);
     const realProfit = (actualSalePrice - totalFees - urssaf - product.costPerUnit) * product.quantity;
 
@@ -1581,9 +1832,11 @@ function markAsSold(productId, actualSalePrice) {
     product.actualSalePrice = actualSalePrice;
     product.realProfit = Math.round(realProfit * 100) / 100;
     product.dateUpdated = new Date().toISOString();
+    product.dateSold = new Date().toISOString();
 
     saveOAInventory();
     renderInventory();
+    updateFixedChargesDashboard();
     console.log('[OA] Produit vendu:', productId, 'profit reel:', product.realProfit);
     showOANotification('Vente enregistree ! Profit reel: ' + product.realProfit.toFixed(2) + ' EUR', 'success');
 }
@@ -1602,8 +1855,11 @@ function recheckPrice(productId) {
     }
 
     const settings = loadOASettings();
-    const commission = newPriceDE * (settings.commissionPct / 100);
-    const totalFees = commission + settings.fbaFee + settings.inboundShipping + settings.prepCost + settings.toolAmortization;
+    const commPct = (product.referralPct > 0) ? product.referralPct : settings.commissionPct;
+    const commission = newPriceDE * (commPct / 100);
+    const fbaFee = (product.fbaFeeReal > 0) ? product.fbaFeeReal : settings.fbaFee;
+    const inbound = getInboundCost(product.weight, settings);
+    const totalFees = commission + fbaFee + inbound + settings.prepCost;
     const urssaf = newPriceDE * (settings.urssafPct / 100);
     const newProfit = (newPriceDE - totalFees - urssaf - product.costPerUnit) * product.quantity;
 
@@ -1639,12 +1895,9 @@ function calculateCapital() {
         if (p.status !== 'vendu' && p.status !== 'retire') {
             spent += p.totalCost || 0;
         }
-        if (p.status === 'vendu' && p.actualSalePrice > 0) {
-            const saleSettings = loadOASettings();
-            const commission = p.actualSalePrice * (saleSettings.commissionPct / 100);
-            const fbaFee = saleSettings.fbaFee;
-            const revenue = (p.actualSalePrice - commission - fbaFee) * p.quantity;
-            recovered += revenue;
+        if (p.status === 'vendu') {
+            // Capital recupere = cout d'achat + profit reel
+            recovered += (p.totalCost || 0) + (p.realProfit || 0);
         }
     });
 
@@ -1905,6 +2158,9 @@ function initOA() {
 
     // Restaurer les resultats du dernier scan
     loadScanResults();
+
+    // Mettre a jour le dashboard charges fixes
+    updateFixedChargesDashboard();
 
     // Attacher drag & drop sur les zones CSV
     ['csv-zone-de', 'csv-zone-fr'].forEach(zoneId => {

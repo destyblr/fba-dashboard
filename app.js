@@ -679,12 +679,15 @@ function switchMode(mode) {
     const navItems = document.querySelectorAll('.nav-item');
     navItems.forEach(item => item.classList.remove('active'));
 
+    const oaDashboard = document.getElementById('oa-dashboard-recap');
+
     if (mode === 'oa') {
         // Mode Online Arbitrage
         navPL.classList.add('hidden');
         navOA.classList.remove('hidden');
         footerPL.classList.add('hidden');
         footerOA.classList.remove('hidden');
+        if (oaDashboard) oaDashboard.classList.remove('hidden');
 
         // Afficher la premiere section OA
         const oaScanner = document.getElementById('section-oa-scanner');
@@ -697,12 +700,14 @@ function switchMode(mode) {
         // Initialiser les parametres OA
         if (typeof initOASettings === 'function') initOASettings();
         if (typeof updateSidebarOA === 'function') updateSidebarOA();
+        if (typeof updateFixedChargesDashboard === 'function') updateFixedChargesDashboard();
     } else {
         // Mode Private Label
         navPL.classList.remove('hidden');
         navOA.classList.add('hidden');
         footerPL.classList.remove('hidden');
         footerOA.classList.add('hidden');
+        if (oaDashboard) oaDashboard.classList.add('hidden');
 
         // Afficher le dashboard PL
         const dashboard = document.getElementById('section-dashboard');
