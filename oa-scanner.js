@@ -1827,6 +1827,22 @@ function addToInventory(product) {
     renderInventory();
 }
 
+function deleteInventoryItem(productId) {
+    loadOAInventory();
+    const product = oaInventory.find(p => p.id === productId);
+    if (!product) return;
+
+    const name = product.title || product.asin || productId;
+    if (!confirm('Supprimer "' + name + '" de l\'inventaire ?')) return;
+
+    oaInventory = oaInventory.filter(p => p.id !== productId);
+    saveOAInventory();
+    renderInventory();
+    updateFixedChargesDashboard();
+    showOANotification('Produit supprime de l\'inventaire', 'info');
+    console.log('[OA] Produit supprime:', productId);
+}
+
 function updateProductStatus(productId, newStatus) {
     loadOAInventory();
     const product = oaInventory.find(p => p.id === productId);
@@ -2058,7 +2074,7 @@ function renderInventory() {
                 html += '</div>';
             }
 
-            // Badge statut (cliquable)
+            // Badge statut (cliquable) + supprimer
             html += '<div class="flex items-center gap-2">';
             if (canAdvance) {
                 html += '<button onclick="advanceProductStatus(\'' + p.id + '\')" class="' + statusColor + ' text-white px-3 py-1 rounded text-xs font-bold hover:opacity-80 cursor-pointer">';
@@ -2066,6 +2082,8 @@ function renderInventory() {
             } else {
                 html += '<span class="' + statusColor + ' text-white px-3 py-1 rounded text-xs font-bold">' + statusLabel + '</span>';
             }
+            html += '<button onclick="deleteInventoryItem(\'' + p.id + '\')" class="text-gray-600 hover:text-red-400 text-xs ml-1" title="Supprimer ce produit">';
+            html += '<i class="fas fa-trash-alt"></i></button>';
             html += '</div>';
 
             html += '</div>';
