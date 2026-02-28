@@ -1954,29 +1954,7 @@ function renderInventory() {
 
     let html = '';
 
-    // Capital tracker
-    const usedPct = cap.total > 0 ? Math.min(100, (cap.spent / cap.total) * 100) : 0;
-    const recoveredPct = cap.total > 0 ? Math.min(100, (cap.recovered / cap.total) * 100) : 0;
-
-    html += '<div class="bg-gray-800 rounded-lg p-4 mb-6">';
-    html += '<h3 class="text-lg font-bold text-white mb-3"><i class="fas fa-wallet mr-2 text-yellow-400"></i>Capital</h3>';
-    html += '<div class="grid grid-cols-4 gap-4 mb-3">';
-    html += '<div class="text-center"><div class="text-lg font-bold text-white">' + cap.total.toFixed(2) + ' &euro;</div><div class="text-xs text-gray-400">Initial</div></div>';
-    html += '<div class="text-center"><div class="text-lg font-bold text-red-400">' + cap.spent.toFixed(2) + ' &euro;</div><div class="text-xs text-gray-400">Investi</div></div>';
-    html += '<div class="text-center"><div class="text-lg font-bold text-green-400">' + cap.recovered.toFixed(2) + ' &euro;</div><div class="text-xs text-gray-400">Recupere</div></div>';
-    html += '<div class="text-center"><div class="text-lg font-bold text-blue-400">' + cap.available.toFixed(2) + ' &euro;</div><div class="text-xs text-gray-400">Disponible</div></div>';
-    html += '</div>';
-
-    // Barre de progression
-    html += '<div class="w-full bg-gray-700 rounded-full h-3 overflow-hidden">';
-    html += '<div class="h-full flex">';
-    html += '<div class="bg-red-500 h-full" style="width:' + usedPct + '%"></div>';
-    html += '<div class="bg-green-500 h-full" style="width:' + recoveredPct + '%"></div>';
-    html += '</div></div>';
-    html += '<div class="flex justify-between text-xs text-gray-500 mt-1">';
-    html += '<span>Investi: ' + usedPct.toFixed(0) + '%</span>';
-    html += '<span>Recupere: ' + recoveredPct.toFixed(0) + '%</span>';
-    html += '</div></div>';
+    // Capital tracker est affiche dans les cartes HTML statiques (mis a jour ci-dessus)
 
     // Liste des produits
     if (oaInventory.length === 0) {
@@ -2093,14 +2071,6 @@ function updateSidebarOA() {
 // FONCTIONS UTILITAIRES
 // ===========================
 
-function showOASection(sectionName) {
-    // Utilise la fonction showSection existante de app.js
-    if (typeof showSection === 'function') {
-        // Simuler un event pour showSection
-        showSection(sectionName);
-    }
-}
-
 function showOANotification(message, type) {
     // Creer un toast notification
     const toast = document.createElement('div');
@@ -2162,33 +2132,7 @@ function initOA() {
     // Mettre a jour le dashboard charges fixes
     updateFixedChargesDashboard();
 
-    // Attacher drag & drop sur les zones CSV
-    ['csv-zone-de', 'csv-zone-fr'].forEach(zoneId => {
-        const zone = document.getElementById(zoneId);
-        if (!zone) return;
-        const marketplace = zoneId.includes('-de') ? 'de' : 'fr';
-
-        zone.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.classList.add('border-indigo-400', 'bg-indigo-50');
-        });
-
-        zone.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.classList.remove('border-indigo-400', 'bg-indigo-50');
-        });
-
-        zone.addEventListener('drop', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            this.classList.remove('border-indigo-400', 'bg-indigo-50');
-            if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                handleCSVImport(e.dataTransfer.files[0], marketplace);
-            }
-        });
-    });
+    // Drag & drop gere par les handlers inline dans le HTML (ondragover, ondragleave, ondrop)
 
     console.log('[OA] Module OA Scanner initialise.');
 }
