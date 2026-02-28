@@ -355,6 +355,16 @@ function updateMarketplaceLabels() {
     var dirLabel = document.getElementById('oa-direction-label');
     if (dirLabel) dirLabel.innerHTML = src.flag + ' ' + src.code + ' <i class="fas fa-arrow-right mx-2"></i> ' + dst.flag + ' ' + dst.code;
 
+    // Checklist : step 2 = prix de VENTE (destination), step 4 = prix d'ACHAT (source)
+    var step2Title = document.getElementById('check-step2-title');
+    var step2Sub = document.getElementById('check-step2-sub');
+    var step4Title = document.getElementById('check-step4-title');
+    var step4Sub = document.getElementById('check-step4-sub');
+    if (step2Title) step2Title.textContent = 'Prix ' + dst.domain + ' actuel (vente)';
+    if (step2Sub) step2Sub.textContent = 'Ouvre ' + dst.domain + ' et verifie le prix de vente actuel';
+    if (step4Title) step4Title.textContent = 'Prix ' + src.domain + ' (achat) + Disponibilite';
+    if (step4Sub) step4Sub.textContent = 'Le produit est disponible sur ' + src.domain + ' au bon prix ?';
+
     console.log('[OA] Labels mis a jour: ' + src.code + ' -> ' + dst.code);
 }
 
@@ -1583,21 +1593,34 @@ function validateCheckStep(step, value) {
     const allDone = oaCurrentCheck.steps.every(s => s.status !== null);
     const allPass = oaCurrentCheck.steps.every(s => s.status === true);
     if (allDone && allPass) {
-        oaCurrentCheck.verdict = 'go';
-        console.log('[OA] Verdict: GO !');
-
         // Recalculer avec les prix reels
         const result = recalculateWithRealPrices();
-        const recommendation = getQuantityRecommendation(oaCurrentCheck, loadOASettings());
 
-        // Afficher le verdict GO
         const verdict = document.getElementById('check-verdict');
         const verdictGo = document.getElementById('verdict-go');
+        const verdictNogo2 = document.getElementById('verdict-nogo');
         const verdictProfit = document.getElementById('verdict-profit');
         const verdictRoi = document.getElementById('verdict-roi');
         const verdictReco = document.getElementById('verdict-recommendation');
+        const reason = document.getElementById('verdict-nogo-reason');
 
         if (verdict) verdict.classList.remove('hidden');
+
+        // Bloquer si le profit recalcule est negatif
+        if (result.profit <= 0) {
+            oaCurrentCheck.verdict = 'nogo';
+            console.log('[OA] Verdict: NO GO (profit recalcule negatif: ' + result.profit.toFixed(2) + ')');
+            if (verdictNogo2) verdictNogo2.classList.remove('hidden');
+            if (verdictGo) verdictGo.classList.add('hidden');
+            if (reason) reason.textContent = 'Profit negatif avec les prix reels (' + result.profit.toFixed(2) + '\u20ac). Le deal n\'est plus rentable.';
+            return;
+        }
+
+        oaCurrentCheck.verdict = 'go';
+        console.log('[OA] Verdict: GO ! Profit: ' + result.profit.toFixed(2));
+
+        const recommendation = getQuantityRecommendation(oaCurrentCheck, loadOASettings());
+
         if (verdictGo) verdictGo.classList.remove('hidden');
         if (verdictProfit) verdictProfit.textContent = result.profit.toFixed(2) + ' \u20ac';
         if (verdictRoi) verdictRoi.textContent = result.roi.toFixed(0) + ' %';
