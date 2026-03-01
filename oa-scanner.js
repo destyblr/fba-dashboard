@@ -2639,7 +2639,8 @@ function loadKeepaCache() {
             var now = Date.now();
             var cleaned = 0;
             Object.keys(keepaCache).forEach(function(key) {
-                if (now - keepaCache[key].timestamp > KEEPA_CACHE_TTL) {
+                // Expirer aussi les entrees sans frais FBA (ancien cache avant fbafees=1)
+                if (now - keepaCache[key].timestamp > KEEPA_CACHE_TTL || !keepaCache[key].fbaPickAndPack) {
                     delete keepaCache[key];
                     cleaned++;
                 }
@@ -2805,7 +2806,14 @@ function parseKeepaProduct(p) {
     // Extraire les vrais frais FBA depuis Keepa (fbafees=1)
     var fbaPickAndPack = null; // Frais AMZ reels (fulfillment)
     var referralFeePct = null; // Commission reelle (%)
+
+    // DEBUG: voir ce que Keepa renvoie vraiment
+    console.log('[DealScanner] Keepa product ' + p.asin + ' fbaFees:', JSON.stringify(p.fbaFees));
+    console.log('[DealScanner] Keepa product ' + p.asin + ' referralFeePercentage:', p.referralFeePercentage);
+    console.log('[DealScanner] Keepa product ' + p.asin + ' all fee-related keys:', Object.keys(p).filter(function(k) { return k.toLowerCase().indexOf('fee') >= 0 || k.toLowerCase().indexOf('fba') >= 0 || k.toLowerCase().indexOf('referral') >= 0 || k.toLowerCase().indexOf('commission') >= 0; }));
+
     if (p.fbaFees) {
+        console.log('[DealScanner] fbaFees keys:', Object.keys(p.fbaFees));
         // pickAndPackFee est en centimes
         if (p.fbaFees.pickAndPackFee && p.fbaFees.pickAndPackFee > 0) {
             fbaPickAndPack = p.fbaFees.pickAndPackFee / 100;
@@ -2815,6 +2823,10 @@ function parseKeepaProduct(p) {
     if (p.referralFeePercentage && p.referralFeePercentage > 0) {
         referralFeePct = p.referralFeePercentage;
     }
+
+    // Poids du produit (Keepa fournit packageWeight et itemWeight en grammes)
+    var weight = p.packageWeight || p.itemWeight || 0;
+    console.log('[DealScanner] Keepa product ' + p.asin + ' weight:', weight, 'packageWeight:', p.packageWeight, 'itemWeight:', p.itemWeight, 'all weight keys:', Object.keys(p).filter(function(k) { return k.toLowerCase().indexOf('weight') >= 0 || k.toLowerCase().indexOf('dimension') >= 0 || k.toLowerCase().indexOf('size') >= 0 || k.toLowerCase().indexOf('pack') >= 0; }));
 
     return {
         asin: p.asin,
@@ -2828,6 +2840,7 @@ function parseKeepaProduct(p) {
         imageUrl: p.imagesCSV ? ('https://images-na.ssl-images-amazon.com/images/I/' + p.imagesCSV.split(',')[0]) : '',
         fbaPickAndPack: fbaPickAndPack,
         referralFeePct: referralFeePct,
+        weight: weight,
         timestamp: Date.now()
     };
 }
@@ -2971,7 +2984,9 @@ function calculateDealProfit(deal, amazonData) {
         realFbaFee = true;
     }
 
-    var inbound = settings.inboundShipping;
+    // Inbound intelligent : utiliser le poids Keepa si disponible
+    var inbound = getInboundCost(amazonData.weight, settings);
+    var realInbound = (amazonData.weight && amazonData.weight > 0);
     var prep = settings.prepCost;
     var urssaf = sellPrice * (settings.urssafPct / 100);
 
@@ -2990,6 +3005,8 @@ function calculateDealProfit(deal, amazonData) {
             fbaFee: Math.round(fbaFee * 100) / 100,
             realFbaFee: realFbaFee,
             inbound: Math.round(inbound * 100) / 100,
+            realInbound: realInbound,
+            weightGrams: amazonData.weight || 0,
             prep: Math.round(prep * 100) / 100,
             urssaf: Math.round(urssaf * 100) / 100,
             urssafPct: settings.urssafPct
@@ -3406,11 +3423,15 @@ async function analyzeDeals(deals) {
     var needKeepaASINs = []; // ASINs a chercher via Keepa batch
     var needKeepaEANs = [];  // EANs a chercher via Keepa (un par un)
 
+    var dealsWithAsin = deals.filter(function(d) { return d.asin; });
+    console.log('[DealScanner] Phase 3: ' + deals.length + ' deals total, ' + dealsWithAsin.length + ' avec ASIN:', dealsWithAsin.map(function(d) { return d.asin; }));
+
     deals.forEach(function(deal, index) {
         if (deal.asin) {
             // D'abord dans le cache Keepa
             if (keepaCache[deal.asin] && (Date.now() - keepaCache[deal.asin].timestamp) < KEEPA_CACHE_TTL) {
                 var cached = keepaCache[deal.asin];
+                console.log('[DealScanner] Cache hit pour ' + deal.asin + ' → fbaPickAndPack:', cached.fbaPickAndPack, 'referralFeePct:', cached.referralFeePct);
                 deal.amazonPrice = cached.price;
                 deal.keepaData = cached;
                 if (deal.price > 0 && cached.price > 0) {
@@ -3418,6 +3439,7 @@ async function analyzeDeals(deals) {
                     deal.profit = profitResult.profit;
                     deal.roi = profitResult.roi;
                     deal.fees = profitResult.fees;
+                    console.log('[DealScanner] Profit calcule pour ' + deal.asin + ':', JSON.stringify(profitResult.fees));
                 }
                 return;
             }
@@ -3823,11 +3845,13 @@ function renderDealResults() {
             if (d.fees && typeof d.fees === 'object') {
                 tooltipLines.push('Commission (' + (d.fees.commPct || 15) + '%): -' + (d.fees.commission || 0).toFixed(2) + '€' + (d.fees.realCommission ? ' *' : ''));
                 tooltipLines.push('Frais AMZ: -' + (d.fees.fbaFee || 0).toFixed(2) + '€' + (d.fees.realFbaFee ? ' *' : ''));
-                tooltipLines.push('Envoi a AMZ: -' + (d.fees.inbound || 0).toFixed(2) + '€');
+                var inboundLabel = 'Envoi a AMZ: -' + (d.fees.inbound || 0).toFixed(2) + '€';
+                if (d.fees.realInbound) inboundLabel += ' * (' + d.fees.weightGrams + 'g)';
+                tooltipLines.push(inboundLabel);
                 tooltipLines.push('Prep: -' + (d.fees.prep || 0).toFixed(2) + '€');
                 tooltipLines.push('URSSAF (' + (d.fees.urssafPct || 12.3) + '%): -' + (d.fees.urssaf || 0).toFixed(2) + '€');
                 tooltipLines.push('Total frais: -' + ((d.fees.total || 0) + (d.fees.urssaf || 0)).toFixed(2) + '€');
-                if (d.fees.realCommission || d.fees.realFbaFee) tooltipLines.push('* = frais reels Keepa');
+                if (d.fees.realCommission || d.fees.realFbaFee || d.fees.realInbound) tooltipLines.push('* = donnees reelles Keepa');
             }
             tooltipLines.push('---');
             tooltipLines.push('PROFIT NET: ' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€');
