@@ -4131,7 +4131,14 @@ function renderDealResults() {
         var imgHtml = d.image ? '<img src="' + escapeHTML(d.image) + '" class="w-10 h-10 object-cover rounded" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-700 rounded flex items-center justify-center"><i class="fas fa-image text-gray-500 text-xs"></i></div>';
 
         // Temperature badge
-        var tempBadge = d.temperature > 0 ? ' <span class="text-orange-400 text-xs">' + d.temperature + '°</span>' : '';
+        var tempLabel = '';
+        if (d.temperature >= 500) tempLabel = 'Exceptionnel';
+        else if (d.temperature >= 200) tempLabel = 'Tres bon deal';
+        else if (d.temperature >= 100) tempLabel = 'Bon deal, populaire';
+        else if (d.temperature >= 50) tempLabel = 'Correct';
+        else if (d.temperature > 0) tempLabel = 'Tiede';
+        else tempLabel = 'Mal vote';
+        var tempBadge = d.temperature > 0 ? ' <span class="text-orange-400 text-xs cursor-help" title="Temperature Pepper: ' + d.temperature + '\u00B0 — ' + tempLabel + '">' + d.temperature + '\u00B0</span>' : '';
 
         // Amazon badge
         var amazonBadge = d.isAmazon ? ' <span class="bg-orange-500/30 text-orange-300 text-xs px-1 rounded">AMZ</span>' : '';
