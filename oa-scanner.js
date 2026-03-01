@@ -50,7 +50,7 @@ const DEAL_SOURCES = {
 var dealRSSMode = 'new';
 
 // Blacklist mots-cles par defaut (marques gatees + produits ingerables)
-const DEAL_BLACKLIST_DEFAULT = 'iPhone,iPad,MacBook,AirPods,Apple Watch,Apple,Samsung,Galaxy,Sony,PlayStation,PS5,PS4,Xbox,Microsoft,Surface,Nintendo,Switch,Huawei,Xiaomi,Oppo,OnePlus,LG,Dyson,Nike,Adidas,LEGO,Disney,Bose,Rolex,Canon,Nikon,GoPro,TV 4K,televiseur,television,ecran 55,ecran 65,ordinateur portable,laptop,PC portable,smartphone,lave-linge,lave-vaisselle,refrigerateur,congelateur,four,micro-ondes,climatiseur,canape,matelas,meuble,pneu,batterie voiture';
+const DEAL_BLACKLIST_DEFAULT = 'iPhone,iPad,MacBook,AirPods,Apple Watch,Samsung,Galaxy,Sony,PlayStation,PS5,PS4,Xbox,Surface,Nintendo,Switch,Huawei,Xiaomi,Oppo,OnePlus,Dyson,Nike,Adidas,LEGO,Bose,Rolex,Canon,Nikon,GoPro,televiseur,television,ordinateur portable,laptop,PC portable,smartphone,lave-linge,lave-vaisselle,refrigerateur,congelateur,micro-ondes,climatiseur,canape,matelas,pneu';
 
 const KEEPA_DOMAINS = { de: 3, fr: 4, it: 8, es: 9 };
 const KEEPA_CACHE_TTL = 4 * 60 * 60 * 1000; // 4h en ms (prix changent souvent)
@@ -3208,24 +3208,37 @@ function preFilterDeals(deals) {
     var blacklistStr = (settings.dealBlacklist || '').toLowerCase();
     var blacklistWords = blacklistStr.split(',').map(function(w) { return w.trim(); }).filter(function(w) { return w.length > 0; });
 
-    return deals.filter(function(deal) {
-        // Filtre prix
-        if (deal.price > 0 && deal.price < minPrice) return false;
-        if (deal.price > 0 && deal.price > maxPrice) return false;
+    var excluded = { price: 0, discount: 0, blacklist: 0 };
 
-        // Filtre reduction minimum
-        if (minDiscount > 0 && deal.discount < minDiscount) return false;
+    var result = deals.filter(function(deal) {
+        // Filtre prix (seulement si le prix est connu)
+        if (deal.price > 0 && deal.price < minPrice) { excluded.price++; return false; }
+        if (deal.price > 0 && deal.price > maxPrice) { excluded.price++; return false; }
 
-        // Filtre blacklist mots-cles
+        // Filtre reduction minimum — seulement si on a l'info (discount > 0 = info dispo)
+        if (minDiscount > 0 && deal.discount > 0 && deal.discount < minDiscount) { excluded.discount++; return false; }
+
+        // Filtre blacklist mots-cles (match mot entier pour eviter faux positifs)
         if (blacklistWords.length > 0) {
-            var text = (deal.title + ' ' + deal.merchant + ' ' + deal.category).toLowerCase();
+            var text = (' ' + deal.title + ' ' + deal.merchant + ' ' + deal.category + ' ').toLowerCase();
             for (var i = 0; i < blacklistWords.length; i++) {
-                if (text.includes(blacklistWords[i])) return false;
+                // Chercher le mot avec des separateurs autour (espace, virgule, point, debut/fin)
+                if (text.includes(' ' + blacklistWords[i] + ' ') ||
+                    text.includes(' ' + blacklistWords[i] + ',') ||
+                    text.includes(' ' + blacklistWords[i] + '.') ||
+                    text.startsWith(blacklistWords[i] + ' ') ||
+                    text.endsWith(' ' + blacklistWords[i])) {
+                    excluded.blacklist++;
+                    return false;
+                }
             }
         }
 
         return true;
     });
+
+    console.log('[DealScanner] Pre-filtres exclusions: prix=' + excluded.price + ' reduction=' + excluded.discount + ' blacklist=' + excluded.blacklist);
+    return result;
 }
 
 // --- Analyser les deals ---
