@@ -1923,6 +1923,7 @@ function goToNextProduct() {
 
 // Extraire un ASIN depuis un lien Amazon (amazon.fr, amazon.de, amazon.com, etc.)
 function extractASINFromURL(input) {
+    if (!input) return null;
     // Match /dp/ASIN, /gp/product/ASIN, /gp/aw/d/ASIN
     const urlPatterns = [
         /\/dp\/([A-Z0-9]{10})/i,
@@ -2927,11 +2928,7 @@ function calculateDealProfit(deal, amazonData) {
 }
 
 // --- Helpers d'extraction ---
-function extractASINFromURL(url) {
-    if (!url) return null;
-    var match = url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
-    return match ? match[1].toUpperCase() : null;
-}
+// extractASINFromURL est deja defini plus haut (ligne ~1925) avec plus de patterns
 
 function extractASINFromText(text) {
     if (!text) return null;
@@ -3186,14 +3183,26 @@ async function fetchDeals() {
 
     dealScannerResults = filtered;
 
-    // Afficher l'entonnoir
+    // Afficher l'entonnoir + stats immediatement
     var funnelEl = document.getElementById('deal-stats-funnel');
-    if (funnelEl) funnelEl.textContent = totalBruts + ' bruts → ' + excludedCount + ' exclus';
+    if (funnelEl) funnelEl.textContent = totalBruts + ' bruts \u2192 ' + excludedCount + ' exclus';
+    // Forcer l'affichage du bandeau stats des maintenant
+    var statsEl = document.getElementById('deal-stats');
+    if (statsEl) {
+        statsEl.classList.remove('hidden');
+        statsEl.style.display = '';
+    }
+    // Premier rendu (avant analyse Keepa) pour montrer les deals immediatement
+    renderDealResults();
 
     // Analyser les deals (detection Amazon, lookup prix)
-    await analyzeDeals(filtered);
+    try {
+        await analyzeDeals(filtered);
+    } catch (e) {
+        console.error('[DealScanner] Erreur analyse deals:', e);
+    }
 
-    // Afficher les resultats
+    // Re-afficher les resultats apres analyse
     renderDealResults();
 
     // Restaurer le bouton
@@ -3522,7 +3531,28 @@ function updateDealStats() {
 // --- Mettre a jour une ligne du tableau ---
 function updateDealRow(index, deal) {
     var row = document.getElementById('deal-row-' + index);
-    if (!row) return;
+    if (!row) {
+        // Row not found, re-render the whole table
+        renderDealResults();
+        return;
+    }
+
+    // Mettre a jour la cellule ASIN
+    var asinCell = row.querySelector('.deal-asin');
+    if (asinCell && deal.asin) {
+        var mktDomain = OA_MARKETPLACES[dealSellMarket] ? OA_MARKETPLACES[dealSellMarket].domain : 'amazon.de';
+        asinCell.innerHTML = '<a href="https://www.' + mktDomain + '/dp/' + deal.asin + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs">' + deal.asin.substring(0, 5) + '...</a>';
+    }
+
+    // Mettre a jour la cellule prix Amazon
+    var amazonPriceCell = row.querySelector('.deal-amazon-price');
+    if (amazonPriceCell) {
+        if (deal.amazonPrice && deal.amazonPrice > 0) {
+            amazonPriceCell.innerHTML = '<span class="text-purple-300">' + deal.amazonPrice.toFixed(2) + '€</span>';
+        } else if (deal.keepaData) {
+            amazonPriceCell.innerHTML = '<span class="text-gray-500" title="Pas de prix Amazon disponible">N/A</span>';
+        }
+    }
 
     // Mettre a jour les cellules profit/ROI
     var profitCell = row.querySelector('.deal-profit');
@@ -3530,21 +3560,33 @@ function updateDealRow(index, deal) {
     var actionsCell = row.querySelector('.deal-actions');
 
     if (profitCell) {
-        if (deal.profit !== null) {
+        if (deal.profit !== null && deal.profit !== undefined) {
             var profitClass = deal.profit > 0 ? 'text-green-400 font-bold' : 'text-red-400';
             profitCell.innerHTML = '<span class="' + profitClass + '">' + (deal.profit > 0 ? '+' : '') + deal.profit.toFixed(2) + '€</span>';
+        } else if (deal.keepaData) {
+            profitCell.innerHTML = '<span class="text-gray-500" title="Prix Amazon indisponible pour calcul">—</span>';
         }
     }
     if (roiCell) {
-        if (deal.roi !== null) {
+        if (deal.roi !== null && deal.roi !== undefined) {
             var roiClass = deal.roi > 0 ? 'text-green-400' : 'text-red-400';
             roiCell.innerHTML = '<span class="' + roiClass + '">' + deal.roi.toFixed(0) + '%</span>';
+        } else if (deal.keepaData) {
+            roiCell.innerHTML = '<span class="text-gray-500">—</span>';
         }
     }
-    if (actionsCell && deal.asin && deal.profit !== null && deal.profit > 0) {
-        actionsCell.innerHTML = '<a href="' + escapeHTML(deal.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>' +
-            '<button onclick="sendDealToChecklist(' + index + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
+    if (actionsCell) {
+        var actionsHtml = '<a href="' + escapeHTML(deal.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
+        if (deal.asin && deal.profit !== null && deal.profit > 0) {
+            actionsHtml += '<button onclick="sendDealToChecklist(' + index + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
+        }
+        actionsCell.innerHTML = actionsHtml;
     }
+
+    // Couleur de fond selon rentabilite
+    row.className = row.className.replace(/bg-green-900\/20|bg-red-900\/10/g, '');
+    if (deal.profit !== null && deal.profit > 0) row.className += ' bg-green-900/20';
+    else if (deal.profit !== null && deal.profit < 0) row.className += ' bg-red-900/10';
 
     // Mettre a jour les stats globales
     updateDealStats();
@@ -3695,8 +3737,8 @@ function renderDealResults() {
         html += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
         html += '<td class="p-2 text-right">' + (d.discount > 0 ? '<span class="text-green-400">-' + d.discount + '%</span>' : '<span class="text-gray-500">—</span>') + '</td>';
         html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName) + '</td>';
-        html += '<td class="p-2 text-center">' + asinHtml + '</td>';
-        html += '<td class="p-2 text-right">' + amazonPriceHtml + '</td>';
+        html += '<td class="p-2 text-center deal-asin">' + asinHtml + '</td>';
+        html += '<td class="p-2 text-right deal-amazon-price">' + amazonPriceHtml + '</td>';
         html += '<td class="p-2 text-right deal-profit">' + profitHtml + '</td>';
         html += '<td class="p-2 text-right deal-roi">' + roiHtml + '</td>';
         html += '<td class="p-2 text-center deal-actions">' + actionsHtml + '</td>';
@@ -3748,11 +3790,20 @@ function promptLinkASIN(dealIndex) {
         // Lookup Keepa direct (pas la queue, appel immediat)
         var settings = loadOASettings();
         if (settings.keepaApiKey) {
-            renderDealResults(); // afficher l'ASIN lie tout de suite
+            // Afficher l'ASIN lie + indicateur de chargement
+            renderDealResults();
+            // Mettre un indicateur de chargement dans la cellule Amazon price
+            var loadingRow = document.getElementById('deal-row-' + dealIndex);
+            if (loadingRow) {
+                var apCell = loadingRow.querySelector('.deal-amazon-price');
+                if (apCell) apCell.innerHTML = '<span class="text-amber-400 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i></span>';
+            }
             keepaLookup(asin, 'asin').then(function(result) {
                 if (result) {
                     deal.amazonPrice = result.price;
                     deal.keepaData = result;
+                    deal.title = result.title || deal.title;
+                    deal.image = result.imageUrl || deal.image;
                     if (deal.price > 0 && result.price > 0) {
                         var profitResult = calculateDealProfit(deal, result);
                         deal.profit = profitResult.profit;
@@ -3760,12 +3811,25 @@ function promptLinkASIN(dealIndex) {
                         deal.fees = profitResult.fees;
                     }
                     updateDealRow(dealIndex, deal);
-                    updateDealStats();
                 } else {
                     console.warn('[DealScanner] Keepa lookup: aucun resultat pour ' + asin);
+                    // Feedback visible
+                    var row = document.getElementById('deal-row-' + dealIndex);
+                    if (row) {
+                        var apCell = row.querySelector('.deal-amazon-price');
+                        if (apCell) apCell.innerHTML = '<span class="text-red-400 text-xs" title="Produit non trouve sur Keepa">N/A</span>';
+                    }
+                }
+            }).catch(function(err) {
+                console.error('[DealScanner] Keepa lookup erreur:', err);
+                var row = document.getElementById('deal-row-' + dealIndex);
+                if (row) {
+                    var apCell = row.querySelector('.deal-amazon-price');
+                    if (apCell) apCell.innerHTML = '<span class="text-red-400 text-xs" title="Erreur Keepa">Err</span>';
                 }
             });
         } else {
+            alert('Configure ta cle API Keepa dans les Parametres OA pour obtenir les prix Amazon.');
             renderDealResults();
         }
     }

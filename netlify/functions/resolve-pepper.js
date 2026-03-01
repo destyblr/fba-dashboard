@@ -1,5 +1,4 @@
 const fetch = require('node-fetch');
-const cheerio = require('cheerio');
 
 exports.handler = async (event) => {
     const headers = {
@@ -17,163 +16,166 @@ exports.handler = async (event) => {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing url parameter' }) };
     }
 
-    // Verifier que c'est bien un site Pepper
-    const allowedDomains = ['dealabs.com', 'mydealz.de', 'chollometro.com', 'pepper.it', 'pepper.pl', 'hotukdeals.com'];
-    const isDealSite = allowedDomains.some(d => dealUrl.includes(d));
-    if (!isDealSite) {
+    // Mapping domaines Pepper → base URL
+    const pepperDomains = {
+        'dealabs.com': 'https://www.dealabs.com',
+        'mydealz.de': 'https://www.mydealz.de',
+        'chollometro.com': 'https://www.chollometro.com',
+        'pepper.it': 'https://www.pepper.it'
+    };
+
+    let baseUrl = null;
+    for (const [domain, base] of Object.entries(pepperDomains)) {
+        if (dealUrl.includes(domain)) {
+            baseUrl = base;
+            break;
+        }
+    }
+    if (!baseUrl) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'URL must be from a Pepper network site' }) };
     }
 
     try {
-        // 1. Fetcher la page du deal
-        const resp = await fetch(dealUrl, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'text/html,application/xhtml+xml',
-                'Accept-Language': 'fr-FR,fr;q=0.9,en;q=0.8'
-            },
-            redirect: 'follow',
-            timeout: 8000
-        });
+        // Extraire le thread ID depuis l'URL (dernier nombre dans le path)
+        const threadIdMatch = dealUrl.match(/(\d{5,})(?:\?|$|#)/);
+        const threadIdFallback = dealUrl.match(/(\d{5,})/g);
+        const threadId = threadIdMatch ? threadIdMatch[1] : (threadIdFallback ? threadIdFallback[threadIdFallback.length - 1] : null);
 
-        const html = await resp.text();
-        const $ = cheerio.load(html);
+        if (!threadId) {
+            return { statusCode: 200, headers, body: JSON.stringify({ asin: null, error: 'No thread ID found in URL' }) };
+        }
 
         let asin = null;
         let merchantUrl = null;
 
-        // Methode 1 : Chercher des liens Amazon dans la page
-        $('a[href]').each((i, el) => {
-            const href = $(el).attr('href') || '';
-            if (href.match(/amazon\.(fr|de|com|co\.uk|it|es)/i)) {
-                const asinMatch = href.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+        // Methode 1 : Suivre la redirection visit/threadmain/{threadId}
+        const visitUrl = baseUrl + '/visit/threadmain/' + threadId;
+        console.log('[resolve-pepper] Visit URL: ' + visitUrl);
+
+        try {
+            const resp = await fetch(visitUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                    'Accept': 'text/html',
+                    'Referer': dealUrl
+                },
+                redirect: 'manual',
+                timeout: 8000
+            });
+
+            let location = resp.headers.get('location');
+            console.log('[resolve-pepper] Redirect 1: ' + location);
+
+            // Suivre jusqu'a 5 redirections pour trouver l'URL finale Amazon
+            let hops = 0;
+            while (location && hops < 5) {
+                // Chercher ASIN dans l'URL courante
+                const asinMatch = location.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
                 if (asinMatch) {
                     asin = asinMatch[1].toUpperCase();
-                    merchantUrl = href;
-                    return false; // break
+                    merchantUrl = location;
+                    break;
                 }
-            }
-        });
 
-        // Methode 2 : Chercher /dp/ASIN dans tout le HTML
-        if (!asin) {
-            const dpMatches = html.match(/\/dp\/([A-Z0-9]{10})/gi);
-            if (dpMatches) {
-                for (const m of dpMatches) {
-                    const asinMatch = m.match(/\/dp\/([A-Z0-9]{10})/i);
-                    if (asinMatch) {
-                        asin = asinMatch[1].toUpperCase();
+                // Si c'est une URL Amazon mais sans ASIN visible, suivre encore
+                if (location.match(/amazon\.(fr|de|com|co\.uk|it|es)/i)) {
+                    merchantUrl = location;
+                    // Essayer de suivre pour obtenir l'URL finale
+                    try {
+                        const nextResp = await fetch(location, {
+                            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                            redirect: 'manual',
+                            timeout: 5000
+                        });
+                        const nextLoc = nextResp.headers.get('location');
+                        if (nextLoc) {
+                            const m = nextLoc.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+                            if (m) {
+                                asin = m[1].toUpperCase();
+                                merchantUrl = nextLoc;
+                            }
+                            location = nextLoc;
+                        } else {
+                            // Pas de redirect, lire le body pour chercher l'ASIN
+                            const body = await nextResp.text();
+                            const bodyMatch = body.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+                            if (bodyMatch) {
+                                asin = bodyMatch[1].toUpperCase();
+                            }
+                            break;
+                        }
+                    } catch (e) {
+                        break;
+                    }
+                } else {
+                    // Pas Amazon, suivre le redirect
+                    try {
+                        const nextResp = await fetch(location, {
+                            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+                            redirect: 'manual',
+                            timeout: 5000
+                        });
+                        location = nextResp.headers.get('location');
+                        console.log('[resolve-pepper] Redirect ' + (hops + 2) + ': ' + location);
+                    } catch (e) {
                         break;
                     }
                 }
+                hops++;
             }
+        } catch (e) {
+            console.log('[resolve-pepper] Visit redirect failed: ' + e.message);
         }
 
-        // Methode 3 : Chercher dans les donnees structurees JSON-LD
+        // Methode 2 fallback : Fetcher la page et chercher dans __INITIAL_STATE__ / __RESPONSE_DATA__
         if (!asin) {
-            $('script[type="application/ld+json"]').each((i, el) => {
-                try {
-                    const jsonStr = $(el).html();
-                    const asinMatch = jsonStr.match(/\/dp\/([A-Z0-9]{10})/i);
-                    if (asinMatch) {
-                        asin = asinMatch[1].toUpperCase();
-                        return false;
-                    }
-                } catch (e) {}
-            });
-        }
+            try {
+                const pageResp = await fetch(dealUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'text/html'
+                    },
+                    redirect: 'follow',
+                    timeout: 8000
+                });
+                const html = await pageResp.text();
 
-        // Methode 4 : Chercher dans les attributs data-* (Pepper utilise souvent data-merchant-url, etc.)
-        if (!asin) {
-            $('[data-merchant-url], [data-url]').each((i, el) => {
-                const url = $(el).attr('data-merchant-url') || $(el).attr('data-url') || '';
-                if (url.match(/amazon\.(fr|de|com|co\.uk|it|es)/i)) {
-                    const asinMatch = url.match(/\/dp\/([A-Z0-9]{10})/i);
-                    if (asinMatch) {
-                        asin = asinMatch[1].toUpperCase();
-                        merchantUrl = url;
-                        return false;
-                    }
-                }
-            });
-        }
-
-        // Methode 5 : Chercher le lien "Voir le deal" / "Go to deal" et suivre la redirection
-        if (!asin) {
-            let visitUrl = null;
-            // Selecteurs courants Pepper
-            $('a.cept-dealBtn, a[data-t="dealLink"], a[href*="/visit/"], a.threadItemCard-action--link').each((i, el) => {
-                const href = $(el).attr('href');
-                if (href) {
-                    visitUrl = href;
-                    return false;
-                }
-            });
-
-            if (visitUrl) {
-                // Rendre l'URL absolue
-                if (visitUrl.startsWith('/')) {
-                    try {
-                        const urlObj = new URL(dealUrl);
-                        visitUrl = urlObj.origin + visitUrl;
-                    } catch (e) {}
+                // Chercher ASIN directement dans le HTML (parfois dans les commentaires, scripts, etc.)
+                const htmlAsinMatch = html.match(/\/dp\/([A-Z0-9]{10})/i);
+                if (htmlAsinMatch) {
+                    asin = htmlAsinMatch[1].toUpperCase();
                 }
 
-                try {
-                    // Suivre la redirection (1 seul niveau)
-                    const redirectResp = await fetch(visitUrl, {
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                        },
-                        redirect: 'manual',
-                        timeout: 5000
-                    });
-                    const location = redirectResp.headers.get('location');
-                    if (location) {
-                        merchantUrl = location;
-                        const asinMatch = location.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
-                        if (asinMatch) {
-                            asin = asinMatch[1].toUpperCase();
-                        }
-
-                        // Si 1er redirect n'a pas l'ASIN, essayer un 2e niveau
-                        if (!asin && location.match(/amazon/i)) {
-                            try {
-                                const rr2 = await fetch(location, {
-                                    headers: { 'User-Agent': 'Mozilla/5.0' },
-                                    redirect: 'manual',
-                                    timeout: 5000
-                                });
-                                const loc2 = rr2.headers.get('location');
-                                if (loc2) {
-                                    const m2 = loc2.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
-                                    if (m2) {
-                                        asin = m2[1].toUpperCase();
-                                        merchantUrl = loc2;
-                                    }
-                                }
-                            } catch (e) {}
+                // Chercher dans linkCloaked patterns
+                if (!asin) {
+                    const cloakMatch = html.match(/linkCloaked[^"]*":\s*"([^"]+)"/g);
+                    if (cloakMatch) {
+                        for (const m of cloakMatch) {
+                            const urlMatch = m.match(/"(https?:\/\/[^"]+)"/);
+                            if (urlMatch && urlMatch[1].includes('/visit/')) {
+                                // On a deja essaye avec threadmain, pas besoin de re-fetcher
+                                break;
+                            }
                         }
                     }
-                } catch (e) {
-                    // Timeout ou erreur reseau
                 }
-            }
-        }
 
-        // Methode 6 : Chercher un pattern BXXXXXXXXX (ASIN) dans le texte visible
-        if (!asin) {
-            const bodyText = $('body').text();
-            const asinPattern = bodyText.match(/\b(B0[A-Z0-9]{8})\b/g);
-            if (asinPattern && asinPattern.length > 0) {
-                asin = asinPattern[0];
+                // Chercher un pattern B0XXXXXXXXX dans le texte
+                if (!asin) {
+                    const b0Match = html.match(/\b(B0[A-Z0-9]{8})\b/g);
+                    if (b0Match) {
+                        asin = b0Match[0];
+                    }
+                }
+            } catch (e) {
+                console.log('[resolve-pepper] Page fetch fallback failed: ' + e.message);
             }
         }
 
         return {
             statusCode: 200,
             headers,
-            body: JSON.stringify({ asin, merchantUrl })
+            body: JSON.stringify({ asin, merchantUrl, threadId })
         };
 
     } catch (e) {
