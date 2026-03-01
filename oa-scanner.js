@@ -2676,9 +2676,9 @@ async function keepaLookup(identifier, type) {
     var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
     var url;
     if (type === 'ean') {
-        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&ean=' + identifier + '&stats=180';
+        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&ean=' + identifier + '&stats=180&fbafees=1';
     } else {
-        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + identifier + '&stats=180';
+        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + identifier + '&stats=180&fbafees=1';
     }
 
     try {
@@ -2726,7 +2726,7 @@ async function keepaBatchLookup(asins) {
     if (!apiKey || asins.length === 0) return {};
 
     var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
-    var url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + asins.join(',') + '&stats=180';
+    var url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + asins.join(',') + '&stats=180&fbafees=1';
 
     var keepaStatsEl = document.getElementById('deal-stats-keepa');
 
@@ -2802,6 +2802,20 @@ function parseKeepaProduct(p) {
     if (amazonPrice > 0) bestPrice = amazonPrice;
     else if (newPrice > 0) bestPrice = newPrice;
 
+    // Extraire les vrais frais FBA depuis Keepa (fbafees=1)
+    var fbaPickAndPack = null; // Frais AMZ reels (fulfillment)
+    var referralFeePct = null; // Commission reelle (%)
+    if (p.fbaFees) {
+        // pickAndPackFee est en centimes
+        if (p.fbaFees.pickAndPackFee && p.fbaFees.pickAndPackFee > 0) {
+            fbaPickAndPack = p.fbaFees.pickAndPackFee / 100;
+        }
+    }
+    // referralFeePercentage est un champ direct du produit (en %)
+    if (p.referralFeePercentage && p.referralFeePercentage > 0) {
+        referralFeePct = p.referralFeePercentage;
+    }
+
     return {
         asin: p.asin,
         title: p.title,
@@ -2812,6 +2826,8 @@ function parseKeepaProduct(p) {
         fbaSellers: (p.fbaOfferCount && p.fbaOfferCount.length > 0) ? p.fbaOfferCount[p.fbaOfferCount.length - 1] : 0,
         category: p.categoryTree ? p.categoryTree.map(function(c) { return c.name; }).join(' > ') : '',
         imageUrl: p.imagesCSV ? ('https://images-na.ssl-images-amazon.com/images/I/' + p.imagesCSV.split(',')[0]) : '',
+        fbaPickAndPack: fbaPickAndPack,
+        referralFeePct: referralFeePct,
         timestamp: Date.now()
     };
 }
@@ -2938,9 +2954,23 @@ function calculateDealProfit(deal, amazonData) {
         return { profit: 0, roi: 0, fees: 0 };
     }
 
+    // Commission : utiliser le vrai % Keepa si dispo, sinon le defaut parametres
+    var realCommission = false;
     var commPct = settings.commissionPct;
+    if (amazonData.referralFeePct && amazonData.referralFeePct > 0) {
+        commPct = amazonData.referralFeePct;
+        realCommission = true;
+    }
     var commission = sellPrice * (commPct / 100);
+
+    // Frais AMZ (FBA fulfillment) : utiliser le vrai montant Keepa si dispo
+    var realFbaFee = false;
     var fbaFee = settings.fbaFee;
+    if (amazonData.fbaPickAndPack && amazonData.fbaPickAndPack > 0) {
+        fbaFee = amazonData.fbaPickAndPack;
+        realFbaFee = true;
+    }
+
     var inbound = settings.inboundShipping;
     var prep = settings.prepCost;
     var urssaf = sellPrice * (settings.urssafPct / 100);
@@ -2956,7 +2986,9 @@ function calculateDealProfit(deal, amazonData) {
             total: Math.round(totalFees * 100) / 100,
             commission: Math.round(commission * 100) / 100,
             commPct: commPct,
+            realCommission: realCommission,
             fbaFee: Math.round(fbaFee * 100) / 100,
+            realFbaFee: realFbaFee,
             inbound: Math.round(inbound * 100) / 100,
             prep: Math.round(prep * 100) / 100,
             urssaf: Math.round(urssaf * 100) / 100,
@@ -3789,12 +3821,13 @@ function renderDealResults() {
             if (d.price > 0 && d.amazonPrice > 0) tooltipLines.push('Ecart brut: ' + (d.amazonPrice > d.price ? '+' : '') + (d.amazonPrice - d.price).toFixed(2) + '€');
             tooltipLines.push('---');
             if (d.fees && typeof d.fees === 'object') {
-                tooltipLines.push('Commission (' + (d.fees.commPct || 15) + '%): -' + (d.fees.commission || 0).toFixed(2) + '€');
-                tooltipLines.push('FBA fee: -' + (d.fees.fbaFee || 0).toFixed(2) + '€');
-                tooltipLines.push('Inbound: -' + (d.fees.inbound || 0).toFixed(2) + '€');
+                tooltipLines.push('Commission (' + (d.fees.commPct || 15) + '%): -' + (d.fees.commission || 0).toFixed(2) + '€' + (d.fees.realCommission ? ' *' : ''));
+                tooltipLines.push('Frais AMZ: -' + (d.fees.fbaFee || 0).toFixed(2) + '€' + (d.fees.realFbaFee ? ' *' : ''));
+                tooltipLines.push('Envoi a AMZ: -' + (d.fees.inbound || 0).toFixed(2) + '€');
                 tooltipLines.push('Prep: -' + (d.fees.prep || 0).toFixed(2) + '€');
                 tooltipLines.push('URSSAF (' + (d.fees.urssafPct || 12.3) + '%): -' + (d.fees.urssaf || 0).toFixed(2) + '€');
                 tooltipLines.push('Total frais: -' + ((d.fees.total || 0) + (d.fees.urssaf || 0)).toFixed(2) + '€');
+                if (d.fees.realCommission || d.fees.realFbaFee) tooltipLines.push('* = frais reels Keepa');
             }
             tooltipLines.push('---');
             tooltipLines.push('PROFIT NET: ' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€');
