@@ -3176,13 +3176,19 @@ async function fetchDeals() {
         allDeals = await fetchDealsFromSource(sourceKey);
     }
 
-    console.log('[DealScanner] Total deals bruts: ' + allDeals.length);
+    var totalBruts = allDeals.length;
+    console.log('[DealScanner] Total deals bruts: ' + totalBruts);
 
     // Pre-filtrage (blacklist, prix, reduction)
     var filtered = preFilterDeals(allDeals);
-    console.log('[DealScanner] Apres pre-filtres: ' + filtered.length + ' deals (exclus: ' + (allDeals.length - filtered.length) + ')');
+    var excludedCount = totalBruts - filtered.length;
+    console.log('[DealScanner] Apres pre-filtres: ' + filtered.length + ' deals (exclus: ' + excludedCount + ')');
 
     dealScannerResults = filtered;
+
+    // Afficher l'entonnoir
+    var funnelEl = document.getElementById('deal-stats-funnel');
+    if (funnelEl) funnelEl.textContent = totalBruts + ' bruts → ' + excludedCount + ' exclus';
 
     // Analyser les deals (detection Amazon, lookup prix)
     await analyzeDeals(filtered);
@@ -3193,7 +3199,7 @@ async function fetchDeals() {
     // Restaurer le bouton
     if (fetchBtn) {
         fetchBtn.disabled = false;
-        fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger les deals';
+        fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger';
     }
 }
 
@@ -3486,24 +3492,29 @@ function setDealFilter(mode) {
 // --- Mettre a jour les stats ---
 function updateDealStats() {
     var deals = dealScannerResults;
-    var amazonCount = deals.filter(function(d) { return d.isAmazon; }).length;
-    var profitableCount = deals.filter(function(d) { return d.profit !== null && d.profit > 0; }).length;
+    var visibleDeals = deals.filter(function(d) { return !d.excludedPostKeepa; });
+    var amazonCount = visibleDeals.filter(function(d) { return d.isAmazon; }).length;
+    var withAsin = visibleDeals.filter(function(d) { return d.asin; }).length;
+    var profitableCount = visibleDeals.filter(function(d) { return d.profit !== null && d.profit > 0; }).length;
 
     var totalEl = document.getElementById('deal-stats-total');
     var amazonEl = document.getElementById('deal-stats-amazon');
     var profitEl = document.getElementById('deal-stats-profitable');
     var statsEl = document.getElementById('deal-stats');
 
-    if (totalEl) totalEl.textContent = deals.length + ' deals';
-    if (amazonEl) amazonEl.textContent = amazonCount + ' Amazon';
+    if (totalEl) totalEl.textContent = visibleDeals.length + ' deals';
+    if (amazonEl) amazonEl.textContent = amazonCount + ' Amazon (' + withAsin + ' ASIN)';
     if (profitEl) profitEl.textContent = profitableCount + ' rentables';
-    if (statsEl) statsEl.classList.remove('hidden');
+    if (statsEl) {
+        statsEl.classList.remove('hidden');
+        statsEl.style.display = ''; // forcer l'affichage
+    }
 
     // Mettre a jour les filtres
     var filterAll = document.getElementById('deal-filter-all');
     var filterAmazon = document.getElementById('deal-filter-amazon');
     var filterProfitable = document.getElementById('deal-filter-profitable');
-    if (filterAll) filterAll.textContent = 'Tous (' + deals.length + ')';
+    if (filterAll) filterAll.textContent = 'Tous (' + visibleDeals.length + ')';
     if (filterAmazon) filterAmazon.textContent = 'Amazon (' + amazonCount + ')';
     if (filterProfitable) filterProfitable.textContent = 'Rentables (' + profitableCount + ')';
 }
@@ -3704,9 +3715,16 @@ function renderDealResults() {
 
 // --- Lier manuellement un ASIN a un deal ---
 function promptLinkASIN(dealIndex) {
-    var asin = prompt('Entre l\'ASIN Amazon pour ce deal :');
-    if (!asin || asin.length < 10) return;
-    asin = asin.trim().toUpperCase();
+    var input = prompt('Entre l\'ASIN Amazon (ou l\'URL Amazon) pour ce deal :');
+    if (!input || input.trim().length < 5) return;
+    input = input.trim();
+
+    // Extraire ASIN depuis URL si c'est une URL
+    var asin = extractASINFromURL(input) || input.toUpperCase();
+    if (asin.length !== 10) {
+        alert('ASIN invalide. Un ASIN fait 10 caracteres (ex: B08K3XXXXXX)');
+        return;
+    }
 
     var deal = dealScannerResults[dealIndex];
     if (!deal) return;
@@ -3714,8 +3732,7 @@ function promptLinkASIN(dealIndex) {
     deal.asin = asin;
     deal.isAmazon = true;
 
-    // Chercher dans le cache / CSV / queue Keepa
-    var settings = loadOASettings();
+    // Chercher dans le cache d'abord
     if (keepaCache[asin] && (Date.now() - keepaCache[asin].timestamp) < KEEPA_CACHE_TTL) {
         var cached = keepaCache[asin];
         deal.amazonPrice = cached.price;
@@ -3727,12 +3744,30 @@ function promptLinkASIN(dealIndex) {
             deal.fees = profitResult.fees;
         }
         renderDealResults();
-    } else if (settings.keepaApiKey) {
-        keepaQueue.push({ identifier: asin, type: 'asin', dealIndex: dealIndex });
-        renderDealResults();
-        processKeepaQueue();
     } else {
-        renderDealResults();
+        // Lookup Keepa direct (pas la queue, appel immediat)
+        var settings = loadOASettings();
+        if (settings.keepaApiKey) {
+            renderDealResults(); // afficher l'ASIN lie tout de suite
+            keepaLookup(asin, 'asin').then(function(result) {
+                if (result) {
+                    deal.amazonPrice = result.price;
+                    deal.keepaData = result;
+                    if (deal.price > 0 && result.price > 0) {
+                        var profitResult = calculateDealProfit(deal, result);
+                        deal.profit = profitResult.profit;
+                        deal.roi = profitResult.roi;
+                        deal.fees = profitResult.fees;
+                    }
+                    updateDealRow(dealIndex, deal);
+                    updateDealStats();
+                } else {
+                    console.warn('[DealScanner] Keepa lookup: aucun resultat pour ' + asin);
+                }
+            });
+        } else {
+            renderDealResults();
+        }
     }
 }
 
