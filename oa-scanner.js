@@ -2682,27 +2682,39 @@ async function keepaLookup(identifier, type) {
     }
 
     try {
+        console.log('[DealScanner] Keepa lookup: ' + type + '=' + identifier + ' domain=' + domain);
         var resp = await fetch(url);
+        console.log('[DealScanner] Keepa lookup HTTP ' + resp.status);
+
+        if (!resp.ok) {
+            var errText = await resp.text();
+            console.error('[DealScanner] Keepa lookup HTTP erreur:', resp.status, errText);
+            return null;
+        }
+
         var data = await resp.json();
 
         if (data.error) {
-            console.warn('[DealScanner] Keepa API erreur:', data.error);
+            console.warn('[DealScanner] Keepa API erreur:', JSON.stringify(data.error));
             return null;
         }
+
+        console.log('[DealScanner] Keepa tokensLeft=' + data.tokensLeft + ' products=' + (data.products ? data.products.length : 0));
 
         if (data.products && data.products.length > 0) {
             var result = parseKeepaProduct(data.products[0]);
             if (result) {
                 keepaCache[result.asin] = result;
                 saveKeepaCache();
-                console.log('[DealScanner] Keepa lookup OK: ' + result.asin + ' → ' + result.price + '€');
+                console.log('[DealScanner] Keepa lookup OK: ' + result.asin + ' prix=' + result.price + '€ bsr=' + result.bsr);
             }
             return result;
         }
 
+        console.warn('[DealScanner] Keepa lookup: aucun produit retourne pour ' + identifier);
         return null;
     } catch (e) {
-        console.error('[DealScanner] Keepa API fetch erreur:', e);
+        console.error('[DealScanner] Keepa lookup ERREUR:', e.message, e);
         return null;
     }
 }
@@ -2716,14 +2728,30 @@ async function keepaBatchLookup(asins) {
     var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
     var url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + asins.join(',') + '&stats=1&offers=0';
 
+    var keepaStatsEl = document.getElementById('deal-stats-keepa');
+
     try {
+        console.log('[DealScanner] Keepa batch URL: domain=' + domain + ' asins=' + asins.join(','));
         var resp = await fetch(url);
+        console.log('[DealScanner] Keepa batch HTTP ' + resp.status);
+
+        if (!resp.ok) {
+            var errText = await resp.text();
+            console.error('[DealScanner] Keepa batch HTTP erreur:', resp.status, errText);
+            if (keepaStatsEl) keepaStatsEl.innerHTML = '<span class="text-red-500">Keepa erreur HTTP ' + resp.status + '</span>';
+            return {};
+        }
+
         var data = await resp.json();
 
         if (data.error) {
-            console.warn('[DealScanner] Keepa batch erreur:', data.error);
+            console.warn('[DealScanner] Keepa batch erreur:', JSON.stringify(data.error));
+            if (keepaStatsEl) keepaStatsEl.innerHTML = '<span class="text-red-500">Keepa: ' + (data.error.message || JSON.stringify(data.error)) + '</span>';
             return {};
         }
+
+        console.log('[DealScanner] Keepa tokensLeft=' + data.tokensLeft + ' refillIn=' + data.refillIn + ' refillRate=' + data.refillRate);
+        console.log('[DealScanner] Keepa products retournes: ' + (data.products ? data.products.length : 0));
 
         var results = {};
         if (data.products && data.products.length > 0) {
@@ -2732,15 +2760,19 @@ async function keepaBatchLookup(asins) {
                 if (result) {
                     results[p.asin] = result;
                     keepaCache[p.asin] = result;
+                    console.log('[DealScanner] Keepa ASIN ' + p.asin + ': prix=' + result.price + ' bsr=' + result.bsr);
                 }
             });
             saveKeepaCache();
             console.log('[DealScanner] Keepa batch OK: ' + Object.keys(results).length + '/' + asins.length + ' produits trouves');
+        } else {
+            console.warn('[DealScanner] Keepa batch: aucun produit retourne (products=' + JSON.stringify(data.products) + ')');
         }
 
         return results;
     } catch (e) {
-        console.error('[DealScanner] Keepa batch erreur:', e);
+        console.error('[DealScanner] Keepa batch ERREUR:', e.message, e);
+        if (keepaStatsEl) keepaStatsEl.innerHTML = '<span class="text-red-500">Keepa: ' + e.message + '</span>';
         return {};
     }
 }
