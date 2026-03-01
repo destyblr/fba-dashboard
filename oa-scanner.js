@@ -3505,30 +3505,22 @@ async function fetchDeals(isAutoRefresh) {
     }
 
     // Notifications pour les nouveaux deals rentables
-    if (isAutoRefresh || dealAutoRefreshEnabled) {
-        var newProfitableDeals = filtered.filter(function(d) {
-            return d.isNew && d.profit !== null && d.profit > 0;
-        });
-        if (newProfitableDeals.length > 0) {
-            await sendDealNotifications(newProfitableDeals);
-            // Badge compteur sur le bouton auto-refresh
-            var autoBtn = document.getElementById('deal-auto-refresh-btn');
-            if (autoBtn && dealAutoRefreshEnabled) {
-                var badge = autoBtn.querySelector('.deal-new-badge');
-                if (!badge) {
-                    badge = document.createElement('span');
-                    badge.className = 'deal-new-badge ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full';
-                    autoBtn.appendChild(badge);
-                }
-                badge.textContent = newProfitableDeals.length;
-            }
-        }
+    var newProfitableDeals = filtered.filter(function(d) {
+        return d.isNew && d.profit !== null && d.profit > 0;
+    });
+    if (newProfitableDeals.length > 0 && dealAutoRefreshEnabled) {
+        await sendDealNotifications(newProfitableDeals);
     }
 
     // Restaurer le bouton
     if (fetchBtn) {
         fetchBtn.disabled = false;
         fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger';
+    }
+
+    // Demarrer l'auto-refresh apres le premier chargement
+    if (!dealAutoRefreshEnabled) {
+        startAutoRefresh();
     }
 }
 
@@ -4670,87 +4662,53 @@ function updateLastRefreshTime() {
     var h = String(now.getHours()).padStart(2, '0');
     var m = String(now.getMinutes()).padStart(2, '0');
     var el = document.getElementById('deal-last-refresh');
-    if (!el) {
-        var autoBtn = document.getElementById('deal-auto-refresh-btn');
-        if (autoBtn) {
-            el = document.createElement('span');
-            el.id = 'deal-last-refresh';
-            el.className = 'text-xs text-gray-400 ml-2';
-            autoBtn.parentNode.insertBefore(el, autoBtn.nextSibling);
-        }
-    }
-    if (el) {
-        if (dealAutoRefreshEnabled) {
-            el.textContent = 'MAJ ' + h + ':' + m;
-        } else {
-            el.textContent = 'MAJ ' + h + ':' + m;
-        }
-    }
+    if (el) el.textContent = 'MAJ ' + h + ':' + m;
 }
 
 function updateCountdown() {
-    var btn = document.getElementById('deal-auto-refresh-btn');
-    if (!btn || !dealAutoRefreshEnabled) return;
+    var el = document.getElementById('deal-countdown');
+    if (!el) return;
 
     dealCountdownSeconds--;
     if (dealCountdownSeconds <= 0) {
-        btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>Refresh...';
+        el.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-1"></i>Refresh...';
         return;
     }
     var min = Math.floor(dealCountdownSeconds / 60);
     var sec = dealCountdownSeconds % 60;
-    var timeStr = min > 0 ? min + 'min ' + String(sec).padStart(2, '0') + 's' : sec + 's';
-    btn.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-2"></i>' + timeStr;
+    var timeStr = min > 0 ? min + ':' + String(sec).padStart(2, '0') : sec + 's';
+    el.innerHTML = '<i class="fas fa-clock mr-1"></i>' + timeStr;
 }
 
-function toggleAutoRefresh() {
-    dealAutoRefreshEnabled = !dealAutoRefreshEnabled;
-    var btn = document.getElementById('deal-auto-refresh-btn');
+// Demarre l'auto-refresh automatiquement (appele apres le premier chargement)
+function startAutoRefresh() {
+    if (dealAutoRefreshEnabled) return; // deja actif
+    dealAutoRefreshEnabled = true;
 
-    if (dealAutoRefreshEnabled) {
-        var settings = loadOASettings();
-        var intervalMin = settings.dealAutoRefreshMin || 10;
+    var settings = loadOASettings();
+    var intervalMin = settings.dealAutoRefreshMin || 10;
 
-        // Demander permission notifications navigateur
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-
-        // Timer principal : refresh
-        dealCountdownSeconds = intervalMin * 60;
-        dealAutoRefreshTimer = setInterval(function() {
-            console.log('[DealScanner] Auto-refresh...');
-            fetchDeals(true);
-            updateLastRefreshTime();
-            dealCountdownSeconds = intervalMin * 60; // reset countdown
-        }, intervalMin * 60 * 1000);
-
-        // Timer countdown : chaque seconde
-        if (dealCountdownTimer) clearInterval(dealCountdownTimer);
-        dealCountdownTimer = setInterval(updateCountdown, 1000);
-
-        if (btn) {
-            btn.className = 'px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold transition';
-        }
-        updateCountdown();
-        showOANotification('Auto-refresh active: toutes les ' + intervalMin + ' min', 'success');
-    } else {
-        if (dealAutoRefreshTimer) {
-            clearInterval(dealAutoRefreshTimer);
-            dealAutoRefreshTimer = null;
-        }
-        if (dealCountdownTimer) {
-            clearInterval(dealCountdownTimer);
-            dealCountdownTimer = null;
-        }
-        if (btn) {
-            btn.className = 'px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-semibold transition';
-            btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Auto';
-        }
-        var refreshEl = document.getElementById('deal-last-refresh');
-        if (refreshEl) refreshEl.textContent = '';
-        showOANotification('Auto-refresh desactive', 'info');
+    // Demander permission notifications navigateur
+    if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
     }
+
+    // Timer principal : refresh
+    dealCountdownSeconds = intervalMin * 60;
+    if (dealAutoRefreshTimer) clearInterval(dealAutoRefreshTimer);
+    dealAutoRefreshTimer = setInterval(function() {
+        console.log('[DealScanner] Auto-refresh...');
+        fetchDeals(true);
+        updateLastRefreshTime();
+        dealCountdownSeconds = intervalMin * 60;
+    }, intervalMin * 60 * 1000);
+
+    // Timer countdown : chaque seconde
+    if (dealCountdownTimer) clearInterval(dealCountdownTimer);
+    dealCountdownTimer = setInterval(updateCountdown, 1000);
+    updateCountdown();
+
+    console.log('[DealScanner] Auto-refresh demarre: toutes les ' + intervalMin + ' min');
 }
 
 async function sendDealNotifications(newProfitableDeals) {
