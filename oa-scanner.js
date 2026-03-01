@@ -3292,38 +3292,45 @@ async function fetchDealsFromSource(sourceKey) {
     }
 
     if (source.type === 'rss') {
-        // Fetch via proxy CORS rss2json.com — baseUrl + mode (hot/new)
-        // Essayer le mode choisi, fallback sur 'hot' si erreur
-        var modes = [dealRSSMode];
-        if (dealRSSMode !== 'hot') modes.push('hot');
+        // Fetch hot + new en parallele, fusionner et dedupliquer
+        var modes = ['hot', 'new'];
+        var allDeals = [];
+        var seenLinks = {};
 
-        for (var m = 0; m < modes.length; m++) {
-            var rssUrl = source.baseUrl + modes[m];
+        var modePromises = modes.map(function(mode) {
+            var rssUrl = source.baseUrl + mode;
             var proxyUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
-            try {
-                var resp = await fetch(proxyUrl);
-                var data = await resp.json();
+            return fetch(proxyUrl).then(function(resp) { return resp.json(); }).then(function(data) {
                 if (data.status === 'ok' && data.items) {
-                    var modeLabel = modes[m] !== dealRSSMode ? ' (fallback ' + modes[m] + ')' : '';
-                    console.log('[DealScanner] RSS ' + source.name + modeLabel + ': ' + data.items.length + ' items');
+                    console.log('[DealScanner] RSS ' + source.name + '/' + mode + ': ' + data.items.length + ' items');
                     return data.items.map(function(item) { return parsePepperRSSItem(item, sourceKey); });
-                } else if (m < modes.length - 1) {
-                    console.warn('[DealScanner] RSS ' + source.name + ' /' + modes[m] + ' echec, essai /' + modes[m + 1] + '...');
-                    continue;
-                } else {
-                    console.warn('[DealScanner] RSS ' + source.name + ' erreur:', data.message || 'status != ok');
-                    return [];
                 }
-            } catch (e) {
-                if (m < modes.length - 1) {
-                    console.warn('[DealScanner] RSS ' + source.name + ' /' + modes[m] + ' erreur, essai /' + modes[m + 1] + '...');
-                    continue;
-                }
-                console.error('[DealScanner] Erreur fetch RSS ' + source.name + ':', e);
+                console.warn('[DealScanner] RSS ' + source.name + '/' + mode + ' echec');
                 return [];
+            }).catch(function(e) {
+                console.warn('[DealScanner] RSS ' + source.name + '/' + mode + ' erreur: ' + e.message);
+                return [];
+            });
+        });
+
+        try {
+            var results = await Promise.all(modePromises);
+            // Fusionner hot + new, dedupliquer par lien
+            for (var ri = 0; ri < results.length; ri++) {
+                for (var di = 0; di < results[ri].length; di++) {
+                    var deal = results[ri][di];
+                    if (!seenLinks[deal.link]) {
+                        seenLinks[deal.link] = true;
+                        allDeals.push(deal);
+                    }
+                }
             }
+            console.log('[DealScanner] RSS ' + source.name + ' total: ' + allDeals.length + ' deals uniques (hot+new)');
+            return allDeals;
+        } catch (e) {
+            console.error('[DealScanner] Erreur fetch RSS ' + source.name + ':', e);
+            return [];
         }
-        return [];
     } else if (source.type === 'scraper') {
         // Fetch via Netlify Function
         try {
