@@ -3358,32 +3358,55 @@ async function analyzeDeals(deals) {
     });
 
     // Phase 4 : Batch Keepa API (tous les ASINs en 1 seul appel)
-    if (needKeepaASINs.length > 0 && settings.keepaApiKey) {
-        var asinsToLookup = needKeepaASINs.map(function(item) { return item.asin; });
-        console.log('[DealScanner] Batch Keepa: ' + asinsToLookup.length + ' ASINs en 1 appel');
+    var keepaStatsEl = document.getElementById('deal-stats-keepa');
+    if (needKeepaASINs.length > 0) {
+        if (!settings.keepaApiKey) {
+            console.warn('[DealScanner] Pas de cle API Keepa → impossible de chercher les prix Amazon');
+            if (keepaStatsEl) keepaStatsEl.innerHTML = '<span class="text-red-500"><i class="fas fa-key mr-1"></i>Cle API Keepa manquante (Parametres OA)</span>';
+            // Marquer les deals comme "checked but no data"
+            needKeepaASINs.forEach(function(item) {
+                if (item.dealIndex < deals.length) {
+                    deals[item.dealIndex].keepaChecked = true;
+                }
+            });
+        } else {
+            var asinsToLookup = needKeepaASINs.map(function(item) { return item.asin; });
+            console.log('[DealScanner] Batch Keepa: ' + asinsToLookup.length + ' ASINs en 1 appel');
 
-        var keepaStatsEl = document.getElementById('deal-stats-keepa');
-        if (keepaStatsEl) keepaStatsEl.textContent = 'Keepa: lookup ' + asinsToLookup.length + ' ASINs...';
+            if (keepaStatsEl) keepaStatsEl.textContent = 'Keepa: lookup ' + asinsToLookup.length + ' ASINs...';
 
-        var batchResults = await keepaBatchLookup(asinsToLookup);
+            var batchResults = await keepaBatchLookup(asinsToLookup);
+            var foundCount = Object.keys(batchResults).length;
+            console.log('[DealScanner] Batch Keepa resultat: ' + foundCount + '/' + asinsToLookup.length);
 
-        // Appliquer les resultats aux deals
-        needKeepaASINs.forEach(function(item) {
-            var result = batchResults[item.asin];
-            if (result && item.dealIndex < deals.length) {
+            // Appliquer les resultats aux deals
+            needKeepaASINs.forEach(function(item) {
+                if (item.dealIndex >= deals.length) return;
                 var deal = deals[item.dealIndex];
-                deal.amazonPrice = result.price;
-                deal.keepaData = result;
-                if (deal.price > 0 && result.price > 0) {
-                    var profitResult = calculateDealProfit(deal, result);
-                    deal.profit = profitResult.profit;
-                    deal.roi = profitResult.roi;
-                    deal.fees = profitResult.fees;
+                var result = batchResults[item.asin];
+                if (result) {
+                    deal.amazonPrice = result.price;
+                    deal.keepaData = result;
+                    deal.keepaChecked = true;
+                    if (deal.price > 0 && result.price > 0) {
+                        var profitResult = calculateDealProfit(deal, result);
+                        deal.profit = profitResult.profit;
+                        deal.roi = profitResult.roi;
+                        deal.fees = profitResult.fees;
+                    }
+                } else {
+                    deal.keepaChecked = true; // lookup done, no result
+                }
+            });
+
+            if (keepaStatsEl) {
+                if (foundCount > 0) {
+                    keepaStatsEl.textContent = 'Keepa: ' + foundCount + '/' + asinsToLookup.length + ' trouves';
+                } else {
+                    keepaStatsEl.textContent = 'Keepa: 0 resultat';
                 }
             }
-        });
-
-        if (keepaStatsEl) keepaStatsEl.textContent = '';
+        }
     }
 
     // Phase 5 : EANs individuels (ne supportent pas le batch)
@@ -3681,13 +3704,13 @@ function renderDealResults() {
 
         var profitHtml = '';
         var roiHtml = '';
-        if (d.profit !== null) {
+        if (d.profit !== null && d.profit !== undefined) {
             var profitClass = d.profit > 0 ? 'text-green-400 font-bold' : 'text-red-400';
             profitHtml = '<span class="' + profitClass + '">' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€</span>';
             var roiClass = d.roi > 0 ? 'text-green-400' : 'text-red-400';
             roiHtml = '<span class="' + roiClass + '">' + d.roi.toFixed(0) + '%</span>';
-        } else if (d.asin && keepaQueue.some(function(q) { return q.identifier === d.asin; })) {
-            profitHtml = '<span class="text-amber-400 text-xs">⏳</span>';
+        } else if (d.asin && !d.keepaChecked && !d.keepaData) {
+            profitHtml = '<span class="text-amber-400 text-xs" title="En attente Keepa">⏳</span>';
             roiHtml = '<span class="text-amber-400 text-xs">⏳</span>';
         } else {
             profitHtml = '<span class="text-gray-500">—</span>';
@@ -3709,8 +3732,12 @@ function renderDealResults() {
         var amazonPriceHtml = '';
         if (d.amazonPrice && d.amazonPrice > 0) {
             amazonPriceHtml = '<span class="text-purple-300">' + d.amazonPrice.toFixed(2) + '€</span>';
+        } else if (d.keepaData && (!d.amazonPrice || d.amazonPrice <= 0)) {
+            amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Pas de prix Amazon disponible (rupture ou marketplace uniquement)">N/A</span>';
+        } else if (d.keepaChecked) {
+            amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Produit non trouve sur Keepa">N/A</span>';
         } else if (d.asin) {
-            amazonPriceHtml = '<span class="text-amber-400 text-xs">⏳</span>';
+            amazonPriceHtml = '<span class="text-amber-400 text-xs" title="En attente du lookup Keepa">⏳</span>';
         } else {
             amazonPriceHtml = '<span class="text-gray-500">—</span>';
         }
