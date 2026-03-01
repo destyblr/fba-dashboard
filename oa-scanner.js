@@ -2765,6 +2765,7 @@ async function keepaBatchLookup(asins) {
             return {};
         }
 
+        if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
         console.log('[DealScanner] Keepa tokensLeft=' + data.tokensLeft + ' refillIn=' + data.refillIn + ' refillRate=' + data.refillRate);
         console.log('[DealScanner] Keepa products retournes: ' + (data.products ? data.products.length : 0));
 
@@ -2852,49 +2853,75 @@ function parseKeepaProduct(p) {
     };
 }
 
+// --- Extraire marque + modele d'un titre (pour recherche Keepa) ---
+function extractBrandModel(title) {
+    if (!title) return '';
+    var cleaned = title
+        .replace(/\s*\d+°\s*/, '')           // enlever temperature Pepper
+        .replace(/\([^)]*\)/g, '')            // enlever parentheses
+        .replace(/\[[^\]]*\]/g, '')           // enlever crochets
+        .replace(/[-–—|:]/g, ' ')             // remplacer separateurs par espaces
+        // Enlever les mots generiques FR (non utiles pour la recherche Amazon)
+        .replace(/\b(casque|ecouteur|enceinte|montre|aspirateur|robot|tablette|smartphone|telephone|portable|souris|clavier|imprimante|disque dur|carte memoire|batterie|chargeur|cable|adaptateur|housse|coque|etui|protection|support|sans fil|bluetooth|filaire|avec|pour|noir|blanc|rouge|bleu|vert|gris|argent|or|rose|edition|version|pack|lot|kit|set|paire|neuf|occasion|reconditionne|promo|offre|bon plan|livraison gratuite|en stock|disponible)\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // Garder max 5-6 mots (marque + modele + variante)
+    var words = cleaned.split(' ').filter(function(w) { return w.length > 1; });
+    return words.slice(0, 6).join(' ');
+}
+
+// Tokens Keepa restants (mis a jour apres chaque appel)
+var keepaTokensLeft = 60;
+
 // --- Recherche Keepa par titre (pour trouver l'ASIN automatiquement) ---
 async function keepaSearchByTitle(title) {
     var settings = loadOASettings();
     var apiKey = settings.keepaApiKey;
     if (!apiKey || !title) return null;
 
-    // Nettoyer le titre pour la recherche (garder les mots importants)
-    var searchTerm = title
-        .replace(/\s*\d+°\s*/, '') // enlever temperature
-        .replace(/\([^)]*\)/g, '') // enlever parentheses
-        .replace(/\[[^\]]*\]/g, '') // enlever crochets
-        .replace(/[-–—|]/g, ' ')   // remplacer tirets par espaces
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 80); // limiter la longueur
+    // Extraire marque + modele (pas le titre complet en francais)
+    var searchTerm = extractBrandModel(title);
+    if (searchTerm.length < 3) return null;
 
-    if (searchTerm.length < 5) return null;
+    // Essayer d'abord sur le marche de vente, puis fallback sur d'autres domaines
+    var domains = [KEEPA_DOMAINS[dealSellMarket] || 3];
+    // Ajouter FR si pas deja dedans (les deals Dealabs sont souvent des produits FR)
+    if (domains[0] !== 4) domains.push(4);
 
-    var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
-    var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(searchTerm);
+    for (var di = 0; di < domains.length; di++) {
+        var domain = domains[di];
+        var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(searchTerm);
 
-    try {
-        var resp = await fetch(url);
-        var data = await resp.json();
+        try {
+            var resp = await fetch(url);
+            var data = await resp.json();
 
-        if (data.error) {
-            console.warn('[DealScanner] Keepa search erreur:', data.error);
+            // Mettre a jour les tokens restants
+            if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
+
+            if (data.error) {
+                console.warn('[DealScanner] Keepa search erreur:', data.error);
+                if (di < domains.length - 1) continue;
+                return null;
+            }
+
+            // data.asinList contient les ASINs trouves
+            if (data.asinList && data.asinList.length > 0) {
+                var asin = data.asinList[0]; // Premier resultat = plus pertinent
+                console.log('[DealScanner] Keepa search "' + searchTerm.substring(0, 30) + '..." domain=' + domain + ' → ASIN: ' + asin + ' (tokens=' + keepaTokensLeft + ')');
+                return asin;
+            }
+
+            console.log('[DealScanner] Keepa search domain=' + domain + ': aucun resultat pour "' + searchTerm.substring(0, 30) + '..."');
+            // Essayer le domaine suivant
+        } catch (e) {
+            console.error('[DealScanner] Keepa search erreur:', e);
+            if (di < domains.length - 1) continue;
             return null;
         }
-
-        // data.asinList contient les ASINs trouves
-        if (data.asinList && data.asinList.length > 0) {
-            var asin = data.asinList[0]; // Premier resultat = plus pertinent
-            console.log('[DealScanner] Keepa search "' + searchTerm.substring(0, 30) + '..." → ASIN: ' + asin);
-            return asin;
-        }
-
-        console.log('[DealScanner] Keepa search: aucun resultat pour "' + searchTerm.substring(0, 30) + '..."');
-        return null;
-    } catch (e) {
-        console.error('[DealScanner] Keepa search erreur:', e);
-        return null;
     }
+    return null;
 }
 
 // --- Queue Keepa ---
@@ -3512,15 +3539,17 @@ async function analyzeDeals(deals) {
     if (stillNoAsin.length > 0 && settings.keepaApiKey) {
         console.log('[DealScanner] ' + stillNoAsin.length + ' deals Amazon sans ASIN → recherche Keepa par titre...');
         for (var i = 0; i < stillNoAsin.length; i++) {
+            if (keepaTokensLeft < 3) break;
             var deal = stillNoAsin[i];
             var foundAsin = await keepaSearchByTitle(deal.title);
             if (foundAsin) {
                 deal.asin = foundAsin;
                 console.log('[DealScanner] ASIN trouve par titre: ' + foundAsin);
             }
-            // Respecter le rate limit entre chaque recherche
+            // Throttle intelligent selon tokens restants
             if (i < stillNoAsin.length - 1) {
-                await new Promise(function(resolve) { setTimeout(resolve, KEEPA_RATE_LIMIT_MS); });
+                var delay = keepaTokensLeft > 10 ? 2000 : (keepaTokensLeft > 3 ? 10000 : KEEPA_RATE_LIMIT_MS);
+                await new Promise(function(resolve) { setTimeout(resolve, delay); });
             }
         }
     }
@@ -4387,41 +4416,48 @@ function markDealChecklist(dealLink) {
 
 async function matchNonAmazonDeals(deals) {
     var settings = loadOASettings();
-    if (!settings.keepaApiKey) return;
+    if (!settings.keepaApiKey) return 0;
 
     // Filtrer : deals sans ASIN, avec un titre, pas deja checkes
     var toMatch = deals.filter(function(d) {
-        return !d.asin && !d.keepaChecked && d.title && d.price > 0;
+        return !d.asin && !d.keepaSearchDone && !d.keepaChecked && d.title && d.price > 0;
     });
 
-    if (toMatch.length === 0) return;
+    if (toMatch.length === 0) return 0;
 
     // Trier par temperature decroissante (deals les plus chauds d'abord)
     toMatch.sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
     // Limiter a 20 max pour ne pas exploser les tokens Keepa
     var maxMatch = Math.min(toMatch.length, 20);
-    console.log('[DealScanner] Matching non-Amazon: ' + maxMatch + '/' + toMatch.length + ' deals');
+    console.log('[DealScanner] Matching non-Amazon: ' + maxMatch + '/' + toMatch.length + ' deals (tokens=' + keepaTokensLeft + ')');
 
     var keepaStatsEl = document.getElementById('deal-stats-keepa');
     var matchedCount = 0;
 
     for (var i = 0; i < maxMatch; i++) {
+        // Stop si plus de tokens
+        if (keepaTokensLeft < 3) {
+            console.warn('[DealScanner] Matching stoppe: plus de tokens Keepa (' + keepaTokensLeft + ')');
+            if (keepaStatsEl) keepaStatsEl.textContent = 'Keepa: plus de tokens, ' + matchedCount + ' matches';
+            break;
+        }
+
         var deal = toMatch[i];
-        if (keepaStatsEl) keepaStatsEl.textContent = 'Recherche Amazon: ' + (i + 1) + '/' + maxMatch + '...';
+        if (keepaStatsEl) keepaStatsEl.textContent = 'Recherche Amazon: ' + (i + 1) + '/' + maxMatch + '... (tokens=' + keepaTokensLeft + ')';
 
         var foundAsin = await keepaSearchByTitle(deal.title);
         if (foundAsin) {
             deal.asin = foundAsin;
             deal.matchedBySearch = true;
             matchedCount++;
-            console.log('[DealScanner] Match: "' + deal.title.substring(0, 40) + '" → ' + foundAsin);
         }
         deal.keepaSearchDone = true;
 
-        // Rate limit entre chaque recherche
+        // Throttle intelligent : 2s si tokens dispo, 65s si presque a sec
+        var delay = keepaTokensLeft > 10 ? 2000 : (keepaTokensLeft > 3 ? 10000 : KEEPA_RATE_LIMIT_MS);
         if (i < maxMatch - 1) {
-            await new Promise(function(resolve) { setTimeout(resolve, KEEPA_RATE_LIMIT_MS); });
+            await new Promise(function(resolve) { setTimeout(resolve, delay); });
         }
     }
 
