@@ -3031,7 +3031,7 @@ function parsePepperRSSItem(item, sourceKey) {
         asin = extractASINFromURL(link) || extractASINFromURL(description) || extractASINFromText(description);
     }
 
-    var image = item.thumbnail || item.enclosure && item.enclosure.link || extractImageFromDesc(description);
+    var image = item.thumbnail || (item.enclosure ? item.enclosure.link : null) || extractImageFromDesc(description);
 
     return {
         title: title,
@@ -3232,8 +3232,8 @@ function preFilterDeals(deals) {
                 if (text.includes(' ' + blacklistWords[i] + ' ') ||
                     text.includes(' ' + blacklistWords[i] + ',') ||
                     text.includes(' ' + blacklistWords[i] + '.') ||
-                    text.startsWith(blacklistWords[i] + ' ') ||
-                    text.endsWith(' ' + blacklistWords[i])) {
+                    text.includes(' ' + blacklistWords[i] + ')') ||
+                    text.includes('(' + blacklistWords[i] + ' ')) {
                     excluded.blacklist++;
                     return false;
                 }
@@ -3398,10 +3398,10 @@ function applyPostKeepaFilters(deals) {
     var maxFBASellers = settings.dealMaxFBASellers || 0;
 
     deals.forEach(function(deal) {
-        if (!deal.keepaData) return; // pas encore de donnees Keepa
-
-        // Marquer comme exclu si ne passe pas les filtres
+        // Initialiser pour tous les deals
         deal.excludedPostKeepa = false;
+
+        if (!deal.keepaData) return; // pas encore de donnees Keepa
 
         if (minProfit > 0 && deal.profit !== null && deal.profit < minProfit) {
             deal.excludedPostKeepa = true;
