@@ -25,25 +25,11 @@ let keepaProcessing = false;     // Flag pour eviter double processing queue
 
 const DEAL_SOURCES = {
     // Groupe A — Pepper RSS (navigateur, proxy CORS) — baseUrl + mode hot/new
+    // Les RSS Pepper sont la meilleure source : les utilisateurs postent les deals de tous les sites (Fnac, Cdiscount, Amazon...)
     dealabs:        { name: 'Dealabs', country: 'FR', type: 'rss', baseUrl: 'https://www.dealabs.com/rss/' },
     mydealz:        { name: 'MyDealz', country: 'DE', type: 'rss', baseUrl: 'https://www.mydealz.de/rss/' },
     chollometro:    { name: 'Chollometro', country: 'ES', type: 'rss', baseUrl: 'https://www.chollometro.com/rss/' },
     pepper_it:      { name: 'Pepper.it', country: 'IT', type: 'rss', baseUrl: 'https://www.pepper.it/rss/' },
-    // Groupe B — Netlify Functions (scraping retail)
-    fnac:           { name: 'Fnac', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-fnac' },
-    darty:          { name: 'Darty', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-darty' },
-    cdiscount:      { name: 'Cdiscount', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-cdiscount' },
-    boulanger:      { name: 'Boulanger', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-boulanger' },
-    rueducommerce:  { name: 'Rue du Commerce', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-rueducommerce' },
-    ldlc:           { name: 'LDLC', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-ldlc' },
-    rakuten:        { name: 'Rakuten', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-rakuten' },
-    leclerc:        { name: 'Leclerc', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-leclerc' },
-    cultura:        { name: 'Cultura', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-cultura' },
-    amazon_warehouse_fr: { name: 'Amazon Warehouse FR', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-amazon-warehouse?domain=fr' },
-    mediamarkt:     { name: 'MediaMarkt', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-mediamarkt' },
-    saturn:         { name: 'Saturn', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-saturn' },
-    notebooksbilliger: { name: 'NBB', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-notebooksbilliger' },
-    amazon_warehouse_de: { name: 'Amazon Warehouse DE', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-amazon-warehouse?domain=de' }
 };
 
 // Mode RSS : 'new' (defaut, moins de concurrence) ou 'hot' (populaires)
