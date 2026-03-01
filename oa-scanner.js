@@ -2922,53 +2922,74 @@ function buildSearchTerms(title) {
 // Tokens Keepa restants (mis a jour apres chaque appel)
 var keepaTokensLeft = 60;
 
-// --- Recherche Keepa par titre — multi-variantes × multi-domaines ---
+// --- Appel unitaire Keepa search (1 token) ---
+async function keepaSearchOne(apiKey, domain, term) {
+    var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term) + '&asins-only=1';
+    var resp = await fetch(url);
+    var data = await resp.json();
+    if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
+    if (data.asinList && data.asinList.length > 0) {
+        return data.asinList[0];
+    }
+    return null;
+}
+
+// --- Recherche Keepa par titre — strategie economique en tokens ---
+// Cout : 1 token par tentative. Strategie escalade :
+//   Etape 1 : V2 (mots-cles) sur FR → 1 token
+//   Etape 2 : V2 sur DE → 1 token
+//   Etape 3 : V3 (marque+modele) sur FR → 1 token
+//   Etape 4 : V1 (titre complet) sur FR → 1 token
+// Total max : 4 tokens par deal (arret des le premier resultat)
 async function keepaSearchByTitle(title) {
     var settings = loadOASettings();
     var apiKey = settings.keepaApiKey;
     if (!apiKey || !title) return null;
 
+    // Verifier qu'on a des tokens
+    if (keepaTokensLeft <= 0) {
+        console.log('[DealScanner] Plus de tokens Keepa (' + keepaTokensLeft + '), skip "' + title.substring(0, 30) + '"');
+        return null;
+    }
+
     var searchTerms = buildSearchTerms(title);
     if (searchTerms.length === 0) return null;
 
-    // Domaines a essayer : marketplace de vente + FR (si different) + DE (si different)
-    var primaryDomain = KEEPA_DOMAINS[dealSellMarket] || 3;
-    var domains = [primaryDomain];
-    if (primaryDomain !== 4) domains.push(4); // FR
-    if (primaryDomain !== 3) domains.push(3); // DE
+    var FR = 4, DE = 3;
 
-    console.log('[DealScanner] Recherche: ' + searchTerms.length + ' variantes × ' + domains.length + ' domaines pour "' + title.substring(0, 40) + '..."');
-
-    // Pour chaque variante, essayer tous les domaines en parallele
-    for (var ti = 0; ti < searchTerms.length; ti++) {
-        var term = searchTerms[ti];
-
-        // Lancer les recherches sur tous les domaines en parallele
-        var domainPromises = domains.map(function(domain) {
-            var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term);
-            return fetch(url).then(function(resp) { return resp.json(); }).then(function(data) {
-                if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
-                if (data.asinList && data.asinList.length > 0) {
-                    return { asin: data.asinList[0], domain: domain, term: term };
-                }
-                return null;
-            }).catch(function() { return null; });
-        });
-
-        var results = await Promise.all(domainPromises);
-
-        // Prendre le premier resultat trouve
-        for (var ri = 0; ri < results.length; ri++) {
-            if (results[ri]) {
-                console.log('[DealScanner] TROUVE: "' + results[ri].term.substring(0, 30) + '" domain=' + results[ri].domain + ' → ' + results[ri].asin + ' (tokens=' + keepaTokensLeft + ')');
-                return results[ri].asin;
-            }
-        }
-
-        console.log('[DealScanner] Variante ' + (ti + 1) + '/' + searchTerms.length + ' "' + term.substring(0, 30) + '..." → aucun resultat');
+    // Ordre de tentatives optimise : V2/FR → V2/DE → V3/FR → V1/FR
+    var attempts = [];
+    if (searchTerms[1]) attempts.push({ term: searchTerms[1], domain: FR, label: 'V2/FR' });
+    if (searchTerms[1]) attempts.push({ term: searchTerms[1], domain: DE, label: 'V2/DE' });
+    if (searchTerms[2]) attempts.push({ term: searchTerms[2], domain: FR, label: 'V3/FR' });
+    if (searchTerms[0]) attempts.push({ term: searchTerms[0], domain: FR, label: 'V1/FR' });
+    // Si seulement V1 existe (titre court)
+    if (attempts.length === 0 && searchTerms[0]) {
+        attempts.push({ term: searchTerms[0], domain: FR, label: 'V1/FR' });
+        attempts.push({ term: searchTerms[0], domain: DE, label: 'V1/DE' });
     }
 
-    console.log('[DealScanner] Aucun ASIN trouve pour "' + title.substring(0, 40) + '"');
+    console.log('[DealScanner] Recherche "' + title.substring(0, 40) + '" → ' + attempts.length + ' tentatives max');
+
+    for (var i = 0; i < attempts.length; i++) {
+        var a = attempts[i];
+        if (keepaTokensLeft <= 0) {
+            console.log('[DealScanner] Plus de tokens, arret recherche');
+            return null;
+        }
+        try {
+            var asin = await keepaSearchOne(apiKey, a.domain, a.term);
+            if (asin) {
+                console.log('[DealScanner] TROUVE ' + a.label + ': "' + a.term.substring(0, 25) + '" → ' + asin + ' (tokens=' + keepaTokensLeft + ')');
+                return asin;
+            }
+            console.log('[DealScanner] ' + a.label + ' "' + a.term.substring(0, 25) + '" → 0 (tokens=' + keepaTokensLeft + ')');
+        } catch (e) {
+            console.warn('[DealScanner] ' + a.label + ' erreur: ' + e.message);
+        }
+    }
+
+    console.log('[DealScanner] Aucun ASIN pour "' + title.substring(0, 30) + '"');
     return null;
 }
 
@@ -4471,31 +4492,36 @@ async function matchNonAmazonDeals(deals) {
     // Trier par temperature decroissante (deals les plus chauds d'abord)
     toMatch.sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
-    // Limiter a 20 max
-    var maxMatch = Math.min(toMatch.length, 20);
-    console.log('[DealScanner] Matching non-Amazon: ' + maxMatch + ' deals EN PARALLELE (tokens=' + keepaTokensLeft + ')');
+    // Limiter a 15 max (budget ~60 tokens, ~4 tokens par deal)
+    var maxMatch = Math.min(toMatch.length, 15);
+    console.log('[DealScanner] Matching non-Amazon: ' + maxMatch + ' deals (tokens=' + keepaTokensLeft + ')');
 
     var keepaStatsEl = document.getElementById('deal-stats-keepa');
-    if (keepaStatsEl) keepaStatsEl.textContent = 'Recherche Amazon: ' + maxMatch + ' deals...';
+    if (keepaStatsEl) keepaStatsEl.textContent = 'Recherche Amazon: 0/' + maxMatch + '...';
 
-    // Lancer TOUTES les recherches en parallele
-    var promises = toMatch.slice(0, maxMatch).map(function(deal) {
-        return keepaSearchByTitle(deal.title).then(function(foundAsin) {
+    // Recherche SEQUENTIELLE pour economiser les tokens (arret si plus de tokens)
+    var matchedCount = 0;
+    for (var mi = 0; mi < maxMatch; mi++) {
+        var deal = toMatch[mi];
+        if (keepaTokensLeft <= 0) {
+            console.log('[DealScanner] Plus de tokens, arret matching (' + mi + '/' + maxMatch + ')');
+            break;
+        }
+        try {
+            var foundAsin = await keepaSearchByTitle(deal.title);
             deal.keepaSearchDone = true;
             if (foundAsin) {
                 deal.asin = foundAsin;
                 deal.matchedBySearch = true;
-                return true;
+                matchedCount++;
             }
-            return false;
-        }).catch(function() {
+        } catch (e) {
             deal.keepaSearchDone = true;
-            return false;
-        });
-    });
-
-    var results = await Promise.all(promises);
-    var matchedCount = results.filter(function(r) { return r; }).length;
+        }
+        if (keepaStatsEl) keepaStatsEl.textContent = 'Recherche Amazon: ' + (mi + 1) + '/' + maxMatch + '...';
+        // Mettre a jour le tableau en temps reel
+        renderDealResults(dealScannerResults);
+    }
 
     console.log('[DealScanner] Matching termine: ' + matchedCount + '/' + maxMatch + ' trouves');
     if (keepaStatsEl) keepaStatsEl.textContent = matchedCount > 0 ? 'Match: ' + matchedCount + ' trouves' : '';
