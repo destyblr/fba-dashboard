@@ -2676,9 +2676,9 @@ async function keepaLookup(identifier, type) {
     var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
     var url;
     if (type === 'ean') {
-        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&ean=' + identifier + '&stats=1&offers=0';
+        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&ean=' + identifier + '&stats=180';
     } else {
-        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + identifier + '&stats=1&offers=0';
+        url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + identifier + '&stats=180';
     }
 
     try {
@@ -2726,7 +2726,7 @@ async function keepaBatchLookup(asins) {
     if (!apiKey || asins.length === 0) return {};
 
     var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
-    var url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + asins.join(',') + '&stats=1&offers=0';
+    var url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + asins.join(',') + '&stats=180';
 
     var keepaStatsEl = document.getElementById('deal-stats-keepa');
 
