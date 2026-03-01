@@ -3534,24 +3534,19 @@ async function analyzeDeals(deals) {
         await Promise.all(resolvePromises);
     }
 
-    // Phase 2b : Deals Amazon toujours sans ASIN → Keepa search par titre (fallback auto)
+    // Phase 2b : Deals Amazon toujours sans ASIN → Keepa search par titre EN PARALLELE
     var stillNoAsin = deals.filter(function(d) { return d.isAmazon && !d.asin && d.title; });
     if (stillNoAsin.length > 0 && settings.keepaApiKey) {
-        console.log('[DealScanner] ' + stillNoAsin.length + ' deals Amazon sans ASIN → recherche Keepa par titre...');
-        for (var i = 0; i < stillNoAsin.length; i++) {
-            if (keepaTokensLeft < 3) break;
-            var deal = stillNoAsin[i];
-            var foundAsin = await keepaSearchByTitle(deal.title);
-            if (foundAsin) {
-                deal.asin = foundAsin;
-                console.log('[DealScanner] ASIN trouve par titre: ' + foundAsin);
-            }
-            // Throttle intelligent selon tokens restants
-            if (i < stillNoAsin.length - 1) {
-                var delay = keepaTokensLeft > 10 ? 2000 : (keepaTokensLeft > 3 ? 10000 : KEEPA_RATE_LIMIT_MS);
-                await new Promise(function(resolve) { setTimeout(resolve, delay); });
-            }
-        }
+        console.log('[DealScanner] ' + stillNoAsin.length + ' deals Amazon sans ASIN → recherche Keepa par titre (parallele)...');
+        var searchPromises = stillNoAsin.map(function(deal) {
+            return keepaSearchByTitle(deal.title).then(function(foundAsin) {
+                if (foundAsin) {
+                    deal.asin = foundAsin;
+                    console.log('[DealScanner] ASIN trouve par titre: ' + foundAsin);
+                }
+            }).catch(function() {});
+        });
+        await Promise.all(searchPromises);
     }
 
     // Phase 3 : Chercher le prix Amazon — d'abord cache/CSV, puis batch Keepa
@@ -4428,38 +4423,31 @@ async function matchNonAmazonDeals(deals) {
     // Trier par temperature decroissante (deals les plus chauds d'abord)
     toMatch.sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
-    // Limiter a 20 max pour ne pas exploser les tokens Keepa
+    // Limiter a 20 max
     var maxMatch = Math.min(toMatch.length, 20);
-    console.log('[DealScanner] Matching non-Amazon: ' + maxMatch + '/' + toMatch.length + ' deals (tokens=' + keepaTokensLeft + ')');
+    console.log('[DealScanner] Matching non-Amazon: ' + maxMatch + ' deals EN PARALLELE (tokens=' + keepaTokensLeft + ')');
 
     var keepaStatsEl = document.getElementById('deal-stats-keepa');
-    var matchedCount = 0;
+    if (keepaStatsEl) keepaStatsEl.textContent = 'Recherche Amazon: ' + maxMatch + ' deals...';
 
-    for (var i = 0; i < maxMatch; i++) {
-        // Stop si plus de tokens
-        if (keepaTokensLeft < 3) {
-            console.warn('[DealScanner] Matching stoppe: plus de tokens Keepa (' + keepaTokensLeft + ')');
-            if (keepaStatsEl) keepaStatsEl.textContent = 'Keepa: plus de tokens, ' + matchedCount + ' matches';
-            break;
-        }
+    // Lancer TOUTES les recherches en parallele
+    var promises = toMatch.slice(0, maxMatch).map(function(deal) {
+        return keepaSearchByTitle(deal.title).then(function(foundAsin) {
+            deal.keepaSearchDone = true;
+            if (foundAsin) {
+                deal.asin = foundAsin;
+                deal.matchedBySearch = true;
+                return true;
+            }
+            return false;
+        }).catch(function() {
+            deal.keepaSearchDone = true;
+            return false;
+        });
+    });
 
-        var deal = toMatch[i];
-        if (keepaStatsEl) keepaStatsEl.textContent = 'Recherche Amazon: ' + (i + 1) + '/' + maxMatch + '... (tokens=' + keepaTokensLeft + ')';
-
-        var foundAsin = await keepaSearchByTitle(deal.title);
-        if (foundAsin) {
-            deal.asin = foundAsin;
-            deal.matchedBySearch = true;
-            matchedCount++;
-        }
-        deal.keepaSearchDone = true;
-
-        // Throttle intelligent : 2s si tokens dispo, 65s si presque a sec
-        var delay = keepaTokensLeft > 10 ? 2000 : (keepaTokensLeft > 3 ? 10000 : KEEPA_RATE_LIMIT_MS);
-        if (i < maxMatch - 1) {
-            await new Promise(function(resolve) { setTimeout(resolve, delay); });
-        }
-    }
+    var results = await Promise.all(promises);
+    var matchedCount = results.filter(function(r) { return r; }).length;
 
     console.log('[DealScanner] Matching termine: ' + matchedCount + '/' + maxMatch + ' trouves');
     if (keepaStatsEl) keepaStatsEl.textContent = matchedCount > 0 ? 'Match: ' + matchedCount + ' trouves' : '';
