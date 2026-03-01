@@ -2807,26 +2807,19 @@ function parseKeepaProduct(p) {
     var fbaPickAndPack = null; // Frais AMZ reels (fulfillment)
     var referralFeePct = null; // Commission reelle (%)
 
-    // DEBUG: voir ce que Keepa renvoie vraiment
-    console.log('[DealScanner] Keepa product ' + p.asin + ' fbaFees:', JSON.stringify(p.fbaFees));
-    console.log('[DealScanner] Keepa product ' + p.asin + ' referralFeePercentage:', p.referralFeePercentage);
-    console.log('[DealScanner] Keepa product ' + p.asin + ' all fee-related keys:', Object.keys(p).filter(function(k) { return k.toLowerCase().indexOf('fee') >= 0 || k.toLowerCase().indexOf('fba') >= 0 || k.toLowerCase().indexOf('referral') >= 0 || k.toLowerCase().indexOf('commission') >= 0; }));
-
     if (p.fbaFees) {
-        console.log('[DealScanner] fbaFees keys:', Object.keys(p.fbaFees));
-        // pickAndPackFee est en centimes
         if (p.fbaFees.pickAndPackFee && p.fbaFees.pickAndPackFee > 0) {
             fbaPickAndPack = p.fbaFees.pickAndPackFee / 100;
         }
     }
-    // referralFeePercentage est un champ direct du produit (en %)
     if (p.referralFeePercentage && p.referralFeePercentage > 0) {
         referralFeePct = p.referralFeePercentage;
     }
 
-    // Poids du produit (Keepa fournit packageWeight et itemWeight en grammes)
-    var weight = p.packageWeight || p.itemWeight || 0;
-    console.log('[DealScanner] Keepa product ' + p.asin + ' weight:', weight, 'packageWeight:', p.packageWeight, 'itemWeight:', p.itemWeight, 'all weight keys:', Object.keys(p).filter(function(k) { return k.toLowerCase().indexOf('weight') >= 0 || k.toLowerCase().indexOf('dimension') >= 0 || k.toLowerCase().indexOf('size') >= 0 || k.toLowerCase().indexOf('pack') >= 0; }));
+    // Poids du produit (Keepa: packageWeight/itemWeight en grammes, -1 = inconnu)
+    var weight = 0;
+    if (p.packageWeight && p.packageWeight > 0) weight = p.packageWeight;
+    else if (p.itemWeight && p.itemWeight > 0) weight = p.itemWeight;
 
     return {
         asin: p.asin,
@@ -3190,22 +3183,37 @@ async function fetchDealsFromSource(sourceKey) {
 
     if (source.type === 'rss') {
         // Fetch via proxy CORS rss2json.com — baseUrl + mode (hot/new)
-        var rssUrl = source.baseUrl + dealRSSMode;
-        var proxyUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
-        try {
-            var resp = await fetch(proxyUrl);
-            var data = await resp.json();
-            if (data.status === 'ok' && data.items) {
-                console.log('[DealScanner] RSS ' + source.name + ': ' + data.items.length + ' items');
-                return data.items.map(function(item) { return parsePepperRSSItem(item, sourceKey); });
-            } else {
-                console.warn('[DealScanner] RSS ' + source.name + ' erreur:', data.message || 'status != ok');
+        // Essayer le mode choisi, fallback sur 'hot' si erreur
+        var modes = [dealRSSMode];
+        if (dealRSSMode !== 'hot') modes.push('hot');
+
+        for (var m = 0; m < modes.length; m++) {
+            var rssUrl = source.baseUrl + modes[m];
+            var proxyUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
+            try {
+                var resp = await fetch(proxyUrl);
+                var data = await resp.json();
+                if (data.status === 'ok' && data.items) {
+                    var modeLabel = modes[m] !== dealRSSMode ? ' (fallback ' + modes[m] + ')' : '';
+                    console.log('[DealScanner] RSS ' + source.name + modeLabel + ': ' + data.items.length + ' items');
+                    return data.items.map(function(item) { return parsePepperRSSItem(item, sourceKey); });
+                } else if (m < modes.length - 1) {
+                    console.warn('[DealScanner] RSS ' + source.name + ' /' + modes[m] + ' echec, essai /' + modes[m + 1] + '...');
+                    continue;
+                } else {
+                    console.warn('[DealScanner] RSS ' + source.name + ' erreur:', data.message || 'status != ok');
+                    return [];
+                }
+            } catch (e) {
+                if (m < modes.length - 1) {
+                    console.warn('[DealScanner] RSS ' + source.name + ' /' + modes[m] + ' erreur, essai /' + modes[m + 1] + '...');
+                    continue;
+                }
+                console.error('[DealScanner] Erreur fetch RSS ' + source.name + ':', e);
                 return [];
             }
-        } catch (e) {
-            console.error('[DealScanner] Erreur fetch RSS ' + source.name + ':', e);
-            return [];
         }
+        return [];
     } else if (source.type === 'scraper') {
         // Fetch via Netlify Function
         try {
@@ -3424,14 +3432,13 @@ async function analyzeDeals(deals) {
     var needKeepaEANs = [];  // EANs a chercher via Keepa (un par un)
 
     var dealsWithAsin = deals.filter(function(d) { return d.asin; });
-    console.log('[DealScanner] Phase 3: ' + deals.length + ' deals total, ' + dealsWithAsin.length + ' avec ASIN:', dealsWithAsin.map(function(d) { return d.asin; }));
+    console.log('[DealScanner] Phase 3: ' + deals.length + ' deals, ' + dealsWithAsin.length + ' avec ASIN');
 
     deals.forEach(function(deal, index) {
         if (deal.asin) {
             // D'abord dans le cache Keepa
             if (keepaCache[deal.asin] && (Date.now() - keepaCache[deal.asin].timestamp) < KEEPA_CACHE_TTL) {
                 var cached = keepaCache[deal.asin];
-                console.log('[DealScanner] Cache hit pour ' + deal.asin + ' → fbaPickAndPack:', cached.fbaPickAndPack, 'referralFeePct:', cached.referralFeePct);
                 deal.amazonPrice = cached.price;
                 deal.keepaData = cached;
                 if (deal.price > 0 && cached.price > 0) {
@@ -3439,7 +3446,6 @@ async function analyzeDeals(deals) {
                     deal.profit = profitResult.profit;
                     deal.roi = profitResult.roi;
                     deal.fees = profitResult.fees;
-                    console.log('[DealScanner] Profit calcule pour ' + deal.asin + ':', JSON.stringify(profitResult.fees));
                 }
                 return;
             }
