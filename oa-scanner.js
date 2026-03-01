@@ -3303,24 +3303,30 @@ async function fetchDealsFromSource(sourceKey) {
             return fetch(proxyUrl).then(function(resp) { return resp.json(); }).then(function(data) {
                 if (data.status === 'ok' && data.items) {
                     console.log('[DealScanner] RSS ' + source.name + '/' + mode + ': ' + data.items.length + ' items');
-                    return data.items.map(function(item) { return parsePepperRSSItem(item, sourceKey); });
+                    return { mode: mode, items: data.items.map(function(item) { return parsePepperRSSItem(item, sourceKey); }) };
                 }
                 console.warn('[DealScanner] RSS ' + source.name + '/' + mode + ' echec');
-                return [];
+                return { mode: mode, items: [] };
             }).catch(function(e) {
                 console.warn('[DealScanner] RSS ' + source.name + '/' + mode + ' erreur: ' + e.message);
-                return [];
+                return { mode: mode, items: [] };
             });
         });
 
         try {
             var results = await Promise.all(modePromises);
-            // Fusionner hot + new, dedupliquer par lien
+            // Fusionner hot + new, dedupliquer par lien, tagger feedType
             for (var ri = 0; ri < results.length; ri++) {
-                for (var di = 0; di < results[ri].length; di++) {
-                    var deal = results[ri][di];
-                    if (!seenLinks[deal.link]) {
+                var feedMode = results[ri].mode;
+                for (var di = 0; di < results[ri].items.length; di++) {
+                    var deal = results[ri].items[di];
+                    if (seenLinks[deal.link]) {
+                        // Deja vu dans l'autre feed → marquer comme les deux
+                        var existing = allDeals.find(function(d) { return d.link === deal.link; });
+                        if (existing) existing.feedType = 'both';
+                    } else {
                         seenLinks[deal.link] = true;
+                        deal.feedType = feedMode; // 'hot' ou 'new'
                         allDeals.push(deal);
                     }
                 }
@@ -3821,7 +3827,7 @@ function setDealFilter(mode) {
     dealFilterMode = mode;
 
     // Mettre a jour les boutons actifs
-    ['all', 'new', 'amazon', 'profitable'].forEach(function(m) {
+    ['all', 'new', 'hot', 'feed-new', 'amazon', 'profitable'].forEach(function(m) {
         var btn = document.getElementById('deal-filter-' + m);
         if (btn) {
             if (m === mode) {
@@ -3856,13 +3862,19 @@ function updateDealStats() {
     }
 
     var newCount = deals.filter(function(d) { return d.isNew; }).length;
+    var hotCount = deals.filter(function(d) { return d.feedType === 'hot' || d.feedType === 'both'; }).length;
+    var feedNewCount = deals.filter(function(d) { return d.feedType === 'new' || d.feedType === 'both'; }).length;
 
     // Mettre a jour les filtres
     var filterAll = document.getElementById('deal-filter-all');
+    var filterHot = document.getElementById('deal-filter-hot');
+    var filterFeedNew = document.getElementById('deal-filter-feed-new');
     var filterNew = document.getElementById('deal-filter-new');
     var filterAmazon = document.getElementById('deal-filter-amazon');
     var filterProfitable = document.getElementById('deal-filter-profitable');
     if (filterAll) filterAll.textContent = 'Tous (' + deals.length + ')';
+    if (filterHot) filterHot.textContent = 'Hot (' + hotCount + ')';
+    if (filterFeedNew) filterFeedNew.textContent = 'Recents (' + feedNewCount + ')';
     if (filterNew) filterNew.textContent = 'Nouveaux (' + newCount + ')';
     if (filterAmazon) filterAmazon.textContent = 'Amazon (' + amazonCount + ')';
     if (filterProfitable) filterProfitable.textContent = 'Rentables (' + profitableCount + ')';
@@ -3961,6 +3973,10 @@ function renderDealResults() {
     var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored'; }); // toujours cacher les ignores
     if (dealFilterMode === 'new') {
         filtered = filtered.filter(function(d) { return d.isNew; });
+    } else if (dealFilterMode === 'hot') {
+        filtered = filtered.filter(function(d) { return d.feedType === 'hot' || d.feedType === 'both'; });
+    } else if (dealFilterMode === 'feed-new') {
+        filtered = filtered.filter(function(d) { return d.feedType === 'new' || d.feedType === 'both'; });
     } else if (dealFilterMode === 'amazon') {
         filtered = filtered.filter(function(d) { return d.isAmazon || d.asin; });
     } else if (dealFilterMode === 'profitable') {
@@ -4125,6 +4141,12 @@ function renderDealResults() {
         if (d.isNew) historyBadge = ' <span class="bg-green-500/30 text-green-300 text-xs px-1 rounded">NEW</span>';
         else if (d.historyStatus === 'checklist') historyBadge = ' <span class="bg-indigo-500/30 text-indigo-300 text-xs px-1 rounded">CL</span>';
 
+        // Feed type badge (hot/new)
+        var feedBadge = '';
+        if (d.feedType === 'hot') feedBadge = ' <span class="bg-red-500/30 text-red-300 text-xs px-1 rounded" title="Feed Hot (populaire)">HOT</span>';
+        else if (d.feedType === 'new') feedBadge = ' <span class="bg-cyan-500/30 text-cyan-300 text-xs px-1 rounded" title="Feed New (recent)">NEW</span>';
+        else if (d.feedType === 'both') feedBadge = ' <span class="bg-yellow-500/30 text-yellow-300 text-xs px-1 rounded" title="Dans Hot et New">HOT</span>';
+
         // Matched by search badge
         var matchBadge = d.matchedBySearch ? ' <span class="bg-purple-500/30 text-purple-300 text-xs px-1 rounded" title="ASIN trouve par recherche Keepa">MATCH</span>' : '';
 
@@ -4154,7 +4176,7 @@ function renderDealResults() {
         html += '<tr id="deal-row-' + origIndex + '" class="border-b border-gray-700/50 hover:bg-gray-700/30 ' + rowBg + '">';
         html += '<td class="p-2 text-gray-400">' + (i + 1) + '</td>';
         html += '<td class="p-2">' + imgHtml + '</td>';
-        html += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + matchBadge + tempBadge + '</div></td>';
+        html += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
         html += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
         html += '<td class="p-2 text-right">' + (d.discount > 0 ? '<span class="text-green-400">-' + d.discount + '%</span>' : '<span class="text-gray-500">—</span>') + '</td>';
         html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName) + '</td>';
