@@ -24,16 +24,11 @@ let keepaQueue = [];             // ASINs en attente de lookup Keepa
 let keepaProcessing = false;     // Flag pour eviter double processing queue
 
 const DEAL_SOURCES = {
-    // Groupe A — Pepper RSS Hot (navigateur, proxy CORS)
-    dealabs:        { name: 'Dealabs Hot', country: 'FR', type: 'rss', url: 'https://www.dealabs.com/rss/hot' },
-    mydealz:        { name: 'MyDealz Hot', country: 'DE', type: 'rss', url: 'https://www.mydealz.de/rss/hot' },
-    chollometro:    { name: 'Chollometro Hot', country: 'ES', type: 'rss', url: 'https://www.chollometro.com/rss/hot' },
-    pepper_it:      { name: 'Pepper.it Hot', country: 'IT', type: 'rss', url: 'https://www.pepper.it/rss/hot' },
-    // Groupe A2 — Pepper RSS New (nouveaux deals, moins de concurrence)
-    dealabs_new:    { name: 'Dealabs New', country: 'FR', type: 'rss', url: 'https://www.dealabs.com/rss/new' },
-    mydealz_new:    { name: 'MyDealz New', country: 'DE', type: 'rss', url: 'https://www.mydealz.de/rss/new' },
-    chollometro_new:{ name: 'Chollometro New', country: 'ES', type: 'rss', url: 'https://www.chollometro.com/rss/new' },
-    pepper_it_new:  { name: 'Pepper.it New', country: 'IT', type: 'rss', url: 'https://www.pepper.it/rss/new' },
+    // Groupe A — Pepper RSS (navigateur, proxy CORS) — baseUrl + mode hot/new
+    dealabs:        { name: 'Dealabs', country: 'FR', type: 'rss', baseUrl: 'https://www.dealabs.com/rss/' },
+    mydealz:        { name: 'MyDealz', country: 'DE', type: 'rss', baseUrl: 'https://www.mydealz.de/rss/' },
+    chollometro:    { name: 'Chollometro', country: 'ES', type: 'rss', baseUrl: 'https://www.chollometro.com/rss/' },
+    pepper_it:      { name: 'Pepper.it', country: 'IT', type: 'rss', baseUrl: 'https://www.pepper.it/rss/' },
     // Groupe B — Netlify Functions (scraping retail)
     fnac:           { name: 'Fnac', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-fnac' },
     darty:          { name: 'Darty', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-darty' },
@@ -51,8 +46,14 @@ const DEAL_SOURCES = {
     amazon_warehouse_de: { name: 'Amazon Warehouse DE', country: 'DE', type: 'scraper', endpoint: '/.netlify/functions/deals-amazon-warehouse?domain=de' }
 };
 
+// Mode RSS : 'new' (defaut, moins de concurrence) ou 'hot' (populaires)
+var dealRSSMode = 'new';
+
+// Blacklist mots-cles par defaut (marques gatees + produits ingerables)
+const DEAL_BLACKLIST_DEFAULT = 'iPhone,iPad,MacBook,AirPods,Apple Watch,Apple,Samsung,Galaxy,Sony,PlayStation,PS5,PS4,Xbox,Microsoft,Surface,Nintendo,Switch,Huawei,Xiaomi,Oppo,OnePlus,LG,Dyson,Nike,Adidas,LEGO,Disney,Bose,Rolex,Canon,Nikon,GoPro,TV 4K,televiseur,television,ecran 55,ecran 65,ordinateur portable,laptop,PC portable,smartphone,lave-linge,lave-vaisselle,refrigerateur,congelateur,four,micro-ondes,climatiseur,canape,matelas,meuble,pneu,batterie voiture';
+
 const KEEPA_DOMAINS = { de: 3, fr: 4, it: 8, es: 9 };
-const KEEPA_CACHE_TTL = 24 * 60 * 60 * 1000; // 24h en ms
+const KEEPA_CACHE_TTL = 4 * 60 * 60 * 1000; // 4h en ms (prix changent souvent)
 const KEEPA_RATE_LIMIT_MS = 65000; // 65 secondes entre chaque appel
 
 // Marketplaces Amazon Europe
@@ -108,7 +109,19 @@ const OA_DEFAULTS = {
     // Capital
     capitalTotal: 755,
     maxPerProduct: 40,
-    maxUnitsFirstBuy: 2
+    maxUnitsFirstBuy: 2,
+
+    // Deal Scanner — Pre-filtres (avant Keepa)
+    dealMinPrice: 8,
+    dealMaxPrice: 100,
+    dealMinDiscount: 30,
+    dealBlacklist: DEAL_BLACKLIST_DEFAULT,
+
+    // Deal Scanner — Post-filtres (apres Keepa)
+    dealMinProfit: 3,
+    dealMinROI: 30,
+    dealMaxBSR: 100000,
+    dealMaxFBASellers: 10
 };
 
 // Paliers inbound par poids (Envoi a AMZ)
@@ -263,7 +276,16 @@ function saveOASettings() {
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy', type: 'int' },
         { id: 'oa-sourceMarket', key: 'sourceMarket', type: 'string' },
         { id: 'oa-destMarket', key: 'destMarket', type: 'string' },
-        { id: 'oa-keepaApiKey', key: 'keepaApiKey', type: 'string' }
+        { id: 'oa-keepaApiKey', key: 'keepaApiKey', type: 'string' },
+        // Deal Scanner filtres
+        { id: 'oa-dealMinPrice', key: 'dealMinPrice', type: 'float' },
+        { id: 'oa-dealMaxPrice', key: 'dealMaxPrice', type: 'float' },
+        { id: 'oa-dealMinDiscount', key: 'dealMinDiscount', type: 'int' },
+        { id: 'oa-dealBlacklist', key: 'dealBlacklist', type: 'string' },
+        { id: 'oa-dealMinProfit', key: 'dealMinProfit', type: 'float' },
+        { id: 'oa-dealMinROI', key: 'dealMinROI', type: 'int' },
+        { id: 'oa-dealMaxBSR', key: 'dealMaxBSR', type: 'int' },
+        { id: 'oa-dealMaxFBASellers', key: 'dealMaxFBASellers', type: 'int' }
     ];
 
     fields.forEach(f => {
@@ -339,7 +361,16 @@ function initOASettings() {
         { id: 'oa-maxUnitsFirstBuy', key: 'maxUnitsFirstBuy' },
         { id: 'oa-sourceMarket', key: 'sourceMarket' },
         { id: 'oa-destMarket', key: 'destMarket' },
-        { id: 'oa-keepaApiKey', key: 'keepaApiKey' }
+        { id: 'oa-keepaApiKey', key: 'keepaApiKey' },
+        // Deal Scanner filtres
+        { id: 'oa-dealMinPrice', key: 'dealMinPrice' },
+        { id: 'oa-dealMaxPrice', key: 'dealMaxPrice' },
+        { id: 'oa-dealMinDiscount', key: 'dealMinDiscount' },
+        { id: 'oa-dealBlacklist', key: 'dealBlacklist' },
+        { id: 'oa-dealMinProfit', key: 'dealMinProfit' },
+        { id: 'oa-dealMinROI', key: 'dealMinROI' },
+        { id: 'oa-dealMaxBSR', key: 'dealMaxBSR' },
+        { id: 'oa-dealMaxFBASellers', key: 'dealMaxFBASellers' }
     ];
 
     fields.forEach(f => {
@@ -2632,9 +2663,8 @@ function saveKeepaCache() {
     }
 }
 
-// --- Keepa API Lookup ---
+// --- Keepa API Lookup (single ASIN/EAN) ---
 async function keepaLookup(identifier, type) {
-    // type = 'asin' ou 'ean'
     var settings = loadOASettings();
     var apiKey = settings.keepaApiKey;
     if (!apiKey) {
@@ -2660,50 +2690,12 @@ async function keepaLookup(identifier, type) {
         }
 
         if (data.products && data.products.length > 0) {
-            var p = data.products[0];
-            var stats = p.stats || {};
-
-            // Extraire le prix actuel Amazon (csv[0] = prix Amazon, csv[1] = prix Marketplace)
-            var amazonPrice = -1;
-            var newPrice = -1;
-            if (p.csv && p.csv[0]) {
-                var csvAmazon = p.csv[0];
-                if (csvAmazon.length >= 2) {
-                    amazonPrice = csvAmazon[csvAmazon.length - 1]; // dernier prix connu
-                    if (amazonPrice > 0) amazonPrice = amazonPrice / 100; // Keepa stocke en centimes
-                }
+            var result = parseKeepaProduct(data.products[0]);
+            if (result) {
+                keepaCache[result.asin] = result;
+                saveKeepaCache();
+                console.log('[DealScanner] Keepa lookup OK: ' + result.asin + ' → ' + result.price + '€');
             }
-            if (p.csv && p.csv[1]) {
-                var csvNew = p.csv[1];
-                if (csvNew.length >= 2) {
-                    newPrice = csvNew[csvNew.length - 1];
-                    if (newPrice > 0) newPrice = newPrice / 100;
-                }
-            }
-
-            // Prendre le meilleur prix disponible (Amazon ou marketplace new)
-            var bestPrice = -1;
-            if (amazonPrice > 0) bestPrice = amazonPrice;
-            else if (newPrice > 0) bestPrice = newPrice;
-
-            var result = {
-                asin: p.asin,
-                title: p.title,
-                price: bestPrice,
-                amazonPrice: amazonPrice > 0 ? amazonPrice : null,
-                marketplacePrice: newPrice > 0 ? newPrice : null,
-                bsr: (stats.current && stats.current[3] >= 0) ? stats.current[3] : (p.salesRankReference || 0),
-                fbaSellers: (p.fbaOfferCount && p.fbaOfferCount.length > 0) ? p.fbaOfferCount[p.fbaOfferCount.length - 1] : 0,
-                category: p.categoryTree ? p.categoryTree.map(function(c) { return c.name; }).join(' > ') : '',
-                imageUrl: p.imagesCSV ? ('https://images-na.ssl-images-amazon.com/images/I/' + p.imagesCSV.split(',')[0]) : '',
-                timestamp: Date.now()
-            };
-
-            // Sauvegarder dans le cache
-            keepaCache[p.asin] = result;
-            saveKeepaCache();
-
-            console.log('[DealScanner] Keepa lookup OK: ' + p.asin + ' → ' + bestPrice + '€');
             return result;
         }
 
@@ -2712,6 +2704,83 @@ async function keepaLookup(identifier, type) {
         console.error('[DealScanner] Keepa API fetch erreur:', e);
         return null;
     }
+}
+
+// --- Keepa Batch Lookup (plusieurs ASINs en 1 appel) ---
+async function keepaBatchLookup(asins) {
+    var settings = loadOASettings();
+    var apiKey = settings.keepaApiKey;
+    if (!apiKey || asins.length === 0) return {};
+
+    var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
+    var url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + asins.join(',') + '&stats=1&offers=0';
+
+    try {
+        var resp = await fetch(url);
+        var data = await resp.json();
+
+        if (data.error) {
+            console.warn('[DealScanner] Keepa batch erreur:', data.error);
+            return {};
+        }
+
+        var results = {};
+        if (data.products && data.products.length > 0) {
+            data.products.forEach(function(p) {
+                var result = parseKeepaProduct(p);
+                if (result) {
+                    results[p.asin] = result;
+                    keepaCache[p.asin] = result;
+                }
+            });
+            saveKeepaCache();
+            console.log('[DealScanner] Keepa batch OK: ' + Object.keys(results).length + '/' + asins.length + ' produits trouves');
+        }
+
+        return results;
+    } catch (e) {
+        console.error('[DealScanner] Keepa batch erreur:', e);
+        return {};
+    }
+}
+
+// --- Parser un produit Keepa (utilise par lookup et batch) ---
+function parseKeepaProduct(p) {
+    var stats = p.stats || {};
+
+    var amazonPrice = -1;
+    var newPrice = -1;
+    if (p.csv && p.csv[0]) {
+        var csvAmazon = p.csv[0];
+        if (csvAmazon.length >= 2) {
+            amazonPrice = csvAmazon[csvAmazon.length - 1];
+            if (amazonPrice > 0) amazonPrice = amazonPrice / 100;
+        }
+    }
+    if (p.csv && p.csv[1]) {
+        var csvNew = p.csv[1];
+        if (csvNew.length >= 2) {
+            newPrice = csvNew[csvNew.length - 1];
+            if (newPrice > 0) newPrice = newPrice / 100;
+        }
+    }
+
+    var bestPrice = -1;
+    if (amazonPrice > 0) bestPrice = amazonPrice;
+    else if (newPrice > 0) bestPrice = newPrice;
+
+    return {
+        asin: p.asin,
+        title: p.title,
+        price: bestPrice,
+        amazonPrice: amazonPrice > 0 ? amazonPrice : null,
+        marketplacePrice: newPrice > 0 ? newPrice : null,
+        bsr: (stats.current && stats.current[3] >= 0) ? stats.current[3] : (p.salesRankReference || 0),
+        fbaSellers: (p.fbaOfferCount && p.fbaOfferCount.length > 0) ? p.fbaOfferCount[p.fbaOfferCount.length - 1] : 0,
+        category: p.categoryTree ? p.categoryTree.map(function(c) { return c.name; }).join(' > ') : '',
+        imageUrl: p.imagesCSV ? ('https://images-na.ssl-images-amazon.com/images/I/' + p.imagesCSV.split(',')[0]) : '',
+        timestamp: Date.now()
+    };
 }
 
 // --- Recherche Keepa par titre (pour trouver l'ASIN automatiquement) ---
@@ -3036,8 +3105,9 @@ async function fetchDealsFromSource(sourceKey) {
     }
 
     if (source.type === 'rss') {
-        // Fetch via proxy CORS rss2json.com
-        var proxyUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(source.url);
+        // Fetch via proxy CORS rss2json.com — baseUrl + mode (hot/new)
+        var rssUrl = source.baseUrl + dealRSSMode;
+        var proxyUrl = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(rssUrl);
         try {
             var resp = await fetch(proxyUrl);
             var data = await resp.json();
@@ -3106,11 +3176,16 @@ async function fetchDeals() {
         allDeals = await fetchDealsFromSource(sourceKey);
     }
 
-    dealScannerResults = allDeals;
-    console.log('[DealScanner] Total deals: ' + allDeals.length);
+    console.log('[DealScanner] Total deals bruts: ' + allDeals.length);
+
+    // Pre-filtrage (blacklist, prix, reduction)
+    var filtered = preFilterDeals(allDeals);
+    console.log('[DealScanner] Apres pre-filtres: ' + filtered.length + ' deals (exclus: ' + (allDeals.length - filtered.length) + ')');
+
+    dealScannerResults = filtered;
 
     // Analyser les deals (detection Amazon, lookup prix)
-    await analyzeDeals(allDeals);
+    await analyzeDeals(filtered);
 
     // Afficher les resultats
     renderDealResults();
@@ -3120,6 +3195,37 @@ async function fetchDeals() {
         fetchBtn.disabled = false;
         fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger les deals';
     }
+}
+
+// --- Pre-filtrage des deals (avant Keepa) ---
+function preFilterDeals(deals) {
+    var settings = loadOASettings();
+    var minPrice = settings.dealMinPrice || 0;
+    var maxPrice = settings.dealMaxPrice || 9999;
+    var minDiscount = settings.dealMinDiscount || 0;
+
+    // Parser la blacklist en mots-cles (insensible a la casse)
+    var blacklistStr = (settings.dealBlacklist || '').toLowerCase();
+    var blacklistWords = blacklistStr.split(',').map(function(w) { return w.trim(); }).filter(function(w) { return w.length > 0; });
+
+    return deals.filter(function(deal) {
+        // Filtre prix
+        if (deal.price > 0 && deal.price < minPrice) return false;
+        if (deal.price > 0 && deal.price > maxPrice) return false;
+
+        // Filtre reduction minimum
+        if (minDiscount > 0 && deal.discount < minDiscount) return false;
+
+        // Filtre blacklist mots-cles
+        if (blacklistWords.length > 0) {
+            var text = (deal.title + ' ' + deal.merchant + ' ' + deal.category).toLowerCase();
+            for (var i = 0; i < blacklistWords.length; i++) {
+                if (text.includes(blacklistWords[i])) return false;
+            }
+        }
+
+        return true;
+    });
 }
 
 // --- Analyser les deals ---
@@ -3181,7 +3287,10 @@ async function analyzeDeals(deals) {
         }
     }
 
-    // Phase 3 : Chercher le prix Amazon pour tous les deals avec ASIN
+    // Phase 3 : Chercher le prix Amazon — d'abord cache/CSV, puis batch Keepa
+    var needKeepaASINs = []; // ASINs a chercher via Keepa batch
+    var needKeepaEANs = [];  // EANs a chercher via Keepa (un par un)
+
     deals.forEach(function(deal, index) {
         if (deal.asin) {
             // D'abord dans le cache Keepa
@@ -3211,21 +3320,83 @@ async function analyzeDeals(deals) {
                 return;
             }
 
-            // Sinon → queue Keepa API
+            // Sinon → ajouter au batch Keepa
             if (settings.keepaApiKey) {
-                keepaQueue.push({ identifier: deal.asin, type: 'asin', dealIndex: index });
+                needKeepaASINs.push({ asin: deal.asin, dealIndex: index });
             }
         } else if (deal.ean && settings.keepaApiKey) {
-            // Deals non-Amazon avec EAN → chercher par EAN
-            keepaQueue.push({ identifier: deal.ean, type: 'ean', dealIndex: index });
+            needKeepaEANs.push({ ean: deal.ean, dealIndex: index });
         }
     });
 
-    // Lancer la queue Keepa en arriere-plan (ne pas attendre)
-    if (keepaQueue.length > 0) {
-        console.log('[DealScanner] ' + keepaQueue.length + ' ASINs/EANs en queue Keepa');
-        processKeepaQueue(); // async, tourne en arriere-plan
+    // Phase 4 : Batch Keepa API (tous les ASINs en 1 seul appel)
+    if (needKeepaASINs.length > 0 && settings.keepaApiKey) {
+        var asinsToLookup = needKeepaASINs.map(function(item) { return item.asin; });
+        console.log('[DealScanner] Batch Keepa: ' + asinsToLookup.length + ' ASINs en 1 appel');
+
+        var keepaStatsEl = document.getElementById('deal-stats-keepa');
+        if (keepaStatsEl) keepaStatsEl.textContent = 'Keepa: lookup ' + asinsToLookup.length + ' ASINs...';
+
+        var batchResults = await keepaBatchLookup(asinsToLookup);
+
+        // Appliquer les resultats aux deals
+        needKeepaASINs.forEach(function(item) {
+            var result = batchResults[item.asin];
+            if (result && item.dealIndex < deals.length) {
+                var deal = deals[item.dealIndex];
+                deal.amazonPrice = result.price;
+                deal.keepaData = result;
+                if (deal.price > 0 && result.price > 0) {
+                    var profitResult = calculateDealProfit(deal, result);
+                    deal.profit = profitResult.profit;
+                    deal.roi = profitResult.roi;
+                    deal.fees = profitResult.fees;
+                }
+            }
+        });
+
+        if (keepaStatsEl) keepaStatsEl.textContent = '';
     }
+
+    // Phase 5 : EANs individuels (ne supportent pas le batch)
+    if (needKeepaEANs.length > 0 && settings.keepaApiKey) {
+        keepaQueue = needKeepaEANs.map(function(item) {
+            return { identifier: item.ean, type: 'ean', dealIndex: item.dealIndex };
+        });
+        processKeepaQueue();
+    }
+
+    // Appliquer les filtres post-Keepa
+    applyPostKeepaFilters(deals);
+}
+
+// --- Filtres post-Keepa (exclure deals non rentables) ---
+function applyPostKeepaFilters(deals) {
+    var settings = loadOASettings();
+    var minProfit = settings.dealMinProfit || 0;
+    var minROI = settings.dealMinROI || 0;
+    var maxBSR = settings.dealMaxBSR || 0;
+    var maxFBASellers = settings.dealMaxFBASellers || 0;
+
+    deals.forEach(function(deal) {
+        if (!deal.keepaData) return; // pas encore de donnees Keepa
+
+        // Marquer comme exclu si ne passe pas les filtres
+        deal.excludedPostKeepa = false;
+
+        if (minProfit > 0 && deal.profit !== null && deal.profit < minProfit) {
+            deal.excludedPostKeepa = true;
+        }
+        if (minROI > 0 && deal.roi !== null && deal.roi < minROI) {
+            deal.excludedPostKeepa = true;
+        }
+        if (maxBSR > 0 && deal.keepaData.bsr > 0 && deal.keepaData.bsr > maxBSR) {
+            deal.excludedPostKeepa = true;
+        }
+        if (maxFBASellers > 0 && deal.keepaData.fbaSellers > maxFBASellers) {
+            deal.excludedPostKeepa = true;
+        }
+    });
 }
 
 // --- Resoudre un ASIN depuis une page Pepper (Dealabs/MyDealz) ---
@@ -3253,7 +3424,31 @@ async function resolveASINFromPepper(dealUrl) {
 
 // --- Callback quand la source change ---
 function onDealSourceChange() {
-    // Rien de special pour l'instant, l'utilisateur doit cliquer "Charger"
+    // Afficher/masquer le toggle Hot/New selon que la source est RSS ou scraper
+    var sourceSelect = document.getElementById('deal-source-select');
+    var toggle = document.getElementById('deal-rss-mode-toggle');
+    if (!sourceSelect || !toggle) return;
+
+    var sourceKey = sourceSelect.value;
+    var source = DEAL_SOURCES[sourceKey];
+    var isRSS = (source && source.type === 'rss') || sourceKey === 'all_rss' || sourceKey === 'all';
+    toggle.style.display = isRSS ? '' : 'none';
+}
+
+// --- Toggle Hot/New ---
+function setDealRSSMode(mode) {
+    dealRSSMode = mode;
+    var btnNew = document.getElementById('deal-mode-new');
+    var btnHot = document.getElementById('deal-mode-hot');
+    if (btnNew && btnHot) {
+        if (mode === 'new') {
+            btnNew.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-orange-500 text-white transition';
+            btnHot.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-white text-gray-600 hover:bg-gray-50 transition';
+        } else {
+            btnHot.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-orange-500 text-white transition';
+            btnNew.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-white text-gray-600 hover:bg-gray-50 transition';
+        }
+    }
 }
 
 // --- Filtres ---
@@ -3347,11 +3542,11 @@ function renderDealResults() {
     var selectedCategory = categoryFilter ? categoryFilter.value : '';
 
     // Appliquer les filtres
-    var filtered = deals;
+    var filtered = deals.filter(function(d) { return !d.excludedPostKeepa; }); // exclure les deals post-Keepa
     if (dealFilterMode === 'amazon') {
-        filtered = deals.filter(function(d) { return d.isAmazon; });
+        filtered = filtered.filter(function(d) { return d.isAmazon; });
     } else if (dealFilterMode === 'profitable') {
-        filtered = deals.filter(function(d) { return d.profit !== null && d.profit > 0; });
+        filtered = filtered.filter(function(d) { return d.profit !== null && d.profit > 0; });
     }
 
     if (selectedCategory) {
