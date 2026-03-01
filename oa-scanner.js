@@ -2854,73 +2854,110 @@ function parseKeepaProduct(p) {
 }
 
 // --- Extraire marque + modele d'un titre (pour recherche Keepa) ---
-function extractBrandModel(title) {
-    if (!title) return '';
-    var cleaned = title
+// Genere plusieurs variantes de recherche a partir d'un titre de deal
+function buildSearchTerms(title) {
+    if (!title) return [];
+    var terms = [];
+
+    // Nettoyage de base (commun a toutes les variantes)
+    var base = title
         .replace(/\s*\d+°\s*/, '')           // enlever temperature Pepper
-        .replace(/\([^)]*\)/g, '')            // enlever parentheses
-        .replace(/\[[^\]]*\]/g, '')           // enlever crochets
-        .replace(/[-–—|:]/g, ' ')             // remplacer separateurs par espaces
-        // Enlever les mots generiques FR (non utiles pour la recherche Amazon)
-        .replace(/\b(casque|ecouteur|enceinte|montre|aspirateur|robot|tablette|smartphone|telephone|portable|souris|clavier|imprimante|disque dur|carte memoire|batterie|chargeur|cable|adaptateur|housse|coque|etui|protection|support|sans fil|bluetooth|filaire|avec|pour|noir|blanc|rouge|bleu|vert|gris|argent|or|rose|edition|version|pack|lot|kit|set|paire|neuf|occasion|reconditionne|promo|offre|bon plan|livraison gratuite|en stock|disponible)\b/gi, ' ')
+        .replace(/\([^)]*\)/g, ' ')           // enlever parentheses
+        .replace(/\[[^\]]*\]/g, ' ')          // enlever crochets
+        .replace(/[-–—|]/g, ' ')              // remplacer separateurs
+        .replace(/[€$£%]/g, '')               // enlever symboles monnaie
+        .replace(/\d+[,.]?\d*\s*€/g, '')      // enlever prix
         .replace(/\s+/g, ' ')
         .trim();
 
-    // Garder max 5-6 mots (marque + modele + variante)
-    var words = cleaned.split(' ').filter(function(w) { return w.length > 1; });
-    return words.slice(0, 6).join(' ');
+    // Variante 1 : titre presque complet (enlever juste le bruit promo)
+    var v1 = base
+        .replace(/\b(promo|offre|bon plan|deal|livraison gratuite|en stock|disponible|gratuit|soldes?|destockage|vente flash|code promo|reduction|remise)\b/gi, ' ')
+        .replace(/\s+/g, ' ').trim();
+    var v1words = v1.split(' ').filter(function(w) { return w.length > 1; });
+    if (v1words.length > 10) v1words = v1words.slice(0, 10);
+    if (v1words.length >= 2) terms.push(v1words.join(' '));
+
+    // Variante 2 : mots-cles produit (enlever couleurs, adjectifs, connectique)
+    var v2 = base
+        .replace(/\b(promo|offre|bon plan|deal|livraison gratuite|en stock|disponible|gratuit|soldes?|destockage|vente flash|code promo|reduction|remise)\b/gi, ' ')
+        .replace(/\b(noir|noire|blanc|blanche|rouge|bleu|bleue|vert|verte|gris|grise|argent|or|rose|beige|violet|orange|jaune)\b/gi, ' ')
+        .replace(/\b(avec|pour|sans|fil|filaire|edition|version|pack|lot|kit|set|paire|neuf|occasion|reconditionne|compatible|inclus|fourni)\b/gi, ' ')
+        .replace(/\s+/g, ' ').trim();
+    var v2words = v2.split(' ').filter(function(w) { return w.length > 1; });
+    if (v2words.length > 7) v2words = v2words.slice(0, 7);
+    if (v2words.length >= 2) terms.push(v2words.join(' '));
+
+    // Variante 3 : marque + modele seulement (tres court, 4 mots max)
+    var v3 = v2
+        .replace(/\b(casque|ecouteur|ecouteurs|enceinte|montre|aspirateur|robot|tablette|smartphone|telephone|portable|souris|clavier|imprimante|batterie|chargeur|cable|adaptateur|housse|coque|etui|protection|support|connecte|intelligente?|numerique|lecteur|camera|webcam|micro|haut parleur)\b/gi, ' ')
+        .replace(/\s+/g, ' ').trim();
+    var v3words = v3.split(' ').filter(function(w) { return w.length > 1; });
+    if (v3words.length > 4) v3words = v3words.slice(0, 4);
+    if (v3words.length >= 2 && v3words.join(' ') !== (terms[terms.length - 1] || '')) {
+        terms.push(v3words.join(' '));
+    }
+
+    // Dedupliquer
+    var seen = {};
+    return terms.filter(function(t) {
+        var key = t.toLowerCase();
+        if (seen[key]) return false;
+        seen[key] = true;
+        return true;
+    });
 }
 
 // Tokens Keepa restants (mis a jour apres chaque appel)
 var keepaTokensLeft = 60;
 
-// --- Recherche Keepa par titre (pour trouver l'ASIN automatiquement) ---
+// --- Recherche Keepa par titre — multi-variantes × multi-domaines ---
 async function keepaSearchByTitle(title) {
     var settings = loadOASettings();
     var apiKey = settings.keepaApiKey;
     if (!apiKey || !title) return null;
 
-    // Extraire marque + modele (pas le titre complet en francais)
-    var searchTerm = extractBrandModel(title);
-    if (searchTerm.length < 3) return null;
+    var searchTerms = buildSearchTerms(title);
+    if (searchTerms.length === 0) return null;
 
-    // Essayer d'abord sur le marche de vente, puis fallback sur d'autres domaines
-    var domains = [KEEPA_DOMAINS[dealSellMarket] || 3];
-    // Ajouter FR si pas deja dedans (les deals Dealabs sont souvent des produits FR)
-    if (domains[0] !== 4) domains.push(4);
+    // Domaines a essayer : marketplace de vente + FR (si different) + DE (si different)
+    var primaryDomain = KEEPA_DOMAINS[dealSellMarket] || 3;
+    var domains = [primaryDomain];
+    if (primaryDomain !== 4) domains.push(4); // FR
+    if (primaryDomain !== 3) domains.push(3); // DE
 
-    for (var di = 0; di < domains.length; di++) {
-        var domain = domains[di];
-        var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(searchTerm);
+    console.log('[DealScanner] Recherche: ' + searchTerms.length + ' variantes × ' + domains.length + ' domaines pour "' + title.substring(0, 40) + '..."');
 
-        try {
-            var resp = await fetch(url);
-            var data = await resp.json();
+    // Pour chaque variante, essayer tous les domaines en parallele
+    for (var ti = 0; ti < searchTerms.length; ti++) {
+        var term = searchTerms[ti];
 
-            // Mettre a jour les tokens restants
-            if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
-
-            if (data.error) {
-                console.warn('[DealScanner] Keepa search erreur:', data.error);
-                if (di < domains.length - 1) continue;
+        // Lancer les recherches sur tous les domaines en parallele
+        var domainPromises = domains.map(function(domain) {
+            var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term);
+            return fetch(url).then(function(resp) { return resp.json(); }).then(function(data) {
+                if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
+                if (data.asinList && data.asinList.length > 0) {
+                    return { asin: data.asinList[0], domain: domain, term: term };
+                }
                 return null;
-            }
+            }).catch(function() { return null; });
+        });
 
-            // data.asinList contient les ASINs trouves
-            if (data.asinList && data.asinList.length > 0) {
-                var asin = data.asinList[0]; // Premier resultat = plus pertinent
-                console.log('[DealScanner] Keepa search "' + searchTerm.substring(0, 30) + '..." domain=' + domain + ' → ASIN: ' + asin + ' (tokens=' + keepaTokensLeft + ')');
-                return asin;
-            }
+        var results = await Promise.all(domainPromises);
 
-            console.log('[DealScanner] Keepa search domain=' + domain + ': aucun resultat pour "' + searchTerm.substring(0, 30) + '..."');
-            // Essayer le domaine suivant
-        } catch (e) {
-            console.error('[DealScanner] Keepa search erreur:', e);
-            if (di < domains.length - 1) continue;
-            return null;
+        // Prendre le premier resultat trouve
+        for (var ri = 0; ri < results.length; ri++) {
+            if (results[ri]) {
+                console.log('[DealScanner] TROUVE: "' + results[ri].term.substring(0, 30) + '" domain=' + results[ri].domain + ' → ' + results[ri].asin + ' (tokens=' + keepaTokensLeft + ')');
+                return results[ri].asin;
+            }
         }
+
+        console.log('[DealScanner] Variante ' + (ti + 1) + '/' + searchTerms.length + ' "' + term.substring(0, 30) + '..." → aucun resultat');
     }
+
+    console.log('[DealScanner] Aucun ASIN trouve pour "' + title.substring(0, 40) + '"');
     return null;
 }
 
