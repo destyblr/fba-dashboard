@@ -3430,6 +3430,7 @@ async function fetchDeals(isAutoRefresh) {
 
     // Premier rendu (avant analyse Keepa) pour montrer les deals immediatement
     renderDealResults();
+    updateLastRefreshTime();
 
     // Analyser les deals (detection Amazon, lookup prix)
     try {
@@ -4625,6 +4626,25 @@ function calculateBestMarketplace(deal, multiData) {
 // FEATURE 4 — AUTO-REFRESH + NOTIFICATIONS
 // ===========================
 
+function updateLastRefreshTime() {
+    var now = new Date();
+    var h = String(now.getHours()).padStart(2, '0');
+    var m = String(now.getMinutes()).padStart(2, '0');
+    var timeStr = h + ':' + m;
+    var el = document.getElementById('deal-last-refresh');
+    if (!el) {
+        // Creer l'element a cote du bouton Auto
+        var autoBtn = document.getElementById('deal-auto-refresh-btn');
+        if (autoBtn) {
+            el = document.createElement('span');
+            el.id = 'deal-last-refresh';
+            el.className = 'text-xs text-gray-400 ml-2';
+            autoBtn.parentNode.insertBefore(el, autoBtn.nextSibling);
+        }
+    }
+    if (el) el.textContent = 'MAJ ' + timeStr;
+}
+
 function toggleAutoRefresh() {
     dealAutoRefreshEnabled = !dealAutoRefreshEnabled;
     var btn = document.getElementById('deal-auto-refresh-btn');
@@ -4641,6 +4661,7 @@ function toggleAutoRefresh() {
         dealAutoRefreshTimer = setInterval(function() {
             console.log('[DealScanner] Auto-refresh...');
             fetchDeals(true); // true = isAutoRefresh
+            updateLastRefreshTime();
         }, intervalMin * 60 * 1000);
 
         if (btn) {
