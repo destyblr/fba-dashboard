@@ -2952,10 +2952,16 @@ function calculateDealProfit(deal, amazonData) {
     return {
         profit: Math.round(profit * 100) / 100,
         roi: Math.round(roi * 100) / 100,
-        fees: Math.round(totalFees * 100) / 100,
-        commission: Math.round(commission * 100) / 100,
-        fbaFee: Math.round(fbaFee * 100) / 100,
-        urssaf: Math.round(urssaf * 100) / 100
+        fees: {
+            total: Math.round(totalFees * 100) / 100,
+            commission: Math.round(commission * 100) / 100,
+            commPct: commPct,
+            fbaFee: Math.round(fbaFee * 100) / 100,
+            inbound: Math.round(inbound * 100) / 100,
+            prep: Math.round(prep * 100) / 100,
+            urssaf: Math.round(urssaf * 100) / 100,
+            urssafPct: settings.urssafPct
+        }
     };
 }
 
@@ -3625,6 +3631,16 @@ function updateDealRow(index, deal) {
         }
     }
 
+    // Mettre a jour la cellule Ecart
+    var spreadCell = row.querySelector('.deal-spread');
+    if (spreadCell) {
+        if (deal.price > 0 && deal.amazonPrice && deal.amazonPrice > 0) {
+            var spread = deal.amazonPrice - deal.price;
+            var spreadClass = spread > 0 ? 'text-cyan-400' : 'text-red-400';
+            spreadCell.innerHTML = '<span class="' + spreadClass + '">' + (spread > 0 ? '+' : '') + spread.toFixed(2) + '€</span>';
+        }
+    }
+
     // Mettre a jour les cellules profit/ROI
     var profitCell = row.querySelector('.deal-profit');
     var roiCell = row.querySelector('.deal-roi');
@@ -3735,6 +3751,7 @@ function renderDealResults() {
     html += '<th class="text-left p-2">Source</th>';
     html += '<th class="text-center p-2">ASIN</th>';
     html += '<th class="text-right p-2">Amazon</th>';
+    html += '<th class="text-right p-2">Ecart</th>';
     html += '<th class="text-right p-2">Profit</th>';
     html += '<th class="text-right p-2">ROI</th>';
     html += '<th class="text-center p-2">Actions</th>';
@@ -3750,11 +3767,40 @@ function renderDealResults() {
         if (d.profit !== null && d.profit > 0) rowBg = 'bg-green-900/20';
         else if (d.profit !== null && d.profit < 0) rowBg = 'bg-red-900/10';
 
+        // Ecart de prix (marge brute avant frais)
+        var spreadHtml = '';
+        if (d.price > 0 && d.amazonPrice && d.amazonPrice > 0) {
+            var spread = d.amazonPrice - d.price;
+            var spreadClass = spread > 0 ? 'text-cyan-400' : 'text-red-400';
+            spreadHtml = '<span class="' + spreadClass + '">' + (spread > 0 ? '+' : '') + spread.toFixed(2) + '€</span>';
+        } else {
+            spreadHtml = '<span class="text-gray-500">—</span>';
+        }
+
+        // Profit + tooltip detaille
         var profitHtml = '';
         var roiHtml = '';
         if (d.profit !== null && d.profit !== undefined) {
             var profitClass = d.profit > 0 ? 'text-green-400 font-bold' : 'text-red-400';
-            profitHtml = '<span class="' + profitClass + '">' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€</span>';
+            // Construire le tooltip avec le detail des frais
+            var tooltipLines = [];
+            tooltipLines.push('ACHAT: ' + d.price.toFixed(2) + '€');
+            if (d.amazonPrice && d.amazonPrice > 0) tooltipLines.push('VENTE: ' + d.amazonPrice.toFixed(2) + '€');
+            if (d.price > 0 && d.amazonPrice > 0) tooltipLines.push('Ecart brut: ' + (d.amazonPrice > d.price ? '+' : '') + (d.amazonPrice - d.price).toFixed(2) + '€');
+            tooltipLines.push('---');
+            if (d.fees && typeof d.fees === 'object') {
+                tooltipLines.push('Commission (' + (d.fees.commPct || 15) + '%): -' + (d.fees.commission || 0).toFixed(2) + '€');
+                tooltipLines.push('FBA fee: -' + (d.fees.fbaFee || 0).toFixed(2) + '€');
+                tooltipLines.push('Inbound: -' + (d.fees.inbound || 0).toFixed(2) + '€');
+                tooltipLines.push('Prep: -' + (d.fees.prep || 0).toFixed(2) + '€');
+                tooltipLines.push('URSSAF (' + (d.fees.urssafPct || 12.3) + '%): -' + (d.fees.urssaf || 0).toFixed(2) + '€');
+                tooltipLines.push('Total frais: -' + ((d.fees.total || 0) + (d.fees.urssaf || 0)).toFixed(2) + '€');
+            }
+            tooltipLines.push('---');
+            tooltipLines.push('PROFIT NET: ' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€');
+            tooltipLines.push('ROI: ' + d.roi.toFixed(0) + '%');
+            var tooltip = tooltipLines.join('\n');
+            profitHtml = '<span class="' + profitClass + ' cursor-help deal-profit-cell" data-deal-index="' + origIndex + '" title="' + escapeHTML(tooltip) + '">' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€</span>';
             var roiClass = d.roi > 0 ? 'text-green-400' : 'text-red-400';
             roiHtml = '<span class="' + roiClass + '">' + d.roi.toFixed(0) + '%</span>';
         } else if (d.asin && !d.keepaChecked && !d.keepaData) {
@@ -3814,6 +3860,7 @@ function renderDealResults() {
         html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName) + '</td>';
         html += '<td class="p-2 text-center deal-asin">' + asinHtml + '</td>';
         html += '<td class="p-2 text-right deal-amazon-price">' + amazonPriceHtml + '</td>';
+        html += '<td class="p-2 text-right deal-spread">' + spreadHtml + '</td>';
         html += '<td class="p-2 text-right deal-profit">' + profitHtml + '</td>';
         html += '<td class="p-2 text-right deal-roi">' + roiHtml + '</td>';
         html += '<td class="p-2 text-center deal-actions">' + actionsHtml + '</td>';
