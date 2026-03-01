@@ -3086,10 +3086,13 @@
                                 <option value="es">&#127466;&#127480; Amazon.es</option>
                             </select>
                         </div>
-                        <!-- Bouton refresh -->
-                        <div>
+                        <!-- Boutons refresh -->
+                        <div class="flex gap-2">
                             <button onclick="fetchDeals()" id="deal-fetch-btn" class="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold transition">
                                 <i class="fas fa-sync-alt mr-2"></i>Charger
+                            </button>
+                            <button onclick="toggleAutoRefresh()" id="deal-auto-refresh-btn" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg text-sm font-semibold transition">
+                                <i class="fas fa-sync-alt mr-2"></i>Auto
                             </button>
                         </div>
                     </div>
@@ -3107,6 +3110,7 @@
                 <!-- Filtres -->
                 <div class="flex flex-wrap items-center gap-3 mb-4">
                     <button onclick="setDealFilter('all')" id="deal-filter-all" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Tous (0)</button>
+                    <button onclick="setDealFilter('new')" id="deal-filter-new" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Nouveaux (0)</button>
                     <button onclick="setDealFilter('amazon')" id="deal-filter-amazon" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Amazon (0)</button>
                     <button onclick="setDealFilter('profitable')" id="deal-filter-profitable" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Rentables (0)</button>
                     <!-- Categorie filter -->
@@ -3778,6 +3782,63 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Notifications Deal Scanner -->
+                    <div class="col-span-1 md:col-span-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                        <h3 class="font-bold text-gray-800 mb-4"><i class="fas fa-bell text-blue-500 mr-2"></i>Notifications Deal Scanner</h3>
+                        <p class="text-xs text-gray-500 mb-4">Recois une alerte quand un deal rentable est detecte (auto-refresh actif).</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- Telegram -->
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fab fa-telegram text-blue-400 mr-1"></i>Telegram</h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Bot Token</label>
+                                        <input type="password" id="oa-telegramBotToken" placeholder="123456:ABC..." class="w-full px-3 py-2 border-2 border-blue-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Chat ID</label>
+                                        <input type="text" id="oa-telegramChatId" placeholder="123456789" class="w-full px-3 py-2 border-2 border-blue-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- EmailJS -->
+                            <div>
+                                <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-envelope text-green-500 mr-1"></i>EmailJS (optionnel)</h4>
+                                <div class="space-y-3">
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Service ID</label>
+                                        <input type="text" id="oa-emailjsServiceId" placeholder="service_xxx" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Template ID</label>
+                                        <input type="text" id="oa-emailjsTemplateId" placeholder="template_xxx" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
+                                    </div>
+                                    <div>
+                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Public Key</label>
+                                        <input type="text" id="oa-emailjsPublicKey" placeholder="user_xxx" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Auto-refresh settings -->
+                        <div class="mt-4 pt-4 border-t border-blue-200">
+                            <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-clock text-amber-500 mr-1"></i>Auto-refresh</h4>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="text-xs font-medium text-gray-600 mb-1 block">Intervalle (min)</label>
+                                    <input type="number" id="oa-dealAutoRefreshMin" step="1" min="5" class="w-full px-3 py-2 border-2 border-blue-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
+                                </div>
+                                <div>
+                                    <label class="text-xs font-medium text-gray-600 mb-1 block">Profit min pour alerte (&euro;)</label>
+                                    <input type="number" id="oa-dealNotifyMinProfit" step="1" class="w-full px-3 py-2 border-2 border-blue-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </section>
 
@@ -3785,9 +3846,12 @@
     </div>
     </div> <!-- Fin app-container -->
 
+    <!-- EmailJS (optionnel, pour notifications email) -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
     <!-- Scripts JavaScript -->
     <script src="app.js"></script>
-    <script src="oa-scanner.js?v=20260301d"></script>
+    <script src="oa-scanner.js?v=20260301e"></script>
     <script src="google-sync.js"></script>
 
 </body>
