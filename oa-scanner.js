@@ -3063,18 +3063,46 @@ async function analyzeDeals(deals) {
     var settings = loadOASettings();
     keepaQueue = [];
 
+    // Phase 1 : Detection Amazon + extraction ASIN directe
+    var needResolve = []; // deals Amazon sans ASIN (besoin de resolve-pepper)
+
     deals.forEach(function(deal, index) {
         // 1. Detecter deals Amazon
         if (!deal.isAmazon) {
             deal.isAmazon = isAmazonDeal(deal);
         }
 
-        // 2. Extraire ASIN si Amazon
+        // 2. Extraire ASIN si Amazon (depuis URL et texte)
         if (deal.isAmazon && !deal.asin) {
-            deal.asin = extractASINFromURL(deal.link) || extractASINFromText(deal.title);
+            deal.asin = extractASINFromURL(deal.link) || extractASINFromText(deal.title) || extractASINFromText(deal.link);
         }
 
-        // 3. Chercher le prix Amazon
+        // 3. Si Amazon detecte mais toujours pas d'ASIN → resolve via Netlify Function
+        if (deal.isAmazon && !deal.asin && deal.link) {
+            needResolve.push({ deal: deal, index: index });
+        }
+    });
+
+    // Phase 2 : Resoudre les ASINs manquants via resolve-pepper (en parallele)
+    if (needResolve.length > 0) {
+        console.log('[DealScanner] ' + needResolve.length + ' deals Amazon sans ASIN → resolution...');
+        var resolvePromises = needResolve.map(function(item) {
+            return resolveASINFromPepper(item.deal.link).then(function(result) {
+                if (result && result.asin) {
+                    item.deal.asin = result.asin;
+                    console.log('[DealScanner] ASIN resolu: ' + result.asin + ' pour ' + item.deal.title.substring(0, 40));
+                } else {
+                    console.log('[DealScanner] Pas d\'ASIN trouve pour: ' + item.deal.title.substring(0, 40));
+                }
+            }).catch(function(e) {
+                console.warn('[DealScanner] Erreur resolution ASIN:', e.message);
+            });
+        });
+        await Promise.all(resolvePromises);
+    }
+
+    // Phase 3 : Chercher le prix Amazon pour tous les deals avec ASIN
+    deals.forEach(function(deal, index) {
         if (deal.asin) {
             // D'abord dans le cache Keepa
             if (keepaCache[deal.asin] && (Date.now() - keepaCache[deal.asin].timestamp) < KEEPA_CACHE_TTL) {
@@ -3117,6 +3145,29 @@ async function analyzeDeals(deals) {
     if (keepaQueue.length > 0) {
         console.log('[DealScanner] ' + keepaQueue.length + ' ASINs/EANs en queue Keepa');
         processKeepaQueue(); // async, tourne en arriere-plan
+    }
+}
+
+// --- Resoudre un ASIN depuis une page Pepper (Dealabs/MyDealz) ---
+async function resolveASINFromPepper(dealUrl) {
+    if (!dealUrl) return null;
+
+    // Verifier que c'est un site Pepper
+    var pepperDomains = ['dealabs.com', 'mydealz.de', 'chollometro.com', 'pepper.it'];
+    var isPepper = pepperDomains.some(function(d) { return dealUrl.includes(d); });
+    if (!isPepper) return null;
+
+    try {
+        var resp = await fetch('/.netlify/functions/resolve-pepper?url=' + encodeURIComponent(dealUrl));
+        if (!resp.ok) {
+            console.warn('[DealScanner] resolve-pepper HTTP ' + resp.status);
+            return null;
+        }
+        var data = await resp.json();
+        return data; // { asin, merchantUrl }
+    } catch (e) {
+        console.warn('[DealScanner] resolve-pepper erreur:', e.message);
+        return null;
     }
 }
 
@@ -3308,7 +3359,7 @@ function renderDealResults() {
             var mktDomain = OA_MARKETPLACES[dealSellMarket] ? OA_MARKETPLACES[dealSellMarket].domain : 'amazon.de';
             asinHtml = '<a href="https://www.' + mktDomain + '/dp/' + d.asin + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs">' + d.asin.substring(0, 5) + '...</a>';
         } else if (d.isAmazon) {
-            asinHtml = '<span class="text-amber-400 text-xs">detect.</span>';
+            asinHtml = '<span class="text-amber-400 text-xs" title="Amazon detecte, ASIN non trouve. Cliquer pour entrer manuellement."><i class="fas fa-exclamation-triangle mr-1"></i></span><button onclick="promptLinkASIN(' + origIndex + ')" class="text-amber-400 hover:text-amber-200 text-xs">lier</button>';
         } else {
             asinHtml = '<button onclick="promptLinkASIN(' + origIndex + ')" class="text-gray-400 hover:text-gray-200 text-xs" title="Lier a un ASIN Amazon"><i class="fas fa-link"></i></button>';
         }
