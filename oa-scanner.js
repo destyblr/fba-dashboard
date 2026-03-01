@@ -2924,21 +2924,35 @@ function parsePepperRSSItem(item, sourceKey) {
     var title = (item.title || '').replace(/\s*\d+°\s*$/, '').trim(); // Enlever la temperature du titre
     var temperature = extractTemperature(item.title || '');
     var description = item.description || item.content || '';
-    var price = extractPriceFromText(title + ' ' + description);
+
+    // Extraire le prix depuis le format Pepper : <strong>17,90€ - Marchand</strong>
+    var price = 0;
+    var pepperPriceMatch = description.match(/<strong>\s*(\d+[\.,]?\d*)\s*€/i);
+    if (pepperPriceMatch) {
+        price = parseFloat(pepperPriceMatch[1].replace(',', '.'));
+    }
+    // Fallback : regex generique
+    if (!price || price <= 0) {
+        price = extractPriceFromText(title + ' ' + description);
+    }
     var origPrice = extractOriginalPrice(description);
     var discount = 0;
     if (origPrice > 0 && price > 0 && origPrice > price) {
         discount = Math.round((1 - price / origPrice) * 100);
     }
 
-    // Detecter le marchand
+    // Detecter le marchand depuis le format Pepper : <strong>17,90€ - Marchand</strong>
     var merchant = '';
-    if (item.categories && item.categories.length > 0) {
+    var pepperMerchantMatch = description.match(/<strong>[^<]*€\s*-\s*([^<]+)<\/strong>/i);
+    if (pepperMerchantMatch) {
+        merchant = pepperMerchantMatch[1].trim();
+    }
+    // Fallback : categories RSS ou pattern "chez X"
+    if (!merchant && item.categories && item.categories.length > 0) {
         merchant = item.categories[0];
     }
-    // Essayer d'extraire depuis la description
-    var merchantMatch = description.match(/chez\s+([A-Za-z0-9\s\.\-]+?)(?:\s|<|$)/i);
-    if (merchantMatch) merchant = merchantMatch[1].trim();
+    var merchantMatchChez = description.match(/chez\s+([A-Za-z0-9\s\.\-]+?)(?:\s|<|$)/i);
+    if (!merchant && merchantMatchChez) merchant = merchantMatchChez[1].trim();
 
     var link = item.link || '';
     var isAmz = isAmazonDeal({ merchant: merchant, link: link, title: title + ' ' + description });
