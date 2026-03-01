@@ -3192,6 +3192,23 @@ async function fetchDeals() {
         statsEl.classList.remove('hidden');
         statsEl.style.display = '';
     }
+
+    // Verifier cle API Keepa et afficher avertissement si manquante
+    var settings = loadOASettings();
+    var keepaWarningEl = document.getElementById('deal-keepa-warning');
+    if (!settings.keepaApiKey) {
+        if (!keepaWarningEl) {
+            keepaWarningEl = document.createElement('div');
+            keepaWarningEl.id = 'deal-keepa-warning';
+            var container = document.getElementById('deal-scanner-results');
+            if (container) container.parentNode.insertBefore(keepaWarningEl, container);
+        }
+        keepaWarningEl.className = 'mb-4 p-4 rounded-xl border-2 border-amber-400 bg-amber-50';
+        keepaWarningEl.innerHTML = '<div class="flex items-center gap-3"><i class="fas fa-exclamation-triangle text-amber-500 text-xl"></i><div><p class="font-bold text-amber-800">Cle API Keepa non configuree</p><p class="text-sm text-amber-600">Sans cle API, le Deal Scanner ne peut pas chercher les prix Amazon. Va dans <strong>Parametres OA → API Keepa</strong> et colle ta cle.</p><p class="text-xs text-amber-500 mt-1"><a href="https://keepa.com/#!api" target="_blank" class="underline">keepa.com/#!api</a> → copie "Private API access key"</p></div></div>';
+    } else if (keepaWarningEl) {
+        keepaWarningEl.remove();
+    }
+
     // Premier rendu (avant analyse Keepa) pour montrer les deals immediatement
     renderDealResults();
 
