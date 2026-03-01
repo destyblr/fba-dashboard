@@ -2864,36 +2864,47 @@ function buildSearchTerms(title) {
         .replace(/\s*\d+°\s*/, '')           // enlever temperature Pepper
         .replace(/\([^)]*\)/g, ' ')           // enlever parentheses
         .replace(/\[[^\]]*\]/g, ' ')          // enlever crochets
-        .replace(/[-–—|]/g, ' ')              // remplacer separateurs
+        // Remplacer les tirets SAUF dans les refs produit (ex: A168WA-1YES, LE520-RGB)
+        .replace(/\s+[-–—]\s+/g, ' ')         // tirets entourés d'espaces = separateurs
+        .replace(/[|]/g, ' ')                 // pipe = separateur
         .replace(/[€$£%]/g, '')               // enlever symboles monnaie
         .replace(/\d+[,.]?\d*\s*€/g, '')      // enlever prix
         .replace(/\s+/g, ' ')
         .trim();
 
+    // Mots de bruit promo
+    var promoNoise = /\b(promo|offre|bon plan|deal|livraison gratuite|en stock|disponible|gratuit|soldes?|destockage|vente flash|code promo|reduction|remise|pas cher|meilleur prix)\b/gi;
+    // Mots couleurs
+    var colorWords = /\b(noir|noire|blanc|blanche|rouge|bleu|bleue|vert|verte|gris|grise|argent|or|rose|beige|violet|orange|jaune|marine|anthracite)\b/gi;
+    // Mots connectique/adjectifs generiques
+    var genericAdj = /\b(avec|pour|sans|fil|filaire|edition|version|pack|lot|kit|set|paire|neuf|occasion|reconditionne|compatible|inclus|fourni|effet|coton|100)\b/gi;
+    // Mots type-produit (enleves seulement en V3)
+    var productType = /\b(casque|ecouteur|ecouteurs|enceinte|montre|aspirateur|robot|tablette|smartphone|telephone|portable|souris|clavier|imprimante|batterie|chargeur|cable|adaptateur|housse|coque|etui|protection|support|connecte|intelligente?|numerique|lecteur|camera|webcam|micro|haut parleur|pantalon|chino|puzzle|watercooling|ventilateur|ventilateurs|ampoule|ampoules|vol|billet)\b/gi;
+
     // Variante 1 : titre presque complet (enlever juste le bruit promo)
     var v1 = base
-        .replace(/\b(promo|offre|bon plan|deal|livraison gratuite|en stock|disponible|gratuit|soldes?|destockage|vente flash|code promo|reduction|remise)\b/gi, ' ')
+        .replace(promoNoise, ' ')
         .replace(/\s+/g, ' ').trim();
     var v1words = v1.split(' ').filter(function(w) { return w.length > 1; });
     if (v1words.length > 10) v1words = v1words.slice(0, 10);
     if (v1words.length >= 2) terms.push(v1words.join(' '));
 
-    // Variante 2 : mots-cles produit (enlever couleurs, adjectifs, connectique)
+    // Variante 2 : enlever couleurs + adjectifs generiques (garder type produit + marque + modele)
     var v2 = base
-        .replace(/\b(promo|offre|bon plan|deal|livraison gratuite|en stock|disponible|gratuit|soldes?|destockage|vente flash|code promo|reduction|remise)\b/gi, ' ')
-        .replace(/\b(noir|noire|blanc|blanche|rouge|bleu|bleue|vert|verte|gris|grise|argent|or|rose|beige|violet|orange|jaune)\b/gi, ' ')
-        .replace(/\b(avec|pour|sans|fil|filaire|edition|version|pack|lot|kit|set|paire|neuf|occasion|reconditionne|compatible|inclus|fourni)\b/gi, ' ')
+        .replace(promoNoise, ' ')
+        .replace(colorWords, ' ')
+        .replace(genericAdj, ' ')
         .replace(/\s+/g, ' ').trim();
     var v2words = v2.split(' ').filter(function(w) { return w.length > 1; });
-    if (v2words.length > 7) v2words = v2words.slice(0, 7);
+    if (v2words.length > 8) v2words = v2words.slice(0, 8);
     if (v2words.length >= 2) terms.push(v2words.join(' '));
 
-    // Variante 3 : marque + modele seulement (tres court, 4 mots max)
+    // Variante 3 : marque + modele seulement (enlever aussi le type produit)
     var v3 = v2
-        .replace(/\b(casque|ecouteur|ecouteurs|enceinte|montre|aspirateur|robot|tablette|smartphone|telephone|portable|souris|clavier|imprimante|batterie|chargeur|cable|adaptateur|housse|coque|etui|protection|support|connecte|intelligente?|numerique|lecteur|camera|webcam|micro|haut parleur)\b/gi, ' ')
+        .replace(productType, ' ')
         .replace(/\s+/g, ' ').trim();
     var v3words = v3.split(' ').filter(function(w) { return w.length > 1; });
-    if (v3words.length > 4) v3words = v3words.slice(0, 4);
+    if (v3words.length > 5) v3words = v3words.slice(0, 5);
     if (v3words.length >= 2 && v3words.join(' ') !== (terms[terms.length - 1] || '')) {
         terms.push(v3words.join(' '));
     }
