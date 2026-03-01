@@ -3573,17 +3573,16 @@ function setDealFilter(mode) {
 // --- Mettre a jour les stats ---
 function updateDealStats() {
     var deals = dealScannerResults;
-    var visibleDeals = deals.filter(function(d) { return !d.excludedPostKeepa; });
-    var amazonCount = visibleDeals.filter(function(d) { return d.isAmazon; }).length;
-    var withAsin = visibleDeals.filter(function(d) { return d.asin; }).length;
-    var profitableCount = visibleDeals.filter(function(d) { return d.profit !== null && d.profit > 0; }).length;
+    var amazonCount = deals.filter(function(d) { return d.isAmazon; }).length;
+    var withAsin = deals.filter(function(d) { return d.asin; }).length;
+    var profitableCount = deals.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; }).length;
 
     var totalEl = document.getElementById('deal-stats-total');
     var amazonEl = document.getElementById('deal-stats-amazon');
     var profitEl = document.getElementById('deal-stats-profitable');
     var statsEl = document.getElementById('deal-stats');
 
-    if (totalEl) totalEl.textContent = visibleDeals.length + ' deals';
+    if (totalEl) totalEl.textContent = deals.length + ' deals';
     if (amazonEl) amazonEl.textContent = amazonCount + ' Amazon (' + withAsin + ' ASIN)';
     if (profitEl) profitEl.textContent = profitableCount + ' rentables';
     if (statsEl) {
@@ -3595,7 +3594,7 @@ function updateDealStats() {
     var filterAll = document.getElementById('deal-filter-all');
     var filterAmazon = document.getElementById('deal-filter-amazon');
     var filterProfitable = document.getElementById('deal-filter-profitable');
-    if (filterAll) filterAll.textContent = 'Tous (' + visibleDeals.length + ')';
+    if (filterAll) filterAll.textContent = 'Tous (' + deals.length + ')';
     if (filterAmazon) filterAmazon.textContent = 'Amazon (' + amazonCount + ')';
     if (filterProfitable) filterProfitable.textContent = 'Rentables (' + profitableCount + ')';
 }
@@ -3679,12 +3678,12 @@ function renderDealResults() {
     var categoryFilter = document.getElementById('deal-category-filter');
     var selectedCategory = categoryFilter ? categoryFilter.value : '';
 
-    // Appliquer les filtres
-    var filtered = deals.filter(function(d) { return !d.excludedPostKeepa; }); // exclure les deals post-Keepa
+    // Appliquer les filtres — "Tous" montre tout, "Rentables" applique les filtres post-Keepa
+    var filtered = deals.slice(); // copie
     if (dealFilterMode === 'amazon') {
         filtered = filtered.filter(function(d) { return d.isAmazon; });
     } else if (dealFilterMode === 'profitable') {
-        filtered = filtered.filter(function(d) { return d.profit !== null && d.profit > 0; });
+        filtered = filtered.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; });
     }
 
     if (selectedCategory) {
