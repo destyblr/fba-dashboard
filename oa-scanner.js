@@ -24,11 +24,16 @@ let keepaQueue = [];             // ASINs en attente de lookup Keepa
 let keepaProcessing = false;     // Flag pour eviter double processing queue
 
 const DEAL_SOURCES = {
-    // Groupe A — Pepper RSS (navigateur, proxy CORS)
-    dealabs:        { name: 'Dealabs', country: 'FR', type: 'rss', url: 'https://www.dealabs.com/rss/hot' },
-    mydealz:        { name: 'MyDealz', country: 'DE', type: 'rss', url: 'https://www.mydealz.de/rss/hot' },
-    chollometro:    { name: 'Chollometro', country: 'ES', type: 'rss', url: 'https://www.chollometro.com/rss/hot' },
-    pepper_it:      { name: 'Pepper.it', country: 'IT', type: 'rss', url: 'https://www.pepper.it/rss/hot' },
+    // Groupe A — Pepper RSS Hot (navigateur, proxy CORS)
+    dealabs:        { name: 'Dealabs Hot', country: 'FR', type: 'rss', url: 'https://www.dealabs.com/rss/hot' },
+    mydealz:        { name: 'MyDealz Hot', country: 'DE', type: 'rss', url: 'https://www.mydealz.de/rss/hot' },
+    chollometro:    { name: 'Chollometro Hot', country: 'ES', type: 'rss', url: 'https://www.chollometro.com/rss/hot' },
+    pepper_it:      { name: 'Pepper.it Hot', country: 'IT', type: 'rss', url: 'https://www.pepper.it/rss/hot' },
+    // Groupe A2 — Pepper RSS New (nouveaux deals, moins de concurrence)
+    dealabs_new:    { name: 'Dealabs New', country: 'FR', type: 'rss', url: 'https://www.dealabs.com/rss/new' },
+    mydealz_new:    { name: 'MyDealz New', country: 'DE', type: 'rss', url: 'https://www.mydealz.de/rss/new' },
+    chollometro_new:{ name: 'Chollometro New', country: 'ES', type: 'rss', url: 'https://www.chollometro.com/rss/new' },
+    pepper_it_new:  { name: 'Pepper.it New', country: 'IT', type: 'rss', url: 'https://www.pepper.it/rss/new' },
     // Groupe B — Netlify Functions (scraping retail)
     fnac:           { name: 'Fnac', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-fnac' },
     darty:          { name: 'Darty', country: 'FR', type: 'scraper', endpoint: '/.netlify/functions/deals-darty' },
@@ -2709,6 +2714,51 @@ async function keepaLookup(identifier, type) {
     }
 }
 
+// --- Recherche Keepa par titre (pour trouver l'ASIN automatiquement) ---
+async function keepaSearchByTitle(title) {
+    var settings = loadOASettings();
+    var apiKey = settings.keepaApiKey;
+    if (!apiKey || !title) return null;
+
+    // Nettoyer le titre pour la recherche (garder les mots importants)
+    var searchTerm = title
+        .replace(/\s*\d+°\s*/, '') // enlever temperature
+        .replace(/\([^)]*\)/g, '') // enlever parentheses
+        .replace(/\[[^\]]*\]/g, '') // enlever crochets
+        .replace(/[-–—|]/g, ' ')   // remplacer tirets par espaces
+        .replace(/\s+/g, ' ')
+        .trim()
+        .substring(0, 80); // limiter la longueur
+
+    if (searchTerm.length < 5) return null;
+
+    var domain = KEEPA_DOMAINS[dealSellMarket] || 3;
+    var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(searchTerm);
+
+    try {
+        var resp = await fetch(url);
+        var data = await resp.json();
+
+        if (data.error) {
+            console.warn('[DealScanner] Keepa search erreur:', data.error);
+            return null;
+        }
+
+        // data.asinList contient les ASINs trouves
+        if (data.asinList && data.asinList.length > 0) {
+            var asin = data.asinList[0]; // Premier resultat = plus pertinent
+            console.log('[DealScanner] Keepa search "' + searchTerm.substring(0, 30) + '..." → ASIN: ' + asin);
+            return asin;
+        }
+
+        console.log('[DealScanner] Keepa search: aucun resultat pour "' + searchTerm.substring(0, 30) + '..."');
+        return null;
+    } catch (e) {
+        console.error('[DealScanner] Keepa search erreur:', e);
+        return null;
+    }
+}
+
 // --- Queue Keepa ---
 async function processKeepaQueue() {
     if (keepaProcessing || keepaQueue.length === 0) return;
@@ -3091,14 +3141,30 @@ async function analyzeDeals(deals) {
                 if (result && result.asin) {
                     item.deal.asin = result.asin;
                     console.log('[DealScanner] ASIN resolu: ' + result.asin + ' pour ' + item.deal.title.substring(0, 40));
-                } else {
-                    console.log('[DealScanner] Pas d\'ASIN trouve pour: ' + item.deal.title.substring(0, 40));
                 }
             }).catch(function(e) {
                 console.warn('[DealScanner] Erreur resolution ASIN:', e.message);
             });
         });
         await Promise.all(resolvePromises);
+    }
+
+    // Phase 2b : Deals Amazon toujours sans ASIN → Keepa search par titre (fallback auto)
+    var stillNoAsin = deals.filter(function(d) { return d.isAmazon && !d.asin && d.title; });
+    if (stillNoAsin.length > 0 && settings.keepaApiKey) {
+        console.log('[DealScanner] ' + stillNoAsin.length + ' deals Amazon sans ASIN → recherche Keepa par titre...');
+        for (var i = 0; i < stillNoAsin.length; i++) {
+            var deal = stillNoAsin[i];
+            var foundAsin = await keepaSearchByTitle(deal.title);
+            if (foundAsin) {
+                deal.asin = foundAsin;
+                console.log('[DealScanner] ASIN trouve par titre: ' + foundAsin);
+            }
+            // Respecter le rate limit entre chaque recherche
+            if (i < stillNoAsin.length - 1) {
+                await new Promise(function(resolve) { setTimeout(resolve, KEEPA_RATE_LIMIT_MS); });
+            }
+        }
     }
 
     // Phase 3 : Chercher le prix Amazon pour tous les deals avec ASIN
