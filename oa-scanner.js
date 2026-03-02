@@ -3385,10 +3385,25 @@ async function fetchDealsFromSource(sourceKey) {
     return [];
 }
 
+// --- Charger les deals depuis le serveur Netlify (0 token) ---
+async function fetchDealsFromServer() {
+    try {
+        var baseUrl = window.location.hostname === 'localhost' ? '' : '';
+        var resp = await fetch('/.netlify/functions/get-deals');
+        if (!resp.ok) return null;
+        var data = await resp.json();
+        if (data && data.deals && data.deals.length > 0) {
+            console.log('[DealScanner] Serveur: ' + data.deals.length + ' deals (MAJ: ' + data.updatedAt + ')');
+            return data;
+        }
+    } catch (e) {
+        console.log('[DealScanner] Serveur non disponible, fallback local');
+    }
+    return null;
+}
+
 // --- Fetch principal ---
 async function fetchDeals() {
-    var sourceSelect = document.getElementById('deal-source-select');
-    var sourceKey = sourceSelect ? sourceSelect.value : 'dealabs';
     var fetchBtn = document.getElementById('deal-fetch-btn');
 
     // Afficher loading
@@ -3401,20 +3416,57 @@ async function fetchDeals() {
         container.innerHTML = '<div class="p-8 text-center text-gray-400"><i class="fas fa-spinner fa-spin text-4xl mb-4"></i><p class="text-lg">Chargement des deals...</p></div>';
     }
 
+    // D'abord essayer le serveur (0 token — le cron fait le travail)
+    var serverData = await fetchDealsFromServer();
+    if (serverData && serverData.deals) {
+        var filtered = serverData.deals;
+        // Marquer avec l'historique
+        var newDealsCount = markDealsWithHistory(filtered);
+        dealScannerResults = filtered;
+
+        // Stats
+        var statsEl = document.getElementById('deal-stats');
+        if (statsEl) { statsEl.classList.remove('hidden'); statsEl.style.display = ''; }
+        var funnelEl = document.getElementById('deal-stats-funnel');
+        if (funnelEl) funnelEl.textContent = filtered.length + ' deals (serveur)';
+        var keepaStatsEl = document.getElementById('deal-stats-keepa');
+        if (keepaStatsEl) keepaStatsEl.textContent = 'MAJ: ' + new Date(serverData.updatedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+        renderDealResults();
+
+        // Notifications Telegram pour les deals rentables
+        var profitableDeals = filtered.filter(function(d) { return d.profit > 0 && !d.notified; });
+        if (profitableDeals.length > 0) {
+            await sendDealNotifications(profitableDeals);
+            profitableDeals.forEach(function(d) { d.notified = true; });
+        }
+
+        // Restaurer le bouton
+        if (fetchBtn) {
+            fetchBtn.disabled = false;
+            var now = new Date();
+            fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>MAJ ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        }
+        return;
+    }
+
+    // Fallback : recherche locale (consomme des tokens Keepa)
+    console.log('[DealScanner] Mode local (serveur non disponible)');
+    var sourceSelect = document.getElementById('deal-source-select');
+    var sourceKey = sourceSelect ? sourceSelect.value : 'dealabs';
+
     var allDeals = [];
 
     if (sourceKey === 'all_rss') {
-        // Toutes les sources RSS en parallele
         var rssKeys = Object.keys(DEAL_SOURCES).filter(function(k) { return DEAL_SOURCES[k].type === 'rss'; });
         var promises = rssKeys.map(function(k) { return fetchDealsFromSource(k); });
         var results = await Promise.all(promises);
         results.forEach(function(deals) { allDeals = allDeals.concat(deals); });
     } else if (sourceKey === 'all') {
-        // Toutes les sources en parallele
         var allKeys = Object.keys(DEAL_SOURCES);
-        var promises = allKeys.map(function(k) { return fetchDealsFromSource(k); });
-        var results = await Promise.all(promises);
-        results.forEach(function(deals) { allDeals = allDeals.concat(deals); });
+        var promises2 = allKeys.map(function(k) { return fetchDealsFromSource(k); });
+        var results2 = await Promise.all(promises2);
+        results2.forEach(function(deals) { allDeals = allDeals.concat(deals); });
     } else {
         allDeals = await fetchDealsFromSource(sourceKey);
     }
@@ -3422,7 +3474,6 @@ async function fetchDeals() {
     var totalBruts = allDeals.length;
     console.log('[DealScanner] Total deals bruts: ' + totalBruts);
 
-    // Pre-filtrage (blacklist, prix, reduction)
     var filtered = preFilterDeals(allDeals);
     var excludedCount = totalBruts - filtered.length;
     console.log('[DealScanner] Apres pre-filtres: ' + filtered.length + ' deals (exclus: ' + excludedCount + ')');
