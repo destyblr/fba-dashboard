@@ -3522,12 +3522,14 @@ async function fetchDeals() {
         console.log('[DealScanner] Multi-MKT skip: pas assez de tokens (' + keepaTokensLeft + ' dispo, ' + (uniqueAsins.length * 4) + ' requis)');
     }
 
-    // Notifications pour les nouveaux deals rentables
-    var newProfitableDeals = filtered.filter(function(d) {
-        return d.isNew && d.profit !== null && d.profit > 0;
+    // Notifications pour les deals rentables (ROI > 0)
+    var profitableDeals = filtered.filter(function(d) {
+        return d.profit !== null && d.profit > 0 && !d.notified;
     });
-    if (newProfitableDeals.length > 0) {
-        await sendDealNotifications(newProfitableDeals);
+    if (profitableDeals.length > 0) {
+        await sendDealNotifications(profitableDeals);
+        // Marquer comme notifies pour eviter les doublons
+        profitableDeals.forEach(function(d) { d.notified = true; });
     }
 
     // Restaurer le bouton avec l'heure du dernier chargement
@@ -4672,14 +4674,9 @@ async function sendDealNotifications(newProfitableDeals) {
     if (!newProfitableDeals || newProfitableDeals.length === 0) return;
 
     var settings = loadOASettings();
-    var minProfit = settings.dealNotifyMinProfit || 5;
 
-    // Filtrer les deals qui meritent une notification
-    var notifiable = newProfitableDeals.filter(function(d) {
-        return d.profit !== null && d.profit >= minProfit;
-    });
-
-    if (notifiable.length === 0) return;
+    // Tous les deals avec profit > 0 sont notifies
+    var notifiable = newProfitableDeals;
 
     console.log('[DealScanner] ' + notifiable.length + ' deals a notifier (profit >= ' + minProfit + '€)');
 
