@@ -4044,13 +4044,7 @@ function renderDealResults() {
 
     // Appliquer les filtres
     var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored'; }); // toujours cacher les ignores
-    if (dealFilterMode === 'new') {
-        filtered = filtered.filter(function(d) { return d.isNew; });
-    } else if (dealFilterMode === 'hot') {
-        filtered = filtered.filter(function(d) { return d.feedType === 'hot' || d.feedType === 'both'; });
-    } else if (dealFilterMode === 'feed-new') {
-        filtered = filtered.filter(function(d) { return d.feedType === 'new' || d.feedType === 'both'; });
-    } else if (dealFilterMode === 'amazon') {
+    if (dealFilterMode === 'amazon') {
         filtered = filtered.filter(function(d) { return d.isAmazon || d.asin; });
     } else if (dealFilterMode === 'profitable') {
         filtered = filtered.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; });
@@ -4060,11 +4054,13 @@ function renderDealResults() {
         filtered = filtered.filter(function(d) { return d.category && d.category.toLowerCase().includes(selectedCategory.toLowerCase()); });
     }
 
-    // Tri : rentables d'abord (par profit desc), puis par temperature desc
+    // Tri : par ROI desc (rentables d'abord), puis par temperature desc
     filtered.sort(function(a, b) {
-        if (a.profit !== null && b.profit !== null) return b.profit - a.profit;
-        if (a.profit !== null) return -1;
-        if (b.profit !== null) return 1;
+        var roiA = (a.roi !== null && a.roi !== undefined) ? a.roi : -9999;
+        var roiB = (b.roi !== null && b.roi !== undefined) ? b.roi : -9999;
+        if (roiA !== -9999 && roiB !== -9999) return roiB - roiA;
+        if (roiA !== -9999) return -1;
+        if (roiB !== -9999) return 1;
         return (b.temperature || 0) - (a.temperature || 0);
     });
 

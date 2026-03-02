@@ -3,7 +3,6 @@ const { schedule } = require('@netlify/functions');
 const { getStore } = require('@netlify/blobs');
 
 // === CONFIG ===
-const KEEPA_DOMAINS = { de: 3, fr: 4, it: 8, es: 9 };
 const RSS_SOURCES = [
     { name: 'Dealabs', baseUrl: 'https://www.dealabs.com/rss/' },
     { name: 'MyDealz', baseUrl: 'https://www.mydealz.de/rss/' },
@@ -21,18 +20,16 @@ const FEES = {
     urssafPct: 12.3
 };
 
-const FILTERS = {
-    minPrice: 8,
-    maxPrice: 100
-};
-
-const BATCH_SIZE = 5; // Deals a chercher par cycle (5 x 10 tokens = 50 max)
+const FILTERS = { minPrice: 8, maxPrice: 100 };
+const SEARCH_BATCH = 5;       // Nouvelles recherches ASIN par cycle (5 x 10 = 50 tokens)
+const PRICE_REFRESH_MAX = 40;  // Max ASINs a rafraichir par cycle (40 tokens)
+const DEAL_EXPIRY_H = 24;     // Expiration des deals en heures
+const PRICE_STALE_H = 2;      // Prix considere perime apres X heures
 
 // === RSS FETCHING ===
 async function fetchRSS(source, mode) {
-    var url = 'https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(source.baseUrl + mode);
     try {
-        var resp = await fetch(url);
+        var resp = await fetch('https://api.rss2json.com/v1/api.json?rss_url=' + encodeURIComponent(source.baseUrl + mode));
         var data = await resp.json();
         if (data.status === 'ok' && data.items) {
             return data.items.map(function(item) { return parseItem(item, source.name, mode); });
@@ -46,7 +43,6 @@ async function fetchRSS(source, mode) {
 function parseItem(item, sourceName, feedType) {
     var title = (item.title || '').replace(/\s*\d+°\s*$/, '').trim();
     var description = item.description || item.content || '';
-
     var tempMatch = (item.title || '').match(/(\d+)°\s*$/);
     var temperature = tempMatch ? parseInt(tempMatch[1]) : 0;
 
@@ -63,7 +59,6 @@ function parseItem(item, sourceName, feedType) {
     if (merchantMatch) merchant = merchantMatch[1].trim();
 
     var link = item.link || '';
-
     var isAmazon = /amazon\.(fr|de|it|es|co\.uk|com)/i.test(link) ||
         /amazon/i.test(merchant) ||
         /amazon\.(fr|de|it|es)/i.test(description);
@@ -79,14 +74,16 @@ function parseItem(item, sourceName, feedType) {
     }
 
     return {
+        id: link, // identifiant unique
         title: title, link: link, price: price, merchant: merchant,
         isAmazon: isAmazon, asin: asin, temperature: temperature,
         source: sourceName, feedType: feedType,
+        firstSeen: new Date().toISOString(),
         date: item.pubDate || new Date().toISOString()
     };
 }
 
-// === BLACKLIST + PRE-FILTERS ===
+// === FILTERS ===
 function filterDeals(deals) {
     return deals.filter(function(d) {
         if (!d.title || d.price <= 0) return false;
@@ -104,7 +101,6 @@ function buildSearchTerms(title) {
     if (!title) return [];
     var terms = [];
     var base = title.replace(/\s*\d+°\s*/, '').replace(/\([^)]*\)/g, ' ').replace(/\s+[-–—]\s+/g, ' ').replace(/[|€$£%]/g, '').replace(/\d+[,.]?\d*\s*€/g, '').replace(/\s+/g, ' ').trim();
-
     var promoNoise = /\b(promo|offre|bon plan|deal|livraison gratuite|en stock|disponible|gratuit|soldes?|destockage|vente flash|code promo|reduction|remise|pas cher|meilleur prix)\b/gi;
     var colorWords = /\b(noir|noire|blanc|blanche|rouge|bleu|bleue|vert|verte|gris|grise|argent|or|rose|beige|violet|orange|jaune|marine|anthracite)\b/gi;
     var genericAdj = /\b(avec|pour|sans|fil|filaire|edition|version|pack|lot|kit|set|paire|neuf|occasion|reconditionne|compatible|inclus|fourni|effet|coton|100)\b/gi;
@@ -125,7 +121,6 @@ function buildSearchTerms(title) {
 async function keepaSearch(apiKey, title) {
     var terms = buildSearchTerms(title);
     if (terms.length === 0) return null;
-
     var attempts = [];
     if (terms[0]) { attempts.push({ term: terms[0], domain: 4 }); attempts.push({ term: terms[0], domain: 3 }); }
     if (terms[1]) attempts.push({ term: terms[1], domain: 4 });
@@ -133,15 +128,14 @@ async function keepaSearch(apiKey, title) {
     for (var i = 0; i < attempts.length; i++) {
         var a = attempts[i];
         try {
-            var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + a.domain + '&type=product&term=' + encodeURIComponent(a.term) + '&asins-only=1&page=0';
-            var resp = await fetch(url);
+            var resp = await fetch('https://api.keepa.com/search?key=' + apiKey + '&domain=' + a.domain + '&type=product&term=' + encodeURIComponent(a.term) + '&asins-only=1&page=0');
             var data = await resp.json();
             if (data.asinList && data.asinList.length > 0) {
                 console.log('[CRON] FOUND: "' + a.term.substring(0, 25) + '" → ' + data.asinList[0] + ' (tokens=' + data.tokensLeft + ')');
                 return { asin: data.asinList[0], tokensLeft: data.tokensLeft };
             }
             if (data.tokensLeft !== undefined && data.tokensLeft <= 2) {
-                console.log('[CRON] Tokens bas (' + data.tokensLeft + '), arret search');
+                console.log('[CRON] Tokens bas (' + data.tokensLeft + '), arret');
                 return null;
             }
         } catch (e) { /* skip */ }
@@ -151,13 +145,9 @@ async function keepaSearch(apiKey, title) {
 
 async function keepaBatchLookup(apiKey, asins) {
     if (asins.length === 0) return {};
-    var url = 'https://api.keepa.com/product?key=' + apiKey + '&domain=4&asin=' + asins.join(',') + '&stats=180&fbafees=1';
     try {
-        var resp = await fetch(url);
-        if (resp.status === 429) {
-            console.log('[CRON] Batch lookup 429 - plus de tokens');
-            return {};
-        }
+        var resp = await fetch('https://api.keepa.com/product?key=' + apiKey + '&domain=4&asin=' + asins.join(',') + '&stats=180&fbafees=1');
+        if (resp.status === 429) { console.log('[CRON] Batch 429 - plus de tokens'); return {}; }
         var data = await resp.json();
         if (!data.products) return {};
         var results = {};
@@ -165,15 +155,12 @@ async function keepaBatchLookup(apiKey, asins) {
             if (!p || !p.asin) return;
             var amazonPrice = null;
             if (p.csv && p.csv[0]) {
-                var priceHistory = p.csv[0];
-                if (priceHistory.length >= 2) {
-                    var lastPrice = priceHistory[priceHistory.length - 1];
-                    if (lastPrice > 0) amazonPrice = lastPrice / 100;
-                }
+                var ph = p.csv[0];
+                if (ph.length >= 2 && ph[ph.length - 1] > 0) amazonPrice = ph[ph.length - 1] / 100;
             }
             if (!amazonPrice && p.stats && p.stats.current) {
-                var amzCurrent = p.stats.current[0];
-                if (amzCurrent > 0) amazonPrice = amzCurrent / 100;
+                var c = p.stats.current[0];
+                if (c > 0) amazonPrice = c / 100;
             }
             results[p.asin] = {
                 price: amazonPrice,
@@ -181,32 +168,29 @@ async function keepaBatchLookup(apiKey, asins) {
                 fbaSellers: (p.stats && p.stats.current) ? p.stats.current[10] : null,
                 fbaPickAndPack: p.fbaFees && p.fbaFees.pickAndPackFee ? p.fbaFees.pickAndPackFee / 100 : null,
                 referralFeePct: p.referralFeePercent || null,
-                weight: p.packageWeight || null
+                weight: p.packageWeight || null,
+                checkedAt: new Date().toISOString()
             };
         });
+        console.log('[CRON] Batch OK: ' + Object.keys(results).length + '/' + asins.length + ' (tokens=' + (data.tokensLeft || '?') + ')');
         return results;
     } catch (e) {
-        console.log('[CRON] Batch lookup erreur: ' + e.message);
+        console.log('[CRON] Batch erreur: ' + e.message);
         return {};
     }
 }
 
-// === PROFIT CALCULATION ===
+// === PROFIT ===
 function calculateProfit(dealPrice, keepaData) {
     if (!keepaData || !keepaData.price || keepaData.price <= 0) return null;
-
     var sellPrice = keepaData.price;
     var commPct = (keepaData.referralFeePct || FEES.commissionPct) / 100;
-    var commission = sellPrice * commPct;
     var fbaFee = keepaData.fbaPickAndPack || FEES.fbaFee;
     var inbound = FEES.inboundShipping;
     if (keepaData.weight) inbound = Math.max(0.50, (keepaData.weight / 1000) * 1.20);
-    var prep = FEES.prepCost;
-    var urssaf = sellPrice * (FEES.urssafPct / 100);
-    var totalFees = commission + fbaFee + inbound + prep + urssaf;
+    var totalFees = (sellPrice * commPct) + fbaFee + inbound + FEES.prepCost + (sellPrice * FEES.urssafPct / 100);
     var profit = sellPrice - dealPrice - totalFees;
     var roi = dealPrice > 0 ? (profit / dealPrice) * 100 : 0;
-
     return { profit: Math.round(profit * 100) / 100, roi: Math.round(roi * 10) / 10, sellPrice: sellPrice };
 }
 
@@ -216,12 +200,7 @@ async function sendTelegram(botToken, chatId, message) {
         var resp = await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: chatId,
-                text: message,
-                parse_mode: 'Markdown',
-                disable_web_page_preview: true
-            })
+            body: JSON.stringify({ chat_id: chatId, text: message, parse_mode: 'Markdown', disable_web_page_preview: true })
         });
         var data = await resp.json();
         if (!data.ok) console.log('[CRON] Telegram erreur: ' + data.description);
@@ -234,8 +213,7 @@ async function sendTelegram(botToken, chatId, message) {
 
 // === MAIN HANDLER ===
 const handler = async (event) => {
-    console.log('[CRON] Deal Scanner demarre');
-
+    console.log('[CRON] === Deal Scanner demarre ===');
     var apiKey = process.env.KEEPA_API_KEY;
     var botToken = process.env.TELEGRAM_BOT_TOKEN;
     var chatId = process.env.TELEGRAM_CHAT_ID;
@@ -245,25 +223,46 @@ const handler = async (event) => {
         return { statusCode: 200, body: 'Missing env vars' };
     }
 
-    // Ouvrir les stores Blobs
-    var dealStore, asinCache;
+    var dealStore, asinCache, notifiedStore;
     try {
         dealStore = getStore('deal-results');
         asinCache = getStore('asin-cache');
+        notifiedStore = getStore('deal-notified');
     } catch (e) {
         console.log('[CRON] Blobs erreur: ' + e.message);
         return { statusCode: 200, body: 'Blobs error' };
     }
 
-    // Charger le cache ASIN (titre → ASIN)
+    var now = Date.now();
+
+    // === 1. Charger les deals accumules ===
+    var accumulated = {};
+    try {
+        var raw = await dealStore.get('accumulated', { type: 'json' });
+        if (raw) accumulated = raw;
+        console.log('[CRON] Deals accumules: ' + Object.keys(accumulated).length);
+    } catch (e) { /* premier lancement */ }
+
+    // Expirer les deals > 24h
+    var expiredCount = 0;
+    Object.keys(accumulated).forEach(function(key) {
+        var deal = accumulated[key];
+        if (now - new Date(deal.firstSeen).getTime() > DEAL_EXPIRY_H * 3600000) {
+            delete accumulated[key];
+            expiredCount++;
+        }
+    });
+    if (expiredCount > 0) console.log('[CRON] ' + expiredCount + ' deals expires');
+
+    // === 2. Charger le cache ASIN (titre → ASIN) ===
     var titleToAsin = {};
     try {
         var cacheRaw = await asinCache.get('title-map', { type: 'json' });
         if (cacheRaw) titleToAsin = cacheRaw;
-        console.log('[CRON] Cache ASIN charge: ' + Object.keys(titleToAsin).length + ' titres');
+        console.log('[CRON] Cache ASIN: ' + Object.keys(titleToAsin).length + ' titres');
     } catch (e) { /* premier lancement */ }
 
-    // 1. Fetch tous les RSS (hot+new) en parallele
+    // === 3. Fetch RSS (hot+new, 4 sources) ===
     var fetchPromises = [];
     RSS_SOURCES.forEach(function(source) {
         fetchPromises.push(fetchRSS(source, 'hot'));
@@ -271,89 +270,138 @@ const handler = async (event) => {
     });
     var allResults = await Promise.all(fetchPromises);
 
-    // Fusionner + dedupliquer
     var seenLinks = {};
-    var deals = [];
+    var freshDeals = [];
     allResults.forEach(function(items) {
         items.forEach(function(deal) {
             if (!seenLinks[deal.link]) {
                 seenLinks[deal.link] = true;
-                deals.push(deal);
+                freshDeals.push(deal);
             }
         });
     });
-    console.log('[CRON] ' + deals.length + ' deals bruts');
+    console.log('[CRON] RSS: ' + freshDeals.length + ' deals bruts');
 
-    // 2. Pre-filtrer
-    deals = filterDeals(deals);
-    console.log('[CRON] ' + deals.length + ' deals apres filtres');
+    freshDeals = filterDeals(freshDeals);
+    console.log('[CRON] RSS: ' + freshDeals.length + ' apres filtres');
 
-    // 3. Appliquer le cache ASIN aux deals sans ASIN
+    // === 4. Fusionner avec accumules (ajouter les nouveaux, garder les anciens) ===
+    var newCount = 0;
+    freshDeals.forEach(function(deal) {
+        var key = deal.link;
+        if (!accumulated[key]) {
+            // Nouveau deal
+            accumulated[key] = deal;
+            newCount++;
+        } else {
+            // Mettre a jour temperature + feedType (le deal existe deja)
+            accumulated[key].temperature = Math.max(accumulated[key].temperature || 0, deal.temperature || 0);
+            if (deal.feedType === 'hot' && accumulated[key].feedType !== 'hot') {
+                accumulated[key].feedType = 'hot';
+            }
+        }
+    });
+    console.log('[CRON] Nouveaux: ' + newCount + ' | Total accumule: ' + Object.keys(accumulated).length);
+
+    // === 5. Appliquer cache ASIN + chercher nouveaux ASINs ===
     var needSearch = [];
-    deals.forEach(function(d) {
+    Object.values(accumulated).forEach(function(d) {
         if (!d.asin) {
             var cacheKey = d.title.substring(0, 50).toLowerCase().trim();
             if (titleToAsin[cacheKey]) {
                 d.asin = titleToAsin[cacheKey];
-                console.log('[CRON] Cache hit: "' + d.title.substring(0, 30) + '" → ' + d.asin);
             } else if (d.price > 0) {
                 needSearch.push(d);
             }
         }
     });
 
-    // 4. Keepa search pour deals sans ASIN — par lots de BATCH_SIZE
+    // Trier par temperature (les plus populaires en premier pour les recherches)
     needSearch.sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
-    var searchCount = Math.min(needSearch.length, BATCH_SIZE);
-    var searchedCount = 0;
+    var searchCount = Math.min(needSearch.length, SEARCH_BATCH);
+    var searched = 0;
 
     for (var i = 0; i < searchCount; i++) {
         var result = await keepaSearch(apiKey, needSearch[i].title);
         if (result) {
             needSearch[i].asin = result.asin;
-            var cacheKey = needSearch[i].title.substring(0, 50).toLowerCase().trim();
-            titleToAsin[cacheKey] = result.asin;
-            searchedCount++;
-            // Arreter si tokens bas
+            titleToAsin[needSearch[i].title.substring(0, 50).toLowerCase().trim()] = result.asin;
+            searched++;
             if (result.tokensLeft !== undefined && result.tokensLeft <= 5) {
-                console.log('[CRON] Tokens bas apres recherche, arret (' + (i + 1) + '/' + searchCount + ')');
+                console.log('[CRON] Tokens bas, arret recherche (' + (i + 1) + '/' + searchCount + ')');
                 break;
             }
         }
     }
-    console.log('[CRON] Recherches: ' + searchedCount + '/' + searchCount + ' trouves');
+    console.log('[CRON] Recherches ASIN: ' + searched + '/' + searchCount);
 
-    // Sauvegarder le cache ASIN
-    try {
-        await asinCache.setJSON('title-map', titleToAsin);
-    } catch (e) { console.log('[CRON] Erreur sauvegarde cache ASIN: ' + e.message); }
+    // Sauvegarder cache ASIN
+    try { await asinCache.setJSON('title-map', titleToAsin); } catch (e) {}
 
-    // 5. Batch Keepa lookup
-    var allAsins = deals.filter(function(d) { return d.asin; }).map(function(d) { return d.asin; });
-    allAsins = allAsins.filter(function(a, i) { return allAsins.indexOf(a) === i; });
-    console.log('[CRON] Batch lookup: ' + allAsins.length + ' ASINs');
+    // === 6. Rafraichir les prix Amazon (priorite : rentables > sans prix > anciens) ===
+    var allDeals = Object.values(accumulated);
+    var dealsWithAsin = allDeals.filter(function(d) { return d.asin; });
 
-    var keepaData = {};
-    if (allAsins.length > 0) {
-        keepaData = await keepaBatchLookup(apiKey, allAsins);
-    }
-
-    // 6. Calculer profit pour tous les deals avec ASIN
-    deals.forEach(function(deal) {
-        if (!deal.asin) return;
-        var kd = keepaData[deal.asin];
-        if (!kd) return;
-        var result = calculateProfit(deal.price, kd);
-        if (!result) return;
-        deal.profit = result.profit;
-        deal.roi = result.roi;
-        deal.amazonPrice = result.sellPrice;
-        deal.bsr = kd.bsr;
-        deal.fbaSellers = kd.fbaSellers;
+    // Trier : deals rentables d'abord, puis sans prix, puis prix perime
+    dealsWithAsin.sort(function(a, b) {
+        // Priorite 1 : sans prix Amazon (jamais checke)
+        var aNoPrice = !a.amazonPrice ? 1 : 0;
+        var bNoPrice = !b.amazonPrice ? 1 : 0;
+        if (aNoPrice !== bNoPrice) return bNoPrice - aNoPrice;
+        // Priorite 2 : prix perime (> 2h)
+        var aStale = a.priceCheckedAt && (now - new Date(a.priceCheckedAt).getTime() > PRICE_STALE_H * 3600000) ? 1 : 0;
+        var bStale = b.priceCheckedAt && (now - new Date(b.priceCheckedAt).getTime() > PRICE_STALE_H * 3600000) ? 1 : 0;
+        if (aStale !== bStale) return bStale - aStale;
+        // Priorite 3 : temperature
+        return (b.temperature || 0) - (a.temperature || 0);
     });
 
-    // 7. Stocker TOUS les deals dans Blobs (pour le navigateur)
-    var dealsForBrowser = deals.map(function(d) {
+    // Prendre max PRICE_REFRESH_MAX ASINs a rafraichir
+    var asinsToRefresh = [];
+    var seenAsins = {};
+    for (var j = 0; j < dealsWithAsin.length && asinsToRefresh.length < PRICE_REFRESH_MAX; j++) {
+        var asin = dealsWithAsin[j].asin;
+        if (!seenAsins[asin]) {
+            seenAsins[asin] = true;
+            asinsToRefresh.push(asin);
+        }
+    }
+    console.log('[CRON] Prix a rafraichir: ' + asinsToRefresh.length + ' ASINs');
+
+    var keepaData = {};
+    if (asinsToRefresh.length > 0) {
+        keepaData = await keepaBatchLookup(apiKey, asinsToRefresh);
+    }
+
+    // === 7. Calculer profit pour tous les deals ===
+    var profitableCount = 0;
+    allDeals.forEach(function(deal) {
+        if (!deal.asin) return;
+        var kd = keepaData[deal.asin];
+        if (kd) {
+            // Prix frais
+            deal.amazonPrice = kd.price;
+            deal.bsr = kd.bsr;
+            deal.fbaSellers = kd.fbaSellers;
+            deal.keepaData = kd;
+            deal.priceCheckedAt = kd.checkedAt;
+        }
+        // Recalculer profit (meme avec ancien prix)
+        if (deal.amazonPrice && deal.price > 0) {
+            var fakeKd = deal.keepaData || { price: deal.amazonPrice };
+            var result = calculateProfit(deal.price, fakeKd);
+            if (result) {
+                deal.profit = result.profit;
+                deal.roi = result.roi;
+                if (result.profit > 0) profitableCount++;
+            }
+        }
+    });
+
+    // === 8. Stocker dans Blobs — trie par ROI ===
+    allDeals.sort(function(a, b) { return (b.roi || -999) - (a.roi || -999); });
+
+    var dealsForBrowser = allDeals.map(function(d) {
         return {
             title: d.title, link: d.link, price: d.price,
             merchant: d.merchant, isAmazon: d.isAmazon,
@@ -361,42 +409,44 @@ const handler = async (event) => {
             profit: d.profit || null, roi: d.roi || null,
             bsr: d.bsr || null, fbaSellers: d.fbaSellers || null,
             temperature: d.temperature, source: d.source,
-            feedType: d.feedType, date: d.date
+            feedType: d.feedType, date: d.date,
+            firstSeen: d.firstSeen, priceCheckedAt: d.priceCheckedAt || null
         };
     });
 
     try {
+        // Sauvegarder les deals accumules (pour le prochain cycle)
+        await dealStore.setJSON('accumulated', accumulated);
+        // Sauvegarder la version pour le navigateur (triee par ROI)
         await dealStore.setJSON('latest', {
             deals: dealsForBrowser,
             updatedAt: new Date().toISOString(),
             stats: {
-                total: deals.length,
-                withAsin: deals.filter(function(d) { return d.asin; }).length,
-                profitable: deals.filter(function(d) { return d.profit > 0; }).length
+                total: allDeals.length,
+                withAsin: allDeals.filter(function(d) { return d.asin; }).length,
+                profitable: profitableCount,
+                pendingSearch: needSearch.length - searched,
+                expired: expiredCount
             }
         });
-        console.log('[CRON] ' + dealsForBrowser.length + ' deals stockes dans Blobs');
+        console.log('[CRON] Stocke: ' + allDeals.length + ' deals (' + profitableCount + ' rentables)');
     } catch (e) {
-        console.log('[CRON] Erreur stockage deals: ' + e.message);
+        console.log('[CRON] Erreur stockage: ' + e.message);
     }
 
-    // 8. Telegram pour deals rentables (profit > 0) pas encore notifies
-    var profitableDeals = deals.filter(function(d) { return d.profit > 0; });
-    var notifiedStore;
-    try { notifiedStore = getStore('deal-notified'); } catch (e) { notifiedStore = null; }
-
+    // === 9. Telegram pour NOUVEAUX deals rentables ===
     var newNotifs = 0;
-    for (var j = 0; j < profitableDeals.length; j++) {
-        var deal = profitableDeals[j];
+    var profitable = allDeals.filter(function(d) { return d.profit > 0; });
+
+    for (var k = 0; k < profitable.length; k++) {
+        var deal = profitable[k];
         var notifKey = 'notif_' + deal.asin;
         var alreadySent = false;
 
-        if (notifiedStore) {
-            try {
-                var existing = await notifiedStore.get(notifKey);
-                if (existing) alreadySent = true;
-            } catch (e) { /* nouveau */ }
-        }
+        try {
+            var existing = await notifiedStore.get(notifKey);
+            if (existing) alreadySent = true;
+        } catch (e) { /* nouveau */ }
 
         if (!alreadySent) {
             var msg = '🔔 *Deal rentable !*\n\n' +
@@ -409,22 +459,19 @@ const handler = async (event) => {
                 (deal.asin ? ' | [Amazon](https://www.amazon.fr/dp/' + deal.asin + ')' : '');
 
             var sent = await sendTelegram(botToken, chatId, msg);
-            if (sent && notifiedStore) {
-                try {
-                    await notifiedStore.set(notifKey, JSON.stringify({ asin: deal.asin, date: new Date().toISOString() }));
-                } catch (e) { /* ignore */ }
+            if (sent) {
+                try { await notifiedStore.set(notifKey, JSON.stringify({ asin: deal.asin, date: new Date().toISOString() })); } catch (e) {}
+                newNotifs++;
+                console.log('[CRON] Telegram: ' + deal.title.substring(0, 40) + ' (+' + deal.profit.toFixed(2) + '€, ROI ' + deal.roi.toFixed(0) + '%)');
             }
-            newNotifs++;
-            console.log('[CRON] Telegram: ' + deal.title.substring(0, 40) + ' (+' + deal.profit.toFixed(2) + '€)');
         }
     }
 
-    console.log('[CRON] Termine: ' + deals.length + ' deals, ' + profitableDeals.length + ' rentables, ' + newNotifs + ' notifies');
+    console.log('[CRON] === Termine: ' + allDeals.length + ' deals, ' + profitableCount + ' rentables, ' + newNotifs + ' notifies ===');
     return {
         statusCode: 200,
-        body: JSON.stringify({ deals: deals.length, profitable: profitableDeals.length, notified: newNotifs })
+        body: JSON.stringify({ total: allDeals.length, profitable: profitableCount, notified: newNotifs })
     };
 };
 
-// Executer toutes les 30 minutes
 exports.handler = schedule('*/30 * * * *', handler);
