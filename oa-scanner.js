@@ -23,8 +23,6 @@ let keepaCache = {};             // Cache ASIN → {price, bsr, timestamp}
 let keepaQueue = [];             // ASINs en attente de lookup Keepa
 let keepaProcessing = false;     // Flag pour eviter double processing queue
 let dealHistory = {};            // Historique des deals vus : { link → { firstSeen, lastSeen, status } }
-let dealAutoRefreshTimer = null; // Timer auto-refresh
-let dealAutoRefreshEnabled = false;
 
 const DEAL_SOURCES = {
     // Groupe A — Pepper RSS (navigateur, proxy CORS) — baseUrl + mode hot/new
@@ -118,7 +116,6 @@ const OA_DEFAULTS = {
     emailjsServiceId: '',
     emailjsTemplateId: '',
     emailjsPublicKey: '',
-    dealAutoRefreshMin: 10,       // Intervalle auto-refresh en minutes
     dealNotifyMinProfit: 5        // Profit min pour declencher une notification
 };
 
@@ -290,7 +287,6 @@ function saveOASettings() {
         { id: 'oa-emailjsServiceId', key: 'emailjsServiceId', type: 'string' },
         { id: 'oa-emailjsTemplateId', key: 'emailjsTemplateId', type: 'string' },
         { id: 'oa-emailjsPublicKey', key: 'emailjsPublicKey', type: 'string' },
-        { id: 'oa-dealAutoRefreshMin', key: 'dealAutoRefreshMin', type: 'int' },
         { id: 'oa-dealNotifyMinProfit', key: 'dealNotifyMinProfit', type: 'float' }
     ];
 
@@ -383,7 +379,6 @@ function initOASettings() {
         { id: 'oa-emailjsServiceId', key: 'emailjsServiceId' },
         { id: 'oa-emailjsTemplateId', key: 'emailjsTemplateId' },
         { id: 'oa-emailjsPublicKey', key: 'emailjsPublicKey' },
-        { id: 'oa-dealAutoRefreshMin', key: 'dealAutoRefreshMin' },
         { id: 'oa-dealNotifyMinProfit', key: 'dealNotifyMinProfit' }
     ];
 
@@ -3358,7 +3353,7 @@ async function fetchDealsFromSource(sourceKey) {
 }
 
 // --- Fetch principal ---
-async function fetchDeals(isAutoRefresh) {
+async function fetchDeals() {
     var sourceSelect = document.getElementById('deal-source-select');
     var sourceKey = sourceSelect ? sourceSelect.value : 'dealabs';
     var fetchBtn = document.getElementById('deal-fetch-btn');
@@ -3403,16 +3398,6 @@ async function fetchDeals(isAutoRefresh) {
     var newDealsCount = markDealsWithHistory(filtered);
     console.log('[DealScanner] Nouveaux deals: ' + newDealsCount);
 
-    // En auto-refresh, ne garder que les nouveaux si aucun nouveau → skip
-    if (isAutoRefresh && newDealsCount === 0) {
-        console.log('[DealScanner] Auto-refresh: aucun nouveau deal, skip');
-        if (fetchBtn) {
-            fetchBtn.disabled = false;
-            fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger';
-        }
-        return;
-    }
-
     dealScannerResults = filtered;
 
     // Afficher l'entonnoir + stats immediatement
@@ -3443,7 +3428,6 @@ async function fetchDeals(isAutoRefresh) {
 
     // Premier rendu (avant analyse Keepa) pour montrer les deals immediatement
     renderDealResults();
-    updateLastRefreshTime();
 
     // Analyser les deals (detection Amazon, lookup prix)
     try {
@@ -3508,19 +3492,17 @@ async function fetchDeals(isAutoRefresh) {
     var newProfitableDeals = filtered.filter(function(d) {
         return d.isNew && d.profit !== null && d.profit > 0;
     });
-    if (newProfitableDeals.length > 0 && dealAutoRefreshEnabled) {
+    if (newProfitableDeals.length > 0) {
         await sendDealNotifications(newProfitableDeals);
     }
 
-    // Restaurer le bouton
+    // Restaurer le bouton avec l'heure du dernier chargement
     if (fetchBtn) {
         fetchBtn.disabled = false;
-        fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger';
-    }
-
-    // Demarrer l'auto-refresh apres le premier chargement
-    if (!dealAutoRefreshEnabled) {
-        startAutoRefresh();
+        var now = new Date();
+        var h = String(now.getHours()).padStart(2, '0');
+        var m = String(now.getMinutes()).padStart(2, '0');
+        fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>MAJ ' + h + ':' + m;
     }
 }
 
@@ -4020,7 +4002,6 @@ function renderDealResults() {
     html += '<th class="text-left p-2 w-12"></th>';
     html += '<th class="text-left p-2">Deal</th>';
     html += '<th class="text-right p-2">Prix</th>';
-    html += '<th class="text-right p-2">-%</th>';
     html += '<th class="text-left p-2">Source</th>';
     html += '<th class="text-center p-2">ASIN</th>';
     html += '<th class="text-right p-2">Amazon</th>';
@@ -4177,7 +4158,6 @@ function renderDealResults() {
         html += '<td class="p-2">' + imgHtml + '</td>';
         html += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
         html += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
-        html += '<td class="p-2 text-right">' + (d.discount > 0 ? '<span class="text-green-400">-' + d.discount + '%</span>' : '<span class="text-gray-500">—</span>') + '</td>';
         html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName) + '</td>';
         html += '<td class="p-2 text-center deal-asin">' + asinHtml + '</td>';
         html += '<td class="p-2 text-right deal-amazon-price">' + amazonPriceHtml + '</td>';
@@ -4651,65 +4631,8 @@ function calculateBestMarketplace(deal, multiData) {
 }
 
 // ===========================
-// FEATURE 4 — AUTO-REFRESH + NOTIFICATIONS
+// FEATURE 4 — NOTIFICATIONS
 // ===========================
-
-var dealCountdownTimer = null;
-var dealCountdownSeconds = 0;
-
-function updateLastRefreshTime() {
-    var now = new Date();
-    var h = String(now.getHours()).padStart(2, '0');
-    var m = String(now.getMinutes()).padStart(2, '0');
-    var el = document.getElementById('deal-last-refresh');
-    if (el) el.textContent = 'MAJ ' + h + ':' + m;
-}
-
-function updateCountdown() {
-    var el = document.getElementById('deal-countdown');
-    if (!el) return;
-
-    dealCountdownSeconds--;
-    if (dealCountdownSeconds <= 0) {
-        el.innerHTML = '<i class="fas fa-sync-alt fa-spin mr-1"></i>Refresh...';
-        return;
-    }
-    var min = Math.floor(dealCountdownSeconds / 60);
-    var sec = dealCountdownSeconds % 60;
-    var timeStr = min > 0 ? min + ':' + String(sec).padStart(2, '0') : sec + 's';
-    el.innerHTML = '<i class="fas fa-clock mr-1"></i>' + timeStr;
-}
-
-// Demarre l'auto-refresh automatiquement (appele apres le premier chargement)
-function startAutoRefresh() {
-    if (dealAutoRefreshEnabled) return; // deja actif
-    dealAutoRefreshEnabled = true;
-
-    var settings = loadOASettings();
-    var intervalMin = settings.dealAutoRefreshMin || 10;
-
-    // Demander permission notifications navigateur
-    if ('Notification' in window && Notification.permission === 'default') {
-        Notification.requestPermission();
-    }
-
-    // Timer principal : refresh
-    dealCountdownSeconds = intervalMin * 60;
-    if (dealAutoRefreshTimer) clearInterval(dealAutoRefreshTimer);
-    dealAutoRefreshTimer = setInterval(function() {
-        console.log('[DealScanner] Auto-refresh...');
-        fetchDeals(true);
-        updateLastRefreshTime();
-        dealCountdownSeconds = intervalMin * 60;
-    }, intervalMin * 60 * 1000);
-
-    // Timer countdown : chaque seconde
-    if (dealCountdownTimer) clearInterval(dealCountdownTimer);
-    dealCountdownTimer = setInterval(updateCountdown, 1000);
-    updateCountdown();
-
-    console.log('[DealScanner] Auto-refresh demarre: toutes les ' + intervalMin + ' min');
-}
 
 async function sendDealNotifications(newProfitableDeals) {
     if (!newProfitableDeals || newProfitableDeals.length === 0) return;
@@ -4856,8 +4779,6 @@ function initOA() {
 
     // Drag & drop gere par les handlers inline dans le HTML (ondragover, ondragleave, ondrop)
 
-    // Lancer le Deal Scanner automatiquement en arriere-plan
-    fetchDeals(false);
 
     console.log('[OA] Module OA Scanner initialise.');
 }

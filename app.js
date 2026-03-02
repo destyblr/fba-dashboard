@@ -659,10 +659,6 @@ function showSection(sectionName) {
     if (sectionName === 'oa-parametres' && typeof initOASettings === 'function') {
         initOASettings();
     }
-    // Deal Scanner : lancer le chargement + auto-refresh automatiquement
-    if (sectionName === 'oa-deal-scanner' && typeof fetchDeals === 'function') {
-        fetchDeals(false);
-    }
 }
 
 // ===========================
