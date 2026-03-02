@@ -1,7 +1,7 @@
 # Configuration Netlify pour FBA Dashboard
 
 [build]
-  # Pas de build necessaire (site statique)
+  command = "echo 'Static site'"
   publish = "."
 
 [functions]
