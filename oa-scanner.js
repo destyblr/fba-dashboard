@@ -34,7 +34,6 @@ const DEAL_SOURCES = {
 };
 
 // Mode RSS : 'new' (defaut, moins de concurrence) ou 'hot' (populaires)
-var dealRSSMode = 'new';
 
 // Blacklist mots-cles par defaut (marques gatees + produits ingerables)
 const DEAL_BLACKLIST_DEFAULT = 'iPhone,iPad,MacBook,AirPods,Apple Watch,Samsung,Galaxy,Sony,PlayStation,PS5,PS4,Xbox,Surface,Nintendo,Switch,Huawei,Xiaomi,Oppo,OnePlus,Dyson,Nike,Adidas,LEGO,Bose,Rolex,Canon,Nikon,GoPro,televiseur,television,ordinateur portable,laptop,PC portable,smartphone,lave-linge,lave-vaisselle,refrigerateur,congelateur,micro-ondes,climatiseur,canape,matelas,pneu';
@@ -3895,34 +3894,6 @@ async function resolveASINFromPepper(dealUrl) {
     }
 }
 
-// --- Callback quand la source change ---
-function onDealSourceChange() {
-    // Afficher/masquer le toggle Hot/New selon que la source est RSS ou scraper
-    var sourceSelect = document.getElementById('deal-source-select');
-    var toggle = document.getElementById('deal-rss-mode-toggle');
-    if (!sourceSelect || !toggle) return;
-
-    var sourceKey = sourceSelect.value;
-    var source = DEAL_SOURCES[sourceKey];
-    var isRSS = (source && source.type === 'rss') || sourceKey === 'all_rss' || sourceKey === 'all';
-    toggle.style.display = isRSS ? '' : 'none';
-}
-
-// --- Toggle Hot/New ---
-function setDealRSSMode(mode) {
-    dealRSSMode = mode;
-    var btnNew = document.getElementById('deal-mode-new');
-    var btnHot = document.getElementById('deal-mode-hot');
-    if (btnNew && btnHot) {
-        if (mode === 'new') {
-            btnNew.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-orange-500 text-white transition';
-            btnHot.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-white text-gray-600 hover:bg-gray-50 transition';
-        } else {
-            btnHot.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-orange-500 text-white transition';
-            btnNew.className = 'flex-1 px-3 py-2 text-sm font-semibold bg-white text-gray-600 hover:bg-gray-50 transition';
-        }
-    }
-}
 
 // --- Filtres ---
 function setDealFilter(mode) {
