@@ -2943,7 +2943,7 @@ var keepaTokensLeft = 60;
 
 // --- Appel unitaire Keepa search (1 token) ---
 async function keepaSearchOne(apiKey, domain, term) {
-    var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term) + '&asins-only=1&page=0&perPage=1';
+    var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term) + '&asins-only=1&page=0';
     var resp = await fetch(url);
     var data = await resp.json();
     if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
@@ -4678,7 +4678,7 @@ async function sendDealNotifications(newProfitableDeals) {
     // Tous les deals avec profit > 0 sont notifies
     var notifiable = newProfitableDeals;
 
-    console.log('[DealScanner] ' + notifiable.length + ' deals a notifier (profit >= ' + minProfit + '€)');
+    console.log('[DealScanner] ' + notifiable.length + ' deals a notifier (profit > 0)');
 
     for (var i = 0; i < notifiable.length; i++) {
         var deal = notifiable[i];
