@@ -2919,7 +2919,7 @@ var keepaTokensLeft = 60;
 
 // --- Appel unitaire Keepa search (1 token) ---
 async function keepaSearchOne(apiKey, domain, term) {
-    var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term) + '&asins-only=1';
+    var url = 'https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term) + '&asins-only=1&page=0&perPage=1';
     var resp = await fetch(url);
     var data = await resp.json();
     if (data.tokensLeft !== undefined) keepaTokensLeft = data.tokensLeft;
@@ -3439,27 +3439,6 @@ async function fetchDeals() {
     // Re-afficher les resultats apres analyse
     renderDealResults();
 
-    // Multi-marketplace: checker les ASINs trouves sur FR+DE+IT+ES
-    var asinsForMulti = filtered.filter(function(d) { return d.asin; }).map(function(d) { return d.asin; });
-    var uniqueAsins = asinsForMulti.filter(function(a, i) { return asinsForMulti.indexOf(a) === i; });
-    if (uniqueAsins.length > 0 && settings.keepaApiKey) {
-        var keepaStatsEl2 = document.getElementById('deal-stats-keepa');
-        if (keepaStatsEl2) keepaStatsEl2.textContent = 'Multi-MKT: ' + uniqueAsins.length + ' ASINs sur 4 pays...';
-        try {
-            var multiResults = await multiMarketplaceLookup(uniqueAsins);
-            // Appliquer les resultats multi-marketplace aux deals
-            filtered.forEach(function(deal) {
-                if (deal.asin && multiResults[deal.asin]) {
-                    deal.multiMarket = calculateBestMarketplace(deal, multiResults[deal.asin]);
-                }
-            });
-            renderDealResults();
-            if (keepaStatsEl2) keepaStatsEl2.textContent = 'Multi-MKT: ' + uniqueAsins.length + ' ASINs compares';
-        } catch (e) {
-            console.error('[DealScanner] Multi-MKT erreur:', e);
-        }
-    }
-
     // Matching non-Amazon: chercher les deals sans ASIN sur Amazon via Keepa search
     var nonAmazonCount = filtered.filter(function(d) { return !d.asin && !d.keepaSearchDone && d.price > 0; }).length;
     if (nonAmazonCount > 0 && settings.keepaApiKey) {
@@ -3486,6 +3465,28 @@ async function fetchDeals() {
             }
             renderDealResults();
         }
+    }
+
+    // Multi-marketplace: checker les ASINs trouves sur FR+DE+IT+ES (seulement si tokens dispo)
+    var asinsForMulti = filtered.filter(function(d) { return d.asin; }).map(function(d) { return d.asin; });
+    var uniqueAsins = asinsForMulti.filter(function(a, i) { return asinsForMulti.indexOf(a) === i; });
+    if (uniqueAsins.length > 0 && settings.keepaApiKey && keepaTokensLeft >= uniqueAsins.length * 4) {
+        var keepaStatsEl2 = document.getElementById('deal-stats-keepa');
+        if (keepaStatsEl2) keepaStatsEl2.textContent = 'Multi-MKT: ' + uniqueAsins.length + ' ASINs sur 4 pays...';
+        try {
+            var multiResults = await multiMarketplaceLookup(uniqueAsins);
+            filtered.forEach(function(deal) {
+                if (deal.asin && multiResults[deal.asin]) {
+                    deal.multiMarket = calculateBestMarketplace(deal, multiResults[deal.asin]);
+                }
+            });
+            renderDealResults();
+            if (keepaStatsEl2) keepaStatsEl2.textContent = 'Multi-MKT: ' + uniqueAsins.length + ' ASINs compares';
+        } catch (e) {
+            console.error('[DealScanner] Multi-MKT erreur:', e);
+        }
+    } else if (uniqueAsins.length > 0 && keepaTokensLeft < uniqueAsins.length * 4) {
+        console.log('[DealScanner] Multi-MKT skip: pas assez de tokens (' + keepaTokensLeft + ' dispo, ' + (uniqueAsins.length * 4) + ' requis)');
     }
 
     // Notifications pour les nouveaux deals rentables
