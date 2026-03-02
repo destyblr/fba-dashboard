@@ -4,11 +4,13 @@ const { getStore } = require('@netlify/blobs');
 
 // === CONFIG ===
 const RSS_SOURCES = [
-    { name: 'Dealabs', baseUrl: 'https://www.dealabs.com/rss/' },
-    { name: 'MyDealz', baseUrl: 'https://www.mydealz.de/rss/' },
-    { name: 'Chollometro', baseUrl: 'https://www.chollometro.com/rss/' },
-    { name: 'Pepper.it', baseUrl: 'https://www.pepper.it/rss/' }
+    { name: 'Dealabs', baseUrl: 'https://www.dealabs.com/rss/', domain: 4 },
+    { name: 'MyDealz', baseUrl: 'https://www.mydealz.de/rss/', domain: 3 },
+    { name: 'Chollometro', baseUrl: 'https://www.chollometro.com/rss/', domain: 9 },
+    { name: 'Pepper.it', baseUrl: 'https://www.pepper.it/rss/', domain: 8 }
 ];
+const SOURCE_DOMAINS = { 'Dealabs': 4, 'MyDealz': 3, 'Chollometro': 9, 'Pepper.it': 8 };
+const DOMAIN_NAMES = { 3: 'amazon.de', 4: 'amazon.fr', 8: 'amazon.it', 9: 'amazon.es' };
 
 const BLACKLIST = 'iphone,ipad,macbook,airpods,apple watch,samsung,galaxy,sony,playstation,ps5,ps4,xbox,surface,nintendo,switch,huawei,xiaomi,oppo,oneplus,dyson,nike,adidas,lego,bose,rolex,canon,nikon,gopro,televiseur,television,ordinateur portable,laptop,pc portable,smartphone,lave-linge,lave-vaisselle,refrigerateur,congelateur,micro-ondes,climatiseur,canape,matelas,pneu'.split(',');
 
@@ -20,7 +22,7 @@ const FEES = {
     urssafPct: 12.3
 };
 
-const FILTERS = { minPrice: 8, maxPrice: 100 };
+const FILTERS = { minPrice: 5, maxPrice: 200 };
 const SEARCH_BATCH = 3;       // Nouvelles recherches ASIN par cycle (3 x 10 = 30 tokens)
 const PRICE_REFRESH_NEW = 5;  // Max ASINs sans prix a checker (5 tokens)
 const PRICE_REFRESH_STALE = 15; // Max ASINs avec prix perime a rafraichir (15 tokens)
@@ -120,20 +122,22 @@ function buildSearchTerms(title) {
     return terms;
 }
 
-async function keepaSearch(apiKey, title) {
+async function keepaSearch(apiKey, title, sourceDomain) {
     var terms = buildSearchTerms(title);
     if (terms.length === 0) return null;
+    var domain = sourceDomain || 4; // domaine Amazon selon la source du deal
+
+    // Max 2 tentatives : titre nettoye, puis titre large (meme domaine)
     var attempts = [];
-    if (terms[0]) { attempts.push({ term: terms[0], domain: 4 }); attempts.push({ term: terms[0], domain: 3 }); }
-    if (terms[1]) attempts.push({ term: terms[1], domain: 4 });
+    if (terms[0]) attempts.push(terms[0]);
+    if (terms[1]) attempts.push(terms[1]);
 
     for (var i = 0; i < attempts.length; i++) {
-        var a = attempts[i];
         try {
-            var resp = await fetch('https://api.keepa.com/search?key=' + apiKey + '&domain=' + a.domain + '&type=product&term=' + encodeURIComponent(a.term) + '&asins-only=1&page=0');
+            var resp = await fetch('https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(attempts[i]) + '&asins-only=1&page=0');
             var data = await resp.json();
             if (data.asinList && data.asinList.length > 0) {
-                console.log('[CRON] FOUND: "' + a.term.substring(0, 25) + '" → ' + data.asinList[0] + ' (tokens=' + data.tokensLeft + ')');
+                console.log('[CRON] FOUND: "' + attempts[i].substring(0, 25) + '" → ' + data.asinList[0] + ' (dom=' + domain + ', tokens=' + data.tokensLeft + ')');
                 return { asin: data.asinList[0], tokensLeft: data.tokensLeft };
             }
             if (data.tokensLeft !== undefined && data.tokensLeft <= 2) {
@@ -145,41 +149,60 @@ async function keepaSearch(apiKey, title) {
     return null;
 }
 
-async function keepaBatchLookup(apiKey, asins) {
-    if (asins.length === 0) return {};
-    try {
-        var resp = await fetch('https://api.keepa.com/product?key=' + apiKey + '&domain=4&asin=' + asins.join(',') + '&stats=180&fbafees=1');
-        if (resp.status === 429) { console.log('[CRON] Batch 429 - plus de tokens'); return {}; }
-        var data = await resp.json();
-        if (!data.products) return {};
-        var results = {};
-        data.products.forEach(function(p) {
-            if (!p || !p.asin) return;
-            var amazonPrice = null;
-            if (p.csv && p.csv[0]) {
-                var ph = p.csv[0];
-                if (ph.length >= 2 && ph[ph.length - 1] > 0) amazonPrice = ph[ph.length - 1] / 100;
-            }
-            if (!amazonPrice && p.stats && p.stats.current) {
-                var c = p.stats.current[0];
-                if (c > 0) amazonPrice = c / 100;
-            }
-            results[p.asin] = {
-                price: amazonPrice,
-                bsr: (p.stats && p.stats.current) ? p.stats.current[3] : null,
-                fbaSellers: (p.stats && p.stats.current) ? p.stats.current[10] : null,
-                fbaPickAndPack: p.fbaFees && p.fbaFees.pickAndPackFee ? p.fbaFees.pickAndPackFee / 100 : null,
-                referralFeePct: p.referralFeePercent || null,
-                weight: p.packageWeight || null,
-                checkedAt: new Date().toISOString()
-            };
-        });
-        console.log('[CRON] Batch OK: ' + Object.keys(results).length + '/' + asins.length + ' (tokens=' + (data.tokensLeft || '?') + ')');
-        return results;
-    } catch (e) {
-        console.log('[CRON] Batch erreur: ' + e.message);
-        return {};
+function parseKeepaProduct(p) {
+    if (!p || !p.asin) return null;
+    var amazonPrice = null;
+    if (p.csv && p.csv[0]) {
+        var ph = p.csv[0];
+        if (ph.length >= 2 && ph[ph.length - 1] > 0) amazonPrice = ph[ph.length - 1] / 100;
     }
+    if (!amazonPrice && p.stats && p.stats.current) {
+        var c = p.stats.current[0];
+        if (c > 0) amazonPrice = c / 100;
+    }
+    return {
+        price: amazonPrice,
+        bsr: (p.stats && p.stats.current) ? p.stats.current[3] : null,
+        fbaSellers: (p.stats && p.stats.current) ? p.stats.current[10] : null,
+        fbaPickAndPack: p.fbaFees && p.fbaFees.pickAndPackFee ? p.fbaFees.pickAndPackFee / 100 : null,
+        referralFeePct: p.referralFeePercent || null,
+        weight: p.packageWeight || null,
+        checkedAt: new Date().toISOString()
+    };
+}
+
+async function keepaBatchLookup(apiKey, asinsByDomain) {
+    // asinsByDomain = { 4: ['B0...', 'B0...'], 3: ['B0...'] }
+    var allResults = {};
+    var domains = Object.keys(asinsByDomain);
+    for (var d = 0; d < domains.length; d++) {
+        var domain = domains[d];
+        var asins = asinsByDomain[domain];
+        if (asins.length === 0) continue;
+
+        // Decouper en paquets de 10
+        for (var start = 0; start < asins.length; start += 10) {
+            var chunk = asins.slice(start, start + 10);
+            try {
+                var resp = await fetch('https://api.keepa.com/product?key=' + apiKey + '&domain=' + domain + '&asin=' + chunk.join(',') + '&stats=180&fbafees=1');
+                if (resp.status === 429) {
+                    console.log('[CRON] Batch 429 dom=' + domain + ' - arret');
+                    return allResults; // retourne ce qu'on a deja
+                }
+                var data = await resp.json();
+                if (data.products) {
+                    data.products.forEach(function(p) {
+                        var parsed = parseKeepaProduct(p);
+                        if (parsed) allResults[p.asin] = parsed;
+                    });
+                }
+                console.log('[CRON] Batch dom=' + domain + ': ' + chunk.length + ' ASINs (tokens=' + (data.tokensLeft || '?') + ')');
+            } catch (e) {
+                console.log('[CRON] Batch erreur dom=' + domain + ': ' + e.message);
+            }
+        }
+    }
+    return allResults;
 }
 
 // === PROFIT ===
@@ -339,7 +362,8 @@ const handler = async (event) => {
     var searched = 0;
 
     for (var i = 0; i < searchCount; i++) {
-        var result = await keepaSearch(apiKey, needSearch[i].title);
+        var dealDomain = SOURCE_DOMAINS[needSearch[i].source] || 4;
+        var result = await keepaSearch(apiKey, needSearch[i].title, dealDomain);
         if (result) {
             needSearch[i].asin = result.asin;
             titleToAsin[needSearch[i].title.substring(0, 50).toLowerCase().trim()] = { asin: result.asin, date: new Date().toISOString() };
@@ -375,24 +399,33 @@ const handler = async (event) => {
         return (b.temperature || 0) - (a.temperature || 0);
     });
 
-    // Fusionner les 2 groupes avec limites separees
-    var asinsToRefresh = [];
+    // Fusionner les 2 groupes avec limites separees, groupes par domaine
+    var asinsByDomain = {};
     var seenAsins = {};
     var noPriceCount = 0;
+    function addAsinForDeal(deal) {
+        var dom = SOURCE_DOMAINS[deal.source] || 4;
+        if (!asinsByDomain[dom]) asinsByDomain[dom] = [];
+        if (!seenAsins[deal.asin]) {
+            seenAsins[deal.asin] = true;
+            asinsByDomain[dom].push(deal.asin);
+            return true;
+        }
+        return false;
+    }
     for (var j = 0; j < noPriceDeals.length && noPriceCount < PRICE_REFRESH_NEW; j++) {
-        var asin = noPriceDeals[j].asin;
-        if (!seenAsins[asin]) { seenAsins[asin] = true; asinsToRefresh.push(asin); noPriceCount++; }
+        if (addAsinForDeal(noPriceDeals[j])) noPriceCount++;
     }
     var staleCount = 0;
     for (var j2 = 0; j2 < staleDeals.length && staleCount < PRICE_REFRESH_STALE; j2++) {
-        var asin2 = staleDeals[j2].asin;
-        if (!seenAsins[asin2]) { seenAsins[asin2] = true; asinsToRefresh.push(asin2); staleCount++; }
+        if (addAsinForDeal(staleDeals[j2])) staleCount++;
     }
-    console.log('[CRON] Prix a rafraichir: ' + noPriceCount + ' nouveaux + ' + staleCount + ' perimes = ' + asinsToRefresh.length + ' ASINs');
+    var totalRefresh = noPriceCount + staleCount;
+    console.log('[CRON] Prix a rafraichir: ' + noPriceCount + ' nouveaux + ' + staleCount + ' perimes = ' + totalRefresh + ' ASINs');
 
     var keepaData = {};
-    if (asinsToRefresh.length > 0) {
-        keepaData = await keepaBatchLookup(apiKey, asinsToRefresh);
+    if (totalRefresh > 0) {
+        keepaData = await keepaBatchLookup(apiKey, asinsByDomain);
     }
 
     // === 7. Calculer profit pour tous les deals ===
@@ -421,7 +454,11 @@ const handler = async (event) => {
     });
 
     // === 8. Stocker dans Blobs — trie par ROI ===
-    allDeals.sort(function(a, b) { return (b.roi || -999) - (a.roi || -999); });
+    allDeals.sort(function(a, b) {
+        var roiA = (a.roi !== null && a.roi !== undefined) ? a.roi : -999;
+        var roiB = (b.roi !== null && b.roi !== undefined) ? b.roi : -999;
+        return roiB - roiA;
+    });
 
     var dealsForBrowser = allDeals.map(function(d) {
         return {
@@ -469,10 +506,17 @@ const handler = async (event) => {
 
         try {
             var existing = await notifiedStore.get(notifKey);
-            if (existing) alreadySent = true;
+            if (existing) {
+                // TTL 7 jours : re-notifier si > 7j (deal revenu en promo)
+                var notifData = JSON.parse(existing);
+                if (notifData.date && (now - new Date(notifData.date).getTime() < 7 * 86400000)) {
+                    alreadySent = true;
+                }
+            }
         } catch (e) { /* nouveau */ }
 
         if (!alreadySent && deal.price && deal.amazonPrice && deal.profit !== null && deal.roi !== null) {
+            var dealDomainName = DOMAIN_NAMES[SOURCE_DOMAINS[deal.source] || 4] || 'amazon.fr';
             var msg = '🔔 *Deal rentable !*\n\n' +
                 '📦 ' + deal.title.substring(0, 80) + '\n' +
                 '💰 ' + Number(deal.price).toFixed(2) + '€ → Amazon: ' + Number(deal.amazonPrice).toFixed(2) + '€\n' +
@@ -480,7 +524,7 @@ const handler = async (event) => {
                 (deal.bsr ? '📊 BSR: ' + Number(deal.bsr).toLocaleString() + '\n' : '') +
                 '🏪 ' + deal.source + (deal.temperature > 0 ? ' ' + deal.temperature + '°' : '') + '\n' +
                 '🔗 [Deal](' + deal.link + ')' +
-                (deal.asin ? ' | [Amazon](https://www.amazon.fr/dp/' + deal.asin + ')' : '');
+                (deal.asin ? ' | [Amazon](https://www.' + dealDomainName + '/dp/' + deal.asin + ')' : '');
 
             var sent = await sendTelegram(botToken, chatId, msg);
             if (sent) {
