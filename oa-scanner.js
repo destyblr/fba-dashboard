@@ -4856,6 +4856,9 @@ function initOA() {
 
     // Drag & drop gere par les handlers inline dans le HTML (ondragover, ondragleave, ondrop)
 
+    // Lancer le Deal Scanner automatiquement en arriere-plan
+    fetchDeals(false);
+
     console.log('[OA] Module OA Scanner initialise.');
 }
 
