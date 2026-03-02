@@ -379,5 +379,5 @@ const handler = async (event) => {
     };
 };
 
-// Executer toutes les 15 minutes
-exports.handler = schedule('*/15 * * * *', handler);
+// Executer toutes les 30 minutes
+exports.handler = schedule('*/30 * * * *', handler);
