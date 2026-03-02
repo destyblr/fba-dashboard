@@ -2638,6 +2638,30 @@ function formatNumber(num) {
 // DEAL SCANNER
 // ===========================
 
+// --- Keepa Search Cache (titre → ASIN) ---
+var keepaSearchTitleCache = {};
+
+function loadSearchCache() {
+    try {
+        var raw = localStorage.getItem('keepaSearchCache');
+        if (raw) {
+            keepaSearchTitleCache = JSON.parse(raw);
+            // Nettoyer > 7 jours
+            var now = Date.now();
+            Object.keys(keepaSearchTitleCache).forEach(function(key) {
+                if (now - keepaSearchTitleCache[key].ts > 7 * 24 * 60 * 60 * 1000) {
+                    delete keepaSearchTitleCache[key];
+                }
+            });
+            console.log('[DealScanner] Cache recherche charge: ' + Object.keys(keepaSearchTitleCache).length + ' titres');
+        }
+    } catch (e) { keepaSearchTitleCache = {}; }
+}
+
+function saveSearchCache() {
+    try { localStorage.setItem('keepaSearchCache', JSON.stringify(keepaSearchTitleCache)); } catch (e) {}
+}
+
 // --- Keepa Cache ---
 function loadKeepaCache() {
     try {
@@ -2947,6 +2971,13 @@ async function keepaSearchByTitle(title) {
         return null;
     }
 
+    // Verifier le cache titre→ASIN
+    var cacheKey = title.substring(0, 50).toLowerCase().trim();
+    if (keepaSearchTitleCache[cacheKey]) {
+        console.log('[DealScanner] Cache titre→ASIN: "' + title.substring(0, 30) + '" → ' + keepaSearchTitleCache[cacheKey].asin);
+        return keepaSearchTitleCache[cacheKey].asin;
+    }
+
     var searchTerms = buildSearchTerms(title);
     if (searchTerms.length === 0) return null;
 
@@ -2976,6 +3007,8 @@ async function keepaSearchByTitle(title) {
             var asin = await keepaSearchOne(apiKey, a.domain, a.term);
             if (asin) {
                 console.log('[DealScanner] TROUVE ' + a.label + ': "' + a.term.substring(0, 25) + '" → ' + asin + ' (tokens=' + keepaTokensLeft + ')');
+                keepaSearchTitleCache[cacheKey] = { asin: asin, ts: Date.now() };
+                saveSearchCache();
                 return asin;
             }
             console.log('[DealScanner] ' + a.label + ' "' + a.term.substring(0, 25) + '" → 0 (tokens=' + keepaTokensLeft + ')');
@@ -4766,8 +4799,9 @@ function initOA() {
     // Restaurer les resultats du dernier scan
     loadScanResults();
 
-    // Charger le cache Keepa pour le Deal Scanner
+    // Charger les caches Keepa pour le Deal Scanner
     loadKeepaCache();
+    loadSearchCache();
 
     // Charger l'historique des deals
     loadDealHistory();
