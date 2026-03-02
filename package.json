@@ -5,5 +5,11 @@
   "description": "FBA Dashboard - Amazon arbitrage tool",
   "scripts": {
     "build": "echo 'Static site, no build needed'"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^7.0.0",
+    "@netlify/functions": "^2.4.0",
+    "node-fetch": "^2.7.0",
+    "cheerio": "^1.0.0"
   }
 }
