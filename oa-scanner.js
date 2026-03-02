@@ -3385,6 +3385,44 @@ async function fetchDealsFromSource(sourceKey) {
     return [];
 }
 
+// --- Compte a rebours cron ---
+var cronCountdownTimer = null;
+var lastCronUpdate = null;
+var CRON_INTERVAL = 30; // minutes
+
+function startCronCountdown(updatedAt) {
+    lastCronUpdate = new Date(updatedAt);
+    if (cronCountdownTimer) clearInterval(cronCountdownTimer);
+    updateCronStatus();
+    cronCountdownTimer = setInterval(updateCronStatus, 1000);
+}
+
+function updateCronStatus() {
+    var el = document.getElementById('deal-cron-status');
+    if (!el || !lastCronUpdate) return;
+
+    var now = new Date();
+    var nextCron = new Date(lastCronUpdate.getTime() + CRON_INTERVAL * 60 * 1000);
+    var diffSec = Math.max(0, Math.floor((nextCron - now) / 1000));
+
+    if (diffSec <= 0) {
+        el.innerHTML = '<i class="fas fa-sync-alt fa-spin text-green-400 mr-1"></i><span class="text-green-400">Scan en cours...</span>';
+        return;
+    }
+
+    var min = Math.floor(diffSec / 60);
+    var sec = diffSec % 60;
+    var lastH = String(lastCronUpdate.getHours()).padStart(2, '0');
+    var lastM = String(lastCronUpdate.getMinutes()).padStart(2, '0');
+    el.innerHTML = '<i class="fas fa-server text-blue-400 mr-1"></i>MAJ ' + lastH + ':' + lastM + ' · <i class="fas fa-clock text-gray-500 mr-1"></i>Prochain dans ' + min + ':' + String(sec).padStart(2, '0');
+}
+
+function stopCronCountdown() {
+    if (cronCountdownTimer) { clearInterval(cronCountdownTimer); cronCountdownTimer = null; }
+    var el = document.getElementById('deal-cron-status');
+    if (el) el.innerHTML = '<i class="fas fa-exclamation-circle text-yellow-400 mr-1"></i><span class="text-yellow-400">Mode local</span>';
+}
+
 // --- Charger les deals depuis le serveur Netlify (0 token) ---
 async function fetchDealsFromServer() {
     try {
@@ -3434,6 +3472,9 @@ async function fetchDeals() {
 
         renderDealResults();
 
+        // Demarrer le compte a rebours cron
+        startCronCountdown(serverData.updatedAt);
+
         // Notifications Telegram pour les deals rentables
         var profitableDeals = filtered.filter(function(d) { return d.profit > 0 && !d.notified; });
         if (profitableDeals.length > 0) {
@@ -3444,14 +3485,14 @@ async function fetchDeals() {
         // Restaurer le bouton
         if (fetchBtn) {
             fetchBtn.disabled = false;
-            var now = new Date();
-            fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>MAJ ' + String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+            fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger';
         }
         return;
     }
 
     // Fallback : recherche locale (consomme des tokens Keepa)
     console.log('[DealScanner] Mode local (serveur non disponible)');
+    stopCronCountdown();
     var sourceSelect = document.getElementById('deal-source-select');
     var sourceKey = sourceSelect ? sourceSelect.value : 'dealabs';
 
