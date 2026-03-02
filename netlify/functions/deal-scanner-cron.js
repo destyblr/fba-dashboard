@@ -21,10 +21,12 @@ const FEES = {
 };
 
 const FILTERS = { minPrice: 8, maxPrice: 100 };
-const SEARCH_BATCH = 5;       // Nouvelles recherches ASIN par cycle (5 x 10 = 50 tokens)
-const PRICE_REFRESH_MAX = 40;  // Max ASINs a rafraichir par cycle (40 tokens)
+const SEARCH_BATCH = 3;       // Nouvelles recherches ASIN par cycle (3 x 10 = 30 tokens)
+const PRICE_REFRESH_NEW = 5;  // Max ASINs sans prix a checker (5 tokens)
+const PRICE_REFRESH_STALE = 15; // Max ASINs avec prix perime a rafraichir (15 tokens)
 const DEAL_EXPIRY_H = 24;     // Expiration des deals en heures
 const PRICE_STALE_H = 2;      // Prix considere perime apres X heures
+const ASIN_CACHE_EXPIRY_DAYS = 14; // Expiration cache titre→ASIN
 
 // === RSS FETCHING ===
 async function fetchRSS(source, mode) {
@@ -254,11 +256,26 @@ const handler = async (event) => {
     });
     if (expiredCount > 0) console.log('[CRON] ' + expiredCount + ' deals expires');
 
-    // === 2. Charger le cache ASIN (titre → ASIN) ===
+    // === 2. Charger le cache ASIN (titre → {asin, date}) et expirer ===
     var titleToAsin = {};
     try {
         var cacheRaw = await asinCache.get('title-map', { type: 'json' });
-        if (cacheRaw) titleToAsin = cacheRaw;
+        if (cacheRaw) {
+            var expiryCutoff = now - ASIN_CACHE_EXPIRY_DAYS * 86400000;
+            var expiredCache = 0;
+            Object.keys(cacheRaw).forEach(function(key) {
+                var entry = cacheRaw[key];
+                // Migration : ancien format string → nouveau format {asin, date}
+                if (typeof entry === 'string') {
+                    titleToAsin[key] = { asin: entry, date: new Date().toISOString() };
+                } else if (entry.date && new Date(entry.date).getTime() > expiryCutoff) {
+                    titleToAsin[key] = entry;
+                } else {
+                    expiredCache++;
+                }
+            });
+            if (expiredCache > 0) console.log('[CRON] Cache ASIN: ' + expiredCache + ' entrees expirees');
+        }
         console.log('[CRON] Cache ASIN: ' + Object.keys(titleToAsin).length + ' titres');
     } catch (e) { /* premier lancement */ }
 
@@ -309,7 +326,7 @@ const handler = async (event) => {
         if (!d.asin) {
             var cacheKey = d.title.substring(0, 50).toLowerCase().trim();
             if (titleToAsin[cacheKey]) {
-                d.asin = titleToAsin[cacheKey];
+                d.asin = titleToAsin[cacheKey].asin || titleToAsin[cacheKey];
             } else if (d.price > 0) {
                 needSearch.push(d);
             }
@@ -325,7 +342,7 @@ const handler = async (event) => {
         var result = await keepaSearch(apiKey, needSearch[i].title);
         if (result) {
             needSearch[i].asin = result.asin;
-            titleToAsin[needSearch[i].title.substring(0, 50).toLowerCase().trim()] = result.asin;
+            titleToAsin[needSearch[i].title.substring(0, 50).toLowerCase().trim()] = { asin: result.asin, date: new Date().toISOString() };
             searched++;
             if (result.tokensLeft !== undefined && result.tokensLeft <= 5) {
                 console.log('[CRON] Tokens bas, arret recherche (' + (i + 1) + '/' + searchCount + ')');
@@ -338,35 +355,40 @@ const handler = async (event) => {
     // Sauvegarder cache ASIN
     try { await asinCache.setJSON('title-map', titleToAsin); } catch (e) {}
 
-    // === 6. Rafraichir les prix Amazon (priorite : rentables > sans prix > anciens) ===
+    // === 6. Rafraichir les prix Amazon (2 groupes separes) ===
     var allDeals = Object.values(accumulated);
     var dealsWithAsin = allDeals.filter(function(d) { return d.asin; });
 
-    // Trier : deals rentables d'abord, puis sans prix, puis prix perime
-    dealsWithAsin.sort(function(a, b) {
-        // Priorite 1 : sans prix Amazon (jamais checke)
-        var aNoPrice = !a.amazonPrice ? 1 : 0;
-        var bNoPrice = !b.amazonPrice ? 1 : 0;
-        if (aNoPrice !== bNoPrice) return bNoPrice - aNoPrice;
-        // Priorite 2 : prix perime (> 2h)
-        var aStale = a.priceCheckedAt && (now - new Date(a.priceCheckedAt).getTime() > PRICE_STALE_H * 3600000) ? 1 : 0;
-        var bStale = b.priceCheckedAt && (now - new Date(b.priceCheckedAt).getTime() > PRICE_STALE_H * 3600000) ? 1 : 0;
-        if (aStale !== bStale) return bStale - aStale;
-        // Priorite 3 : temperature
+    // Groupe A : deals SANS prix (jamais checkes) — max PRICE_REFRESH_NEW
+    var noPriceDeals = dealsWithAsin.filter(function(d) { return !d.amazonPrice && !d.priceCheckedAt; });
+    noPriceDeals.sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
+
+    // Groupe B : deals avec prix PERIME (> 2h) — max PRICE_REFRESH_STALE, rentables d'abord
+    var staleDeals = dealsWithAsin.filter(function(d) {
+        return d.priceCheckedAt && (now - new Date(d.priceCheckedAt).getTime() > PRICE_STALE_H * 3600000);
+    });
+    staleDeals.sort(function(a, b) {
+        // Rentables d'abord (on veut garder leurs prix frais)
+        var aProfit = (a.profit && a.profit > 0) ? 1 : 0;
+        var bProfit = (b.profit && b.profit > 0) ? 1 : 0;
+        if (aProfit !== bProfit) return bProfit - aProfit;
         return (b.temperature || 0) - (a.temperature || 0);
     });
 
-    // Prendre max PRICE_REFRESH_MAX ASINs a rafraichir
+    // Fusionner les 2 groupes avec limites separees
     var asinsToRefresh = [];
     var seenAsins = {};
-    for (var j = 0; j < dealsWithAsin.length && asinsToRefresh.length < PRICE_REFRESH_MAX; j++) {
-        var asin = dealsWithAsin[j].asin;
-        if (!seenAsins[asin]) {
-            seenAsins[asin] = true;
-            asinsToRefresh.push(asin);
-        }
+    var noPriceCount = 0;
+    for (var j = 0; j < noPriceDeals.length && noPriceCount < PRICE_REFRESH_NEW; j++) {
+        var asin = noPriceDeals[j].asin;
+        if (!seenAsins[asin]) { seenAsins[asin] = true; asinsToRefresh.push(asin); noPriceCount++; }
     }
-    console.log('[CRON] Prix a rafraichir: ' + asinsToRefresh.length + ' ASINs');
+    var staleCount = 0;
+    for (var j2 = 0; j2 < staleDeals.length && staleCount < PRICE_REFRESH_STALE; j2++) {
+        var asin2 = staleDeals[j2].asin;
+        if (!seenAsins[asin2]) { seenAsins[asin2] = true; asinsToRefresh.push(asin2); staleCount++; }
+    }
+    console.log('[CRON] Prix a rafraichir: ' + noPriceCount + ' nouveaux + ' + staleCount + ' perimes = ' + asinsToRefresh.length + ' ASINs');
 
     var keepaData = {};
     if (asinsToRefresh.length > 0) {
@@ -405,8 +427,10 @@ const handler = async (event) => {
         return {
             title: d.title, link: d.link, price: d.price,
             merchant: d.merchant, isAmazon: d.isAmazon,
-            asin: d.asin || null, amazonPrice: d.amazonPrice || null,
-            profit: d.profit || null, roi: d.roi || null,
+            asin: d.asin || null,
+            amazonPrice: (d.amazonPrice !== undefined && d.amazonPrice !== null) ? d.amazonPrice : null,
+            profit: (d.profit !== undefined && d.profit !== null) ? d.profit : null,
+            roi: (d.roi !== undefined && d.roi !== null) ? d.roi : null,
             bsr: d.bsr || null, fbaSellers: d.fbaSellers || null,
             temperature: d.temperature, source: d.source,
             feedType: d.feedType, date: d.date,
@@ -448,12 +472,12 @@ const handler = async (event) => {
             if (existing) alreadySent = true;
         } catch (e) { /* nouveau */ }
 
-        if (!alreadySent) {
+        if (!alreadySent && deal.price && deal.amazonPrice && deal.profit !== null && deal.roi !== null) {
             var msg = '🔔 *Deal rentable !*\n\n' +
                 '📦 ' + deal.title.substring(0, 80) + '\n' +
-                '💰 ' + deal.price.toFixed(2) + '€ → Amazon: ' + deal.amazonPrice.toFixed(2) + '€\n' +
-                '✅ Profit: +' + deal.profit.toFixed(2) + '€ | ROI: ' + deal.roi.toFixed(0) + '%\n' +
-                (deal.bsr ? '📊 BSR: ' + deal.bsr.toLocaleString() + '\n' : '') +
+                '💰 ' + Number(deal.price).toFixed(2) + '€ → Amazon: ' + Number(deal.amazonPrice).toFixed(2) + '€\n' +
+                '✅ Profit: +' + Number(deal.profit).toFixed(2) + '€ | ROI: ' + Number(deal.roi).toFixed(0) + '%\n' +
+                (deal.bsr ? '📊 BSR: ' + Number(deal.bsr).toLocaleString() + '\n' : '') +
                 '🏪 ' + deal.source + (deal.temperature > 0 ? ' ' + deal.temperature + '°' : '') + '\n' +
                 '🔗 [Deal](' + deal.link + ')' +
                 (deal.asin ? ' | [Amazon](https://www.amazon.fr/dp/' + deal.asin + ')' : '');
@@ -462,7 +486,7 @@ const handler = async (event) => {
             if (sent) {
                 try { await notifiedStore.set(notifKey, JSON.stringify({ asin: deal.asin, date: new Date().toISOString() })); } catch (e) {}
                 newNotifs++;
-                console.log('[CRON] Telegram: ' + deal.title.substring(0, 40) + ' (+' + deal.profit.toFixed(2) + '€, ROI ' + deal.roi.toFixed(0) + '%)');
+                console.log('[CRON] Telegram: ' + deal.title.substring(0, 40) + ' (+' + Number(deal.profit).toFixed(2) + '€, ROI ' + Number(deal.roi).toFixed(0) + '%)');
             }
         }
     }

@@ -3458,7 +3458,7 @@ async function fetchDeals() {
     if (serverData && serverData.deals) {
         var filtered = serverData.deals;
         // Marquer avec l'historique
-        var newDealsCount = markDealsWithHistory(filtered);
+        markDealsWithHistory(filtered);
         dealScannerResults = filtered;
 
         // Stats
@@ -3474,12 +3474,7 @@ async function fetchDeals() {
         // Demarrer le compte a rebours cron
         startCronCountdown(serverData.updatedAt);
 
-        // Notifications Telegram pour les deals rentables
-        var profitableDeals = filtered.filter(function(d) { return d.profit > 0 && !d.notified; });
-        if (profitableDeals.length > 0) {
-            await sendDealNotifications(profitableDeals);
-            profitableDeals.forEach(function(d) { d.notified = true; });
-        }
+        // Telegram gere par le cron (pas de doublon navigateur)
 
         // Restaurer le bouton
         if (fetchBtn) {
@@ -3489,141 +3484,28 @@ async function fetchDeals() {
         return;
     }
 
-    // Fallback : recherche locale (consomme des tokens Keepa)
-    console.log('[DealScanner] Mode local (serveur non disponible)');
+    // Fallback leger : RSS seulement, PAS de Keepa (le cron s'en charge)
+    console.log('[DealScanner] Mode local (serveur non disponible) — affichage RSS seul');
     stopCronCountdown();
-    var sourceSelect = document.getElementById('deal-source-select');
-    var sourceKey = sourceSelect ? sourceSelect.value : 'dealabs';
 
     var allDeals = [];
-
-    if (sourceKey === 'all_rss') {
-        var rssKeys = Object.keys(DEAL_SOURCES).filter(function(k) { return DEAL_SOURCES[k].type === 'rss'; });
-        var promises = rssKeys.map(function(k) { return fetchDealsFromSource(k); });
-        var results = await Promise.all(promises);
-        results.forEach(function(deals) { allDeals = allDeals.concat(deals); });
-    } else if (sourceKey === 'all') {
-        var allKeys = Object.keys(DEAL_SOURCES);
-        var promises2 = allKeys.map(function(k) { return fetchDealsFromSource(k); });
-        var results2 = await Promise.all(promises2);
-        results2.forEach(function(deals) { allDeals = allDeals.concat(deals); });
-    } else {
-        allDeals = await fetchDealsFromSource(sourceKey);
-    }
-
-    var totalBruts = allDeals.length;
-    console.log('[DealScanner] Total deals bruts: ' + totalBruts);
+    var rssKeys = Object.keys(DEAL_SOURCES).filter(function(k) { return DEAL_SOURCES[k].type === 'rss'; });
+    var promises = rssKeys.map(function(k) { return fetchDealsFromSource(k); });
+    var results = await Promise.all(promises);
+    results.forEach(function(deals) { allDeals = allDeals.concat(deals); });
 
     var filtered = preFilterDeals(allDeals);
-    var excludedCount = totalBruts - filtered.length;
-    console.log('[DealScanner] Apres pre-filtres: ' + filtered.length + ' deals (exclus: ' + excludedCount + ')');
-
-    // Marquer les deals avec l'historique (new/seen/checklist/ignored)
-    var newDealsCount = markDealsWithHistory(filtered);
-    console.log('[DealScanner] Nouveaux deals: ' + newDealsCount);
-
+    markDealsWithHistory(filtered);
     dealScannerResults = filtered;
 
-    // Afficher l'entonnoir + stats immediatement
     var funnelEl = document.getElementById('deal-stats-funnel');
-    if (funnelEl) funnelEl.textContent = totalBruts + ' bruts \u2192 ' + excludedCount + ' exclus';
-    // Forcer l'affichage du bandeau stats des maintenant
+    if (funnelEl) funnelEl.textContent = filtered.length + ' deals (mode local — sans prix Amazon)';
     var statsEl = document.getElementById('deal-stats');
-    if (statsEl) {
-        statsEl.classList.remove('hidden');
-        statsEl.style.display = '';
-    }
+    if (statsEl) { statsEl.classList.remove('hidden'); statsEl.style.display = ''; }
 
-    // Verifier cle API Keepa et afficher avertissement si manquante
-    var settings = loadOASettings();
-    var keepaWarningEl = document.getElementById('deal-keepa-warning');
-    if (!settings.keepaApiKey) {
-        if (!keepaWarningEl) {
-            keepaWarningEl = document.createElement('div');
-            keepaWarningEl.id = 'deal-keepa-warning';
-            var container = document.getElementById('deal-scanner-results');
-            if (container) container.parentNode.insertBefore(keepaWarningEl, container);
-        }
-        keepaWarningEl.className = 'mb-4 p-4 rounded-xl border-2 border-amber-400 bg-amber-50';
-        keepaWarningEl.innerHTML = '<div class="flex items-center gap-3"><i class="fas fa-exclamation-triangle text-amber-500 text-xl"></i><div><p class="font-bold text-amber-800">Cle API Keepa non configuree</p><p class="text-sm text-amber-600">Sans cle API, le Deal Scanner ne peut pas chercher les prix Amazon. Va dans <strong>Parametres OA → API Keepa</strong> et colle ta cle.</p><p class="text-xs text-amber-500 mt-1"><a href="https://keepa.com/#!api" target="_blank" class="underline">keepa.com/#!api</a> → copie "Private API access key"</p></div></div>';
-    } else if (keepaWarningEl) {
-        keepaWarningEl.remove();
-    }
-
-    // Premier rendu (avant analyse Keepa) pour montrer les deals immediatement
     renderDealResults();
 
-    // Analyser les deals (detection Amazon, lookup prix)
-    try {
-        await analyzeDeals(filtered);
-    } catch (e) {
-        console.error('[DealScanner] Erreur analyse deals:', e);
-    }
-
-    // Re-afficher les resultats apres analyse
-    renderDealResults();
-
-    // Matching non-Amazon: chercher les deals sans ASIN sur Amazon via Keepa search
-    var nonAmazonCount = filtered.filter(function(d) { return !d.asin && !d.keepaSearchDone && d.price > 0; }).length;
-    if (nonAmazonCount > 0 && settings.keepaApiKey) {
-        var matched = await matchNonAmazonDeals(filtered);
-        if (matched > 0) {
-            // Batch lookup les ASINs nouvellement trouves
-            var newAsins = filtered.filter(function(d) { return d.asin && d.matchedBySearch && !d.keepaData; }).map(function(d) { return d.asin; });
-            if (newAsins.length > 0) {
-                var batchResults = await keepaBatchLookup(newAsins);
-                filtered.forEach(function(deal) {
-                    if (deal.asin && deal.matchedBySearch && batchResults[deal.asin]) {
-                        var result = batchResults[deal.asin];
-                        deal.amazonPrice = result.price;
-                        deal.keepaData = result;
-                        deal.keepaChecked = true;
-                        if (deal.price > 0 && result.price > 0) {
-                            var profitResult = calculateDealProfit(deal, result);
-                            deal.profit = profitResult.profit;
-                            deal.roi = profitResult.roi;
-                            deal.fees = profitResult.fees;
-                        }
-                    }
-                });
-            }
-            renderDealResults();
-        }
-    }
-
-    // Multi-marketplace: checker les ASINs trouves sur FR+DE+IT+ES (seulement si tokens dispo)
-    var asinsForMulti = filtered.filter(function(d) { return d.asin; }).map(function(d) { return d.asin; });
-    var uniqueAsins = asinsForMulti.filter(function(a, i) { return asinsForMulti.indexOf(a) === i; });
-    if (uniqueAsins.length > 0 && settings.keepaApiKey && keepaTokensLeft >= uniqueAsins.length * 4) {
-        var keepaStatsEl2 = document.getElementById('deal-stats-keepa');
-        if (keepaStatsEl2) keepaStatsEl2.textContent = 'Multi-MKT: ' + uniqueAsins.length + ' ASINs sur 4 pays...';
-        try {
-            var multiResults = await multiMarketplaceLookup(uniqueAsins);
-            filtered.forEach(function(deal) {
-                if (deal.asin && multiResults[deal.asin]) {
-                    deal.multiMarket = calculateBestMarketplace(deal, multiResults[deal.asin]);
-                }
-            });
-            renderDealResults();
-            if (keepaStatsEl2) keepaStatsEl2.textContent = 'Multi-MKT: ' + uniqueAsins.length + ' ASINs compares';
-        } catch (e) {
-            console.error('[DealScanner] Multi-MKT erreur:', e);
-        }
-    } else if (uniqueAsins.length > 0 && keepaTokensLeft < uniqueAsins.length * 4) {
-        console.log('[DealScanner] Multi-MKT skip: pas assez de tokens (' + keepaTokensLeft + ' dispo, ' + (uniqueAsins.length * 4) + ' requis)');
-    }
-
-    // Notifications pour les deals rentables (ROI > 0)
-    var profitableDeals = filtered.filter(function(d) {
-        return d.profit !== null && d.profit > 0 && !d.notified;
-    });
-    if (profitableDeals.length > 0) {
-        await sendDealNotifications(profitableDeals);
-        // Marquer comme notifies pour eviter les doublons
-        profitableDeals.forEach(function(d) { d.notified = true; });
-    }
-
-    // Restaurer le bouton avec l'heure du dernier chargement
+    // Restaurer le bouton
     if (fetchBtn) {
         fetchBtn.disabled = false;
         var now = new Date();
@@ -3934,21 +3816,11 @@ function updateDealStats() {
         statsEl.style.display = ''; // forcer l'affichage
     }
 
-    var newCount = deals.filter(function(d) { return d.isNew; }).length;
-    var hotCount = deals.filter(function(d) { return d.feedType === 'hot' || d.feedType === 'both'; }).length;
-    var feedNewCount = deals.filter(function(d) { return d.feedType === 'new' || d.feedType === 'both'; }).length;
-
-    // Mettre a jour les filtres
+    // Mettre a jour les filtres restants (Tous, Amazon, Rentables)
     var filterAll = document.getElementById('deal-filter-all');
-    var filterHot = document.getElementById('deal-filter-hot');
-    var filterFeedNew = document.getElementById('deal-filter-feed-new');
-    var filterNew = document.getElementById('deal-filter-new');
     var filterAmazon = document.getElementById('deal-filter-amazon');
     var filterProfitable = document.getElementById('deal-filter-profitable');
     if (filterAll) filterAll.textContent = 'Tous (' + deals.length + ')';
-    if (filterHot) filterHot.textContent = 'Hot (' + hotCount + ')';
-    if (filterFeedNew) filterFeedNew.textContent = 'Recents (' + feedNewCount + ')';
-    if (filterNew) filterNew.textContent = 'Nouveaux (' + newCount + ')';
     if (filterAmazon) filterAmazon.textContent = 'Amazon (' + amazonCount + ')';
     if (filterProfitable) filterProfitable.textContent = 'Rentables (' + profitableCount + ')';
 }
