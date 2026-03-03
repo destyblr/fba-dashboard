@@ -3558,6 +3558,34 @@ async function fetchDeals() {
         var m = String(now.getMinutes()).padStart(2, '0');
         fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>MAJ ' + h + ':' + m;
     }
+
+    // Retry : re-verifier le serveur dans 2 min (le cron a peut-etre pas encore fini)
+    startServerRetry();
+}
+
+var serverRetryTimer = null;
+function startServerRetry() {
+    if (serverRetryTimer) clearInterval(serverRetryTimer);
+    serverRetryTimer = setInterval(async function() {
+        console.log('[ServerRetry] Verification serveur...');
+        var data = await fetchDealsFromServer();
+        if (data && data.deals && data.deals.length > 0) {
+            console.log('[ServerRetry] Donnees serveur trouvees! ' + data.deals.length + ' deals');
+            clearInterval(serverRetryTimer);
+            serverRetryTimer = null;
+            // Basculer en mode serveur
+            markDealsWithHistory(data.deals);
+            dealScannerResults = data.deals;
+            startCronCountdown(data.updatedAt);
+            renderDealResults();
+            var fEl = document.getElementById('deal-stats-funnel');
+            if (fEl) fEl.textContent = data.deals.length + ' deals (serveur)';
+            var kEl = document.getElementById('deal-stats-keepa');
+            if (kEl) kEl.textContent = 'MAJ: ' + new Date(data.updatedAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            var btn = document.getElementById('deal-fetch-btn');
+            if (btn) btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger';
+        }
+    }, 120000); // toutes les 2 minutes
 }
 
 // --- Pre-filtrage des deals (avant Keepa) ---
