@@ -27,12 +27,8 @@ let selectedDealDay = 0;         // 0 = aujourd'hui, 1 = hier, 2 = avant-hier
 let collapsedHourGroups = {};    // scanHour → true si groupe replie
 
 const DEAL_SOURCES = {
-    // Groupe A — Pepper RSS (navigateur, proxy CORS) — baseUrl + mode hot/new
-    // Les RSS Pepper sont la meilleure source : les utilisateurs postent les deals de tous les sites (Fnac, Cdiscount, Amazon...)
+    // Pepper RSS FR uniquement — baseUrl + mode hot/new
     dealabs:        { name: 'Dealabs', country: 'FR', type: 'rss', baseUrl: 'https://www.dealabs.com/rss/' },
-    mydealz:        { name: 'MyDealz', country: 'DE', type: 'rss', baseUrl: 'https://www.mydealz.de/rss/' },
-    chollometro:    { name: 'Chollometro', country: 'ES', type: 'rss', baseUrl: 'https://www.chollometro.com/rss/' },
-    pepper_it:      { name: 'Pepper.it', country: 'IT', type: 'rss', baseUrl: 'https://www.pepper.it/rss/' },
 };
 
 // Mode RSS : 'new' (defaut, moins de concurrence) ou 'hot' (populaires)
@@ -4160,7 +4156,6 @@ function buildDealTableHeader() {
     h += '<th class="text-right p-2">Ecart</th>';
     h += '<th class="text-right p-2">Profit</th>';
     h += '<th class="text-right p-2">ROI</th>';
-    h += '<th class="text-center p-2">Best MKT</th>';
     h += '<th class="text-center p-2">Actions</th>';
     h += '</tr></thead>';
     return h;

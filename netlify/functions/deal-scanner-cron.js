@@ -5,16 +5,10 @@ const { getStore } = require('@netlify/blobs');
 // === CONFIG ===
 const RSS_SOURCES = [
     { name: 'Dealabs', url: 'https://www.dealabs.com/rss/hot', domain: 4 },
-    { name: 'Dealabs', url: 'https://www.dealabs.com/rss/new', domain: 4 },
-    { name: 'MyDealz', url: 'https://www.mydealz.de/rss/hot', domain: 3 },
-    { name: 'MyDealz', url: 'https://www.mydealz.de/rss/new', domain: 3 },
-    { name: 'Chollometro', url: 'https://www.chollometro.com/rss/hot', domain: 9 },
-    { name: 'Chollometro', url: 'https://www.chollometro.com/rss/new', domain: 9 },
-    { name: 'Pepper.it', url: 'https://www.pepper.it/rss/hot', domain: 8 },
-    { name: 'Pepper.it', url: 'https://www.pepper.it/rss/new', domain: 8 }
+    { name: 'Dealabs', url: 'https://www.dealabs.com/rss/new', domain: 4 }
 ];
-const SOURCE_DOMAINS = { 'Dealabs': 4, 'MyDealz': 3, 'Chollometro': 9, 'Pepper.it': 8 };
-const DOMAIN_NAMES = { 3: 'amazon.de', 4: 'amazon.fr', 8: 'amazon.it', 9: 'amazon.es' };
+const SOURCE_DOMAINS = { 'Dealabs': 4 };
+const DOMAIN_NAMES = { 4: 'amazon.fr' };
 
 const BLACKLIST = [
     // Marques gatees / restreintes
@@ -448,6 +442,51 @@ const handler = async (event) => {
     }
     console.log('[CRON] Phase 1 done: ' + processedCount + '/' + dealsWithAsin.length + ' traites | ' + elapsed(T));
 
+    // --- Phase 1.5 : Multi-marketplace pour deals rentables (3 tokens par deal) ---
+    var profitableDeals = Object.values(accumulated).filter(function(d) {
+        return d.asin && d.profit > 0 && d.scanHour === scanHour && !d.multiMarket;
+    });
+    console.log('[CRON] Phase 1.5: ' + profitableDeals.length + ' deals rentables a checker multi-marketplace');
+
+    for (var mi = 0; mi < profitableDeals.length; mi++) {
+        if (lastTokens <= MIN_TOKENS + 3) { console.log('[CRON] Phase 1.5 STOP: tokens=' + lastTokens); break; }
+        var md = profitableDeals[mi];
+        var markets = {};
+        var bestMarket = null;
+        var bestProfit = -Infinity;
+
+        // On a deja le prix FR (domain 4), ajouter les autres
+        var frData = md.keepaData;
+        if (frData && frData.price > 0) {
+            var frCalc = calculateProfit(md.price, frData);
+            markets['fr'] = { price: frData.price, profit: frCalc ? frCalc.profit : 0, roi: frCalc ? frCalc.roi : 0 };
+            if (frCalc && frCalc.profit > bestProfit) { bestProfit = frCalc.profit; bestMarket = 'fr'; }
+        }
+
+        // Lookup DE, IT, ES (3 tokens)
+        var otherDomains = [3, 8, 9]; // DE, IT, ES
+        var domainKeys = { 3: 'de', 8: 'it', 9: 'es' };
+        for (var di = 0; di < otherDomains.length; di++) {
+            if (lastTokens <= MIN_TOKENS) break;
+            var domId = otherDomains[di];
+            var mktKey = domainKeys[domId];
+            var mktResult = await keepaLookupOne(apiKey, md.asin, domId);
+            if (mktResult.tokensLeft !== undefined && mktResult.tokensLeft >= 0) lastTokens = mktResult.tokensLeft;
+            if (mktResult.data && mktResult.data.price > 0) {
+                var mktCalc = calculateProfit(md.price, mktResult.data);
+                markets[mktKey] = { price: mktResult.data.price, profit: mktCalc ? mktCalc.profit : 0, roi: mktCalc ? mktCalc.roi : 0 };
+                if (mktCalc && mktCalc.profit > bestProfit) { bestProfit = mktCalc.profit; bestMarket = mktKey; }
+            } else {
+                markets[mktKey] = { price: 0, profit: 0, roi: 0 };
+            }
+        }
+
+        md.multiMarket = { best: bestMarket, markets: markets };
+        var bestLabel = bestMarket ? bestMarket.toUpperCase() : '?';
+        console.log('[CRON]   Multi ' + md.asin + ': best=' + bestLabel + ' (' + bestProfit.toFixed(2) + '€) | tokens=' + lastTokens);
+    }
+    console.log('[CRON] Phase 1.5 done | ' + elapsed(T));
+
     // --- Phase 2 : Deals SANS ASIN (search ~10 tokens + lookup 1 token = ~11 par deal) ---
     // Seulement les deals de CE cycle
     var needSearch = Object.values(accumulated)
@@ -556,6 +595,7 @@ const handler = async (event) => {
             profit: (d.profit !== undefined && d.profit !== null) ? d.profit : null,
             roi: (d.roi !== undefined && d.roi !== null) ? d.roi : null,
             priceIsAvg: d.priceIsAvg || false,
+            multiMarket: d.multiMarket || null,
             bsr: d.bsr || null, fbaSellers: d.fbaSellers || null,
             temperature: d.temperature, source: d.source, date: d.date,
             firstSeen: d.firstSeen, scanHour: d.scanHour || null,
