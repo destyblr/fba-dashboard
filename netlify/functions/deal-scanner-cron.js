@@ -232,33 +232,37 @@ const handler = async (event) => {
     needSearch.sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
     var searched = 0;
+    var lastTokens = 999;
     for (var i = 0; i < Math.min(needSearch.length, SEARCH_BATCH); i++) {
+        if (lastTokens <= 5) { console.log('[CRON] Tokens bas (' + lastTokens + '), skip search'); break; }
         var dom = SOURCE_DOMAINS[needSearch[i].source] || 4;
         var res = await keepaSearch(apiKey, needSearch[i].title, dom);
         if (res) {
             needSearch[i].asin = res.asin;
             titleToAsin[needSearch[i].title.substring(0, 50).toLowerCase().trim()] = { asin: res.asin, date: new Date().toISOString() };
             searched++;
-            if (res.tokensLeft !== undefined && res.tokensLeft <= 5) break;
+            if (res.tokensLeft !== undefined) lastTokens = res.tokensLeft;
+            if (lastTokens <= 5) break;
         }
     }
-    console.log('[CRON] Search: ' + searched + '/' + Math.min(needSearch.length, SEARCH_BATCH) + ' | ' + elapsed(T));
+    console.log('[CRON] Search: ' + searched + '/' + Math.min(needSearch.length, SEARCH_BATCH) + ' (tokens~' + lastTokens + ') | ' + elapsed(T));
 
-    // === 3. Price lookup (max 10 ASINs, 1 batch call, domaine le plus frequent) ===
+    // === 3. Price lookup (max 10 ASINs, skip si tokens bas) ===
     var allDeals = Object.values(accumulated);
     var toCheck = allDeals.filter(function(d) { return d.asin && !d.priceCheckedAt; })
         .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); })
         .slice(0, PRICE_REFRESH);
 
     var keepaData = {};
-    if (toCheck.length > 0) {
-        // Grouper par domaine, prendre le plus frequent
+    if (toCheck.length > 0 && lastTokens > 10) {
         var domCount = {};
         toCheck.forEach(function(d) { var dm = SOURCE_DOMAINS[d.source] || 4; domCount[dm] = (domCount[dm] || 0) + 1; });
         var mainDom = Object.keys(domCount).sort(function(a, b) { return domCount[b] - domCount[a]; })[0];
         var asinsForBatch = toCheck.filter(function(d) { return (SOURCE_DOMAINS[d.source] || 4) == mainDom; }).map(function(d) { return d.asin; });
         if (asinsForBatch.length > 10) asinsForBatch = asinsForBatch.slice(0, 10);
         keepaData = await keepaBatchLookup(apiKey, asinsForBatch, mainDom);
+    } else if (lastTokens <= 10) {
+        console.log('[CRON] Skip batch: tokens trop bas (' + lastTokens + ')');
     }
     console.log('[CRON] Prices: ' + Object.keys(keepaData).length + '/' + toCheck.length + ' | ' + elapsed(T));
 
