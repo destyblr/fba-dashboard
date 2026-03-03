@@ -4268,13 +4268,13 @@ function renderDealResults() {
         });
     }
 
-    // === Determiner les jours disponibles ===
+    // === Determiner les jours disponibles (heure locale) ===
     var today = new Date();
     var dayStrings = [];
     for (var di = 0; di <= 2; di++) {
         var d = new Date(today);
         d.setDate(d.getDate() - di);
-        dayStrings.push(d.toISOString().substring(0, 10));
+        dayStrings.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
     }
 
     // Mettre a jour les boutons jour avec compteurs

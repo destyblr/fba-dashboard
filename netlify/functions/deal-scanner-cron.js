@@ -36,7 +36,6 @@ const BLACKLIST = [
 
 const FEES = { commissionPct: 15, fbaFee: 3.50, inboundShipping: 2.00, prepCost: 0.25, urssafPct: 12.3 };
 const FILTERS = { minPrice: 5, maxPrice: 200 };
-const SEARCH_BATCH = 2;
 const MAX_LOOKUPS = 50;
 const DEAL_EXPIRY_H = 24;
 const MAX_TELEGRAM = 3;
@@ -487,22 +486,25 @@ const handler = async (event) => {
     }
     console.log('[CRON] Phase 1.5 done | ' + elapsed(T));
 
-    // --- Phase 2 : Deals SANS ASIN (search ~10 tokens + lookup 1 token = ~11 par deal) ---
-    // Seulement les deals de CE cycle
+    // --- Phase 3 : Recherche mot-cle ILLIMITEE pour deals sans ASIN (un par un) ---
     var needSearch = Object.values(accumulated)
         .filter(function(d) { return !d.asin && d.price > 0 && d.scanHour === scanHour; })
-        .sort(function(a, b) {
-            var aFR = a.source === 'Dealabs' ? 1 : 0;
-            var bFR = b.source === 'Dealabs' ? 1 : 0;
-            if (aFR !== bFR) return bFR - aFR;
-            return (b.temperature || 0) - (a.temperature || 0);
-        });
+        .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
     var searched = 0;
-    console.log('[CRON] Phase 2: ' + needSearch.length + ' nouveaux sans ASIN, max ' + SEARCH_BATCH);
+    var searchSkipped = []; // deals non traites par manque de tokens
+    console.log('[CRON] Phase 3: ' + needSearch.length + ' deals sans ASIN a chercher');
 
-    for (var j = 0; j < Math.min(needSearch.length, SEARCH_BATCH); j++) {
-        if (lastTokens <= 15) { tokensRanOut = true; console.log('[CRON] Phase 2 STOP: tokens=' + lastTokens); break; }
+    for (var j = 0; j < needSearch.length; j++) {
+        if (lastTokens <= 15) {
+            // Plus assez de tokens — noter les deals restants
+            for (var sk = j; sk < needSearch.length; sk++) {
+                searchSkipped.push(needSearch[sk].title.substring(0, 50));
+            }
+            tokensRanOut = true;
+            console.log('[CRON] Phase 3 STOP: tokens=' + lastTokens + ', ' + searchSkipped.length + ' deals en attente');
+            break;
+        }
 
         var sd = needSearch[j];
         var sDom = SOURCE_DOMAINS[sd.source] || 4;
@@ -521,6 +523,7 @@ const handler = async (event) => {
                 if (lr.tokensLeft !== undefined && lr.tokensLeft >= 0) lastTokens = lr.tokensLeft;
                 if (lr.data) {
                     sd.amazonPrice = lr.data.price;
+                    sd.priceIsAvg = lr.data.priceIsAvg || false;
                     sd.bsr = lr.data.bsr;
                     sd.fbaSellers = lr.data.fbaSellers;
                     sd.keepaData = lr.data;
@@ -561,11 +564,12 @@ const handler = async (event) => {
                     }
                 }
             } else {
+                searchSkipped.push(sd.title.substring(0, 50) + ' (ASIN trouve, pas de tokens pour lookup)');
                 tokensRanOut = true;
             }
         }
     }
-    console.log('[CRON] Phase 2 done: ' + searched + ' ASIN trouves | ' + elapsed(T));
+    console.log('[CRON] Phase 3 done: ' + searched + ' ASIN trouves | ' + elapsed(T));
 
     // Recalculer les profits pour les deals deja traites (anciens cycles)
     var allDeals = Object.values(accumulated);
@@ -617,20 +621,30 @@ const handler = async (event) => {
     } catch (e) { console.log('[CRON] Save erreur: ' + e.message); }
     console.log('[CRON] Saved | ' + elapsed(T));
 
-    // === 4. ALERTE TELEGRAM si traitement incomplet ===
+    // === 4. TELEGRAM COMPTE-RENDU (toujours envoye) ===
     var totalWithAsin = allDeals.filter(function(d) { return d.asin; }).length;
     var totalChecked = allDeals.filter(function(d) { return d.priceCheckedAt; }).length;
-    var totalUnchecked = totalWithAsin - totalChecked;
-    var totalNoAsin = allDeals.filter(function(d) { return !d.asin && d.price > 0; }).length;
+    var newDealsThisCycle = Object.values(accumulated).filter(function(d) { return d.scanHour === scanHour; }).length;
+    var tokensUsed = 60 - lastTokens; // estimation (60 tokens/h max)
 
-    if (tokensRanOut && (totalUnchecked > 0 || totalNoAsin > 0)) {
-        var alertMsg = '\u26A0\uFE0F *Scan incomplet* (tokens: ' + lastTokens + ')\n\n' +
-            '\u2705 ' + processedCount + ' deals traites completement\n' +
-            (totalUnchecked > 0 ? '\u23F3 ' + totalUnchecked + ' avec ASIN en attente de prix\n' : '') +
-            (totalNoAsin > 0 ? '\u{1F50D} ' + totalNoAsin + ' sans ASIN (recherche necessaire)\n' : '') +
-            '\n\u{1F504} Prochain scan dans 1h';
-        await sendTelegram(botToken, chatId, alertMsg);
+    var crHour = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
+    var crMsg = '\u{1F4CA} *Compte-rendu ' + crHour + '*\n\n';
+    crMsg += '\u{1F4E1} ' + newDealsThisCycle + ' nouveaux deals (Dealabs)\n';
+    crMsg += '\u{1F50D} ' + resolvedCount + ' ASINs resolve-pepper | ' + searched + ' ASINs recherche\n';
+    crMsg += '\u2705 ' + processedCount + ' deals traites | ' + profitableCount + ' rentables\n';
+    crMsg += '\u{1F4B0} Tokens: ~' + tokensUsed + ' utilises | ' + lastTokens + ' restants\n';
+    crMsg += '\u{1F4E6} Total en base: ' + allDeals.length + ' deals (' + totalWithAsin + ' avec ASIN, ' + totalChecked + ' avec prix)';
+
+    if (searchSkipped.length > 0) {
+        crMsg += '\n\n\u26A0\uFE0F *' + searchSkipped.length + ' deals non traites (tokens epuises) :*\n';
+        for (var si = 0; si < Math.min(searchSkipped.length, 10); si++) {
+            crMsg += '\u2022 ' + searchSkipped[si] + '\n';
+        }
+        if (searchSkipped.length > 10) crMsg += '\u2022 ... et ' + (searchSkipped.length - 10) + ' autres';
     }
+
+    crMsg += '\n\n\u{1F504} Prochain scan dans 1h';
+    await sendTelegram(botToken, chatId, crMsg);
 
     console.log('[CRON] === Done: ' + allDeals.length + ' deals, ' + processedCount + ' traites, ' + profitableCount + ' rentables, ' + newNotifs + ' notifs' + (tokensRanOut ? ' | TOKENS EPUISES' : '') + ' | TOTAL ' + elapsed(T) + ' ===');
     return { statusCode: 200, body: JSON.stringify({ total: allDeals.length, processed: processedCount, profitable: profitableCount, notified: newNotifs, tokensRanOut: tokensRanOut }) };
