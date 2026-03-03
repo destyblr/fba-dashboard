@@ -5,9 +5,13 @@ const { getStore } = require('@netlify/blobs');
 // === CONFIG ===
 const RSS_SOURCES = [
     { name: 'Dealabs', url: 'https://www.dealabs.com/rss/hot', domain: 4 },
+    { name: 'Dealabs', url: 'https://www.dealabs.com/rss/new', domain: 4 },
     { name: 'MyDealz', url: 'https://www.mydealz.de/rss/hot', domain: 3 },
+    { name: 'MyDealz', url: 'https://www.mydealz.de/rss/new', domain: 3 },
     { name: 'Chollometro', url: 'https://www.chollometro.com/rss/hot', domain: 9 },
-    { name: 'Pepper.it', url: 'https://www.pepper.it/rss/hot', domain: 8 }
+    { name: 'Chollometro', url: 'https://www.chollometro.com/rss/new', domain: 9 },
+    { name: 'Pepper.it', url: 'https://www.pepper.it/rss/hot', domain: 8 },
+    { name: 'Pepper.it', url: 'https://www.pepper.it/rss/new', domain: 8 }
 ];
 const SOURCE_DOMAINS = { 'Dealabs': 4, 'MyDealz': 3, 'Chollometro': 9, 'Pepper.it': 8 };
 const DOMAIN_NAMES = { 3: 'amazon.de', 4: 'amazon.fr', 8: 'amazon.it', 9: 'amazon.es' };
