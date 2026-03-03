@@ -3390,12 +3390,52 @@ async function fetchDealsFromSource(sourceKey) {
 var cronCountdownTimer = null;
 var lastCronUpdate = null;
 var CRON_INTERVAL = 60; // minutes
+var autoRefreshTimer = null;
+var lastServerUpdatedAt = null; // pour detecter les nouvelles donnees
 
 function startCronCountdown(updatedAt) {
     lastCronUpdate = new Date(updatedAt);
+    lastServerUpdatedAt = updatedAt;
     if (cronCountdownTimer) clearInterval(cronCountdownTimer);
     updateCronStatus();
     cronCountdownTimer = setInterval(updateCronStatus, 1000);
+    // Auto-refresh toutes les heures (juste apres le cron)
+    startAutoRefresh();
+}
+
+function startAutoRefresh() {
+    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+    // Verifier le serveur toutes les 60 minutes
+    autoRefreshTimer = setInterval(autoRefreshCheck, 60 * 60 * 1000);
+}
+
+async function autoRefreshCheck() {
+    try {
+        var resp = await fetch('/.netlify/functions/get-deals');
+        if (!resp.ok) return;
+        var data = await resp.json();
+        if (!data || !data.deals) return;
+        // Comparer avec la derniere MAJ connue
+        if (data.updatedAt && data.updatedAt !== lastServerUpdatedAt) {
+            console.log('[AutoRefresh] Nouvelles donnees detectees: ' + data.updatedAt);
+            var oldCount = dealScannerResults.length;
+            markDealsWithHistory(data.deals);
+            dealScannerResults = data.deals;
+            lastServerUpdatedAt = data.updatedAt;
+            startCronCountdown(data.updatedAt);
+            renderDealResults();
+            // Notif visuelle
+            var newCount = data.deals.length - oldCount;
+            var statsEl = document.getElementById('deal-stats-funnel');
+            if (statsEl) {
+                var msg = data.deals.length + ' deals (MAJ auto ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) + ')';
+                if (newCount > 0) msg += ' · +' + newCount + ' nouveaux';
+                statsEl.textContent = msg;
+            }
+        }
+    } catch (e) {
+        console.log('[AutoRefresh] Erreur: ' + e.message);
+    }
 }
 
 function updateCronStatus() {
