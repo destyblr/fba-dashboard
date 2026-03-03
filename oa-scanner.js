@@ -4165,14 +4165,19 @@ function buildDealTableHeader() {
 // --- Helper : date string depuis scanHour ---
 function getDayFromScanHour(scanHour) {
     if (!scanHour) return null;
-    return scanHour.substring(0, 10); // "2026-03-03"
+    // Convertir UTC → date locale
+    var d = new Date(scanHour.length <= 16 ? scanHour + ':00Z' : scanHour);
+    if (isNaN(d.getTime())) return scanHour.substring(0, 10);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 
-// --- Helper : heure lisible depuis scanHour ---
+// --- Helper : heure lisible depuis scanHour (UTC → locale) ---
 function getHourLabel(scanHour) {
     if (!scanHour) return 'Inconnu';
-    var h = scanHour.substring(11, 16); // "15:00"
-    return h;
+    // scanHour est en UTC (ex: "2026-03-03T18:00"), convertir en heure locale
+    var d = new Date(scanHour.length <= 16 ? scanHour + ':00Z' : scanHour);
+    if (isNaN(d.getTime())) return scanHour.substring(11, 16);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
 }
 
 // --- Navigation jour ---

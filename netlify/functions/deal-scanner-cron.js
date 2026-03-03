@@ -531,14 +531,9 @@ const handler = async (event) => {
         return rb - ra;
     });
 
-    // Exclure les anciens deals non-traites (pas de prix = inutiles pour l'affichage)
-    // On garde : deals du cycle courant + anciens AVEC prix Amazon
-    var visibleDeals = allDeals.filter(function(d) {
-        if (d.scanHour === scanHour) return true;   // nouveau = toujours visible
-        if (d.priceCheckedAt) return true;           // ancien traite = visible
-        return false;                                // ancien non-traite = masque
-    });
-    console.log('[CRON] Visible: ' + visibleDeals.length + '/' + allDeals.length + ' (anciens non-traites masques: ' + (allDeals.length - visibleDeals.length) + ')');
+    // Tous les deals sont visibles (le nettoyage par expiration gere les vieux)
+    var visibleDeals = allDeals;
+    console.log('[CRON] Visible: ' + visibleDeals.length + ' deals');
 
     var dealsForBrowser = visibleDeals.map(function(d) {
         return {
