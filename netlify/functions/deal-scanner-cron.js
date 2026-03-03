@@ -16,7 +16,29 @@ const RSS_SOURCES = [
 const SOURCE_DOMAINS = { 'Dealabs': 4, 'MyDealz': 3, 'Chollometro': 9, 'Pepper.it': 8 };
 const DOMAIN_NAMES = { 3: 'amazon.de', 4: 'amazon.fr', 8: 'amazon.it', 9: 'amazon.es' };
 
-const BLACKLIST = 'iphone,ipad,macbook,airpods,apple watch,samsung,galaxy,sony,playstation,ps5,ps4,xbox,surface,nintendo,switch,huawei,xiaomi,oppo,oneplus,dyson,nike,adidas,lego,bose,rolex,canon,nikon,gopro,televiseur,television,ordinateur portable,laptop,pc portable,smartphone,lave-linge,lave-vaisselle,refrigerateur,congelateur,micro-ondes,climatiseur,canape,matelas,pneu'.split(',');
+const BLACKLIST = [
+    // Marques gatees / restreintes
+    'iphone','ipad','macbook','airpods','apple watch','samsung','galaxy','sony','playstation','ps5','ps4',
+    'xbox','surface','nintendo','switch','huawei','xiaomi','oppo','oneplus','dyson','nike','adidas',
+    'lego','bose','rolex','canon','nikon','gopro','dji','garmin','philips','braun','karcher',
+    // Electronique / informatique surdimensionne
+    'televiseur','television','ordinateur portable','laptop','pc portable','smartphone','ecran pc',
+    // Electromenager (trop gros/lourd)
+    'lave-linge','lave-vaisselle','refrigerateur','congelateur','micro-ondes','climatiseur',
+    'radiateur','seche-linge','four encastrable','hotte aspirante',
+    // Mobilier (trop gros)
+    'canape','matelas','armoire','sommier','meuble','lit coffre',
+    // Exterieur / jardin surdimensionne
+    'trottinette','trotinette','trampoline','piscine','barbecue','tondeuse','jacuzzi','parasol',
+    'pergola','balancoire','portique','abri de jardin','groupe electrogene','nettoyeur haute pression',
+    'motoculteur','debroussailleuse','tronconneuse',
+    // Mobilite / sport surdimensionne
+    'velo electrique','velo enfant','vtt','draisienne','kayak','paddle','rameur',
+    // Auto / moto
+    'pneu','demarreur','pare-brise',
+    // Hazmat / restreint
+    'e-liquide','cigarette electronique'
+];
 
 const FEES = { commissionPct: 15, fbaFee: 3.50, inboundShipping: 2.00, prepCost: 0.25, urssafPct: 12.3 };
 const FILTERS = { minPrice: 5, maxPrice: 200 };
