@@ -3392,21 +3392,15 @@ var lastCronUpdate = null;
 var CRON_INTERVAL = 60; // minutes
 var autoRefreshTimer = null;
 var lastServerUpdatedAt = null; // pour detecter les nouvelles donnees
+var cronFetchScheduled = false;  // eviter double fetch quand countdown atteint 0
 
 function startCronCountdown(updatedAt) {
     lastCronUpdate = new Date(updatedAt);
     lastServerUpdatedAt = updatedAt;
+    cronFetchScheduled = false;
     if (cronCountdownTimer) clearInterval(cronCountdownTimer);
     updateCronStatus();
     cronCountdownTimer = setInterval(updateCronStatus, 1000);
-    // Auto-refresh toutes les heures (juste apres le cron)
-    startAutoRefresh();
-}
-
-function startAutoRefresh() {
-    if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-    // Verifier le serveur toutes les 60 minutes
-    autoRefreshTimer = setInterval(autoRefreshCheck, 60 * 60 * 1000);
 }
 
 async function autoRefreshCheck() {
@@ -3448,6 +3442,15 @@ function updateCronStatus() {
 
     if (diffSec <= 0) {
         el.innerHTML = '<i class="fas fa-sync-alt fa-spin text-green-400 mr-1"></i><span class="text-green-400">Scan en cours...</span>';
+        // Auto-fetch 90s apres l'heure du cron (lui laisser le temps de finir)
+        if (!cronFetchScheduled) {
+            cronFetchScheduled = true;
+            console.log('[AutoRefresh] Cron termine, fetch dans 90s...');
+            setTimeout(function() {
+                console.log('[AutoRefresh] Fetch auto post-cron');
+                autoRefreshCheck();
+            }, 90000);
+        }
         return;
     }
 
