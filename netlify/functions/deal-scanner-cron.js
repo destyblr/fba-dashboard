@@ -330,8 +330,9 @@ const handler = async (event) => {
     });
 
     // === 1b. RESOLVE PEPPER — suivre les redirections pour trouver ASIN (0 tokens) ===
+    // Seulement les deals de CE cycle (pas les anciens)
     var needResolve = Object.values(accumulated).filter(function(d) {
-        return !d.asin && d.link && !d.resolveAttempted;
+        return !d.asin && d.link && !d.resolveAttempted && d.scanHour === scanHour;
     });
     console.log('[CRON] Resolve-pepper: ' + needResolve.length + ' deals a resoudre');
 
@@ -361,11 +362,13 @@ const handler = async (event) => {
     var tokensRanOut = false;
 
     // --- Phase 1 : Deals AVEC ASIN (1 token chacun — pas cher) ---
+    // Seulement les deals de CE cycle (pas les anciens non-traites)
     var dealsWithAsin = Object.values(accumulated)
-        .filter(function(d) { return d.asin && !d.priceCheckedAt; })
+        .filter(function(d) { return d.asin && !d.priceCheckedAt && d.scanHour === scanHour; })
         .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
-    console.log('[CRON] Phase 1: ' + dealsWithAsin.length + ' deals avec ASIN a traiter');
+    var oldUnchecked = Object.values(accumulated).filter(function(d) { return d.asin && !d.priceCheckedAt && d.scanHour !== scanHour; }).length;
+    console.log('[CRON] Phase 1: ' + dealsWithAsin.length + ' nouveaux avec ASIN' + (oldUnchecked > 0 ? ' (+ ' + oldUnchecked + ' anciens ignores)' : ''));
 
     for (var i = 0; i < Math.min(dealsWithAsin.length, MAX_LOOKUPS); i++) {
         if (lastTokens <= MIN_TOKENS) { tokensRanOut = true; console.log('[CRON] Phase 1 STOP: tokens=' + lastTokens); break; }
@@ -422,12 +425,13 @@ const handler = async (event) => {
     console.log('[CRON] Phase 1 done: ' + processedCount + '/' + dealsWithAsin.length + ' traites | ' + elapsed(T));
 
     // --- Phase 2 : Deals SANS ASIN (search ~10 tokens + lookup 1 token = ~11 par deal) ---
+    // Seulement les deals de CE cycle
     var needSearch = Object.values(accumulated)
-        .filter(function(d) { return !d.asin && d.price > 0; })
+        .filter(function(d) { return !d.asin && d.price > 0 && d.scanHour === scanHour; })
         .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
     var searched = 0;
-    console.log('[CRON] Phase 2: ' + needSearch.length + ' deals sans ASIN, max ' + SEARCH_BATCH);
+    console.log('[CRON] Phase 2: ' + needSearch.length + ' nouveaux sans ASIN, max ' + SEARCH_BATCH);
 
     for (var j = 0; j < Math.min(needSearch.length, SEARCH_BATCH); j++) {
         if (lastTokens <= 15) { tokensRanOut = true; console.log('[CRON] Phase 2 STOP: tokens=' + lastTokens); break; }
