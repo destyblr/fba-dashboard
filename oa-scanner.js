@@ -4318,22 +4318,34 @@ function renderDealResults() {
 
     // === Grouper par scanHour ===
     var hourGroups = {};
-    var hourOrder = [];
     dayDeals.forEach(function(dd) {
         var key = dd.scanHour || 'unknown';
-        if (!hourGroups[key]) {
-            hourGroups[key] = [];
-            hourOrder.push(key);
-        }
+        if (!hourGroups[key]) hourGroups[key] = [];
         hourGroups[key].push(dd);
     });
 
-    // Trier les heures du plus recent au plus ancien
+    // === Generer TOUS les creneaux horaires (y compris 0 deals) ===
+    var nowForSlot = new Date();
+    var currentHourKey = nowForSlot.toISOString().substring(0, 13) + ':00';
+    var allHourKeys = Object.keys(hourGroups).filter(function(k) { return k !== 'unknown'; });
+
+    if (selectedDealDay === 0 && allHourKeys.length > 0) {
+        // Aujourd'hui : generer de la 1ere heure connue jusqu'a l'heure courante
+        allHourKeys.sort();
+        var firstHour = allHourKeys[0];
+        var startD = new Date(firstHour.length <= 16 ? firstHour + ':00Z' : firstHour);
+        var endD = new Date(currentHourKey + ':00Z');
+        var cursor = new Date(startD);
+        while (cursor <= endD) {
+            var key = cursor.toISOString().substring(0, 13) + ':00';
+            if (!hourGroups[key]) hourGroups[key] = [];
+            cursor.setHours(cursor.getHours() + 1);
+        }
+    }
+
+    var hourOrder = Object.keys(hourGroups).filter(function(k) { return k !== 'unknown'; });
     hourOrder.sort(function(a, b) { return b.localeCompare(a); });
 
-    // === Ajouter le creneau courant "En attente" si pas encore de deals pour cette heure ===
-    var nowForSlot = new Date();
-    var currentHourKey = nowForSlot.toISOString().substring(0, 13) + ':00'; // "2026-03-03T19:00"
     var hasCurrentHour = hourOrder.indexOf(currentHourKey) !== -1;
 
     var latestHour = hourOrder[0];
