@@ -191,6 +191,18 @@ const handler = async (event) => {
         if (now - new Date(accumulated[key].firstSeen).getTime() > DEAL_EXPIRY_H * 3600000) { delete accumulated[key]; expiredCount++; }
     });
 
+    // Backfill pour les anciens deals
+    Object.values(accumulated).forEach(function(d) {
+        // scanHour depuis firstSeen si manquant
+        if (!d.scanHour && d.firstSeen) {
+            d.scanHour = new Date(d.firstSeen).toISOString().substring(0, 13) + ':00';
+        }
+        // Marquer comme deja traite si prix/profit existent deja (evite re-traitement)
+        if (!d.priceCheckedAt && d.amazonPrice && d.profit !== null && d.profit !== undefined) {
+            d.priceCheckedAt = d.firstSeen || new Date().toISOString();
+        }
+    });
+
     // ASIN cache
     var titleToAsin = {};
     if (cacheRaw) {
