@@ -23,6 +23,8 @@ let keepaCache = {};             // Cache ASIN → {price, bsr, timestamp}
 let keepaQueue = [];             // ASINs en attente de lookup Keepa
 let keepaProcessing = false;     // Flag pour eviter double processing queue
 let dealHistory = {};            // Historique des deals vus : { link → { firstSeen, lastSeen, status } }
+let selectedDealDay = 0;         // 0 = aujourd'hui, 1 = hier, 2 = avant-hier
+let collapsedHourGroups = {};    // scanHour → true si groupe replie
 
 const DEAL_SOURCES = {
     // Groupe A — Pepper RSS (navigateur, proxy CORS) — baseUrl + mode hot/new
@@ -3899,7 +3901,208 @@ function updateDealRow(index, deal) {
     updateDealStats();
 }
 
-// --- Rendu du tableau ---
+// --- Helper : generer le HTML d'une ligne de deal ---
+function buildDealRowHtml(d, displayNum, origIndex) {
+    // Couleur de fond selon rentabilite
+    var rowBg = '';
+    if (d.profit !== null && d.profit > 0) rowBg = 'bg-green-900/20';
+    else if (d.profit !== null && d.profit < 0) rowBg = 'bg-red-900/10';
+
+    // Ecart de prix
+    var spreadHtml = '';
+    if (d.price > 0 && d.amazonPrice && d.amazonPrice > 0) {
+        var spread = d.amazonPrice - d.price;
+        var spreadClass = spread > 0 ? 'text-cyan-400' : 'text-red-400';
+        spreadHtml = '<span class="' + spreadClass + '">' + (spread > 0 ? '+' : '') + spread.toFixed(2) + '€</span>';
+    } else {
+        spreadHtml = '<span class="text-gray-500">—</span>';
+    }
+
+    // Profit + tooltip detaille
+    var profitHtml = '';
+    var roiHtml = '';
+    if (d.profit !== null && d.profit !== undefined) {
+        var profitClass = d.profit > 0 ? 'text-green-400 font-bold' : 'text-red-400';
+        var tooltipLines = [];
+        tooltipLines.push('ACHAT: ' + d.price.toFixed(2) + '€');
+        if (d.amazonPrice && d.amazonPrice > 0) tooltipLines.push('VENTE: ' + d.amazonPrice.toFixed(2) + '€');
+        if (d.price > 0 && d.amazonPrice > 0) tooltipLines.push('Ecart brut: ' + (d.amazonPrice > d.price ? '+' : '') + (d.amazonPrice - d.price).toFixed(2) + '€');
+        tooltipLines.push('---');
+        if (d.fees && typeof d.fees === 'object') {
+            tooltipLines.push('Commission (' + (d.fees.commPct || 15) + '%): -' + (d.fees.commission || 0).toFixed(2) + '€' + (d.fees.realCommission ? ' *' : ''));
+            tooltipLines.push('Frais AMZ: -' + (d.fees.fbaFee || 0).toFixed(2) + '€' + (d.fees.realFbaFee ? ' *' : ''));
+            var inboundLabel = 'Envoi a AMZ: -' + (d.fees.inbound || 0).toFixed(2) + '€';
+            if (d.fees.realInbound) inboundLabel += ' * (' + d.fees.weightGrams + 'g)';
+            tooltipLines.push(inboundLabel);
+            tooltipLines.push('Prep: -' + (d.fees.prep || 0).toFixed(2) + '€');
+            tooltipLines.push('URSSAF (' + (d.fees.urssafPct || 12.3) + '%): -' + (d.fees.urssaf || 0).toFixed(2) + '€');
+            tooltipLines.push('Total frais: -' + ((d.fees.total || 0) + (d.fees.urssaf || 0)).toFixed(2) + '€');
+            if (d.fees.realCommission || d.fees.realFbaFee || d.fees.realInbound) tooltipLines.push('* = donnees reelles Keepa');
+        }
+        tooltipLines.push('---');
+        tooltipLines.push('PROFIT NET: ' + (d.profit > 0 ? '+' : '') + Number(d.profit).toFixed(2) + '€');
+        if (d.roi !== null && d.roi !== undefined) tooltipLines.push('ROI: ' + Number(d.roi).toFixed(0) + '%');
+        var tooltip = tooltipLines.join('\n');
+        profitHtml = '<span class="' + profitClass + ' cursor-help deal-profit-cell" data-deal-index="' + origIndex + '" title="' + escapeHTML(tooltip) + '">' + (d.profit > 0 ? '+' : '') + Number(d.profit).toFixed(2) + '€</span>';
+        if (d.roi !== null && d.roi !== undefined) {
+            var roiClass = d.roi > 0 ? 'text-green-400' : 'text-red-400';
+            roiHtml = '<span class="' + roiClass + '">' + Number(d.roi).toFixed(0) + '%</span>';
+        } else {
+            roiHtml = '<span class="text-gray-500">—</span>';
+        }
+    } else if (d.asin && !d.priceCheckedAt) {
+        profitHtml = '<span class="text-amber-400 text-xs" title="En attente Keepa">⏳</span>';
+        roiHtml = '<span class="text-amber-400 text-xs">⏳</span>';
+    } else {
+        profitHtml = '<span class="text-gray-500">—</span>';
+        roiHtml = '<span class="text-gray-500">—</span>';
+    }
+
+    // ASIN
+    var asinHtml = '';
+    if (d.asin) {
+        var mktDomain = OA_MARKETPLACES[dealSellMarket] ? OA_MARKETPLACES[dealSellMarket].domain : 'amazon.de';
+        asinHtml = '<a href="https://www.' + mktDomain + '/dp/' + d.asin + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs">' + d.asin.substring(0, 5) + '...</a>';
+    } else if (d.isAmazon) {
+        asinHtml = '<span class="text-amber-400 text-xs" title="Amazon detecte, ASIN non trouve."><i class="fas fa-exclamation-triangle mr-1"></i></span><button onclick="promptLinkASIN(' + origIndex + ')" class="text-amber-400 hover:text-amber-200 text-xs">lier</button>';
+    } else {
+        asinHtml = '<button onclick="promptLinkASIN(' + origIndex + ')" class="text-gray-400 hover:text-gray-200 text-xs" title="Lier a un ASIN Amazon"><i class="fas fa-link"></i></button>';
+    }
+
+    // Amazon price
+    var amazonPriceHtml = '';
+    if (d.amazonPrice && d.amazonPrice > 0) {
+        amazonPriceHtml = '<span class="text-purple-300">' + Number(d.amazonPrice).toFixed(2) + '€</span>';
+    } else if (d.priceCheckedAt) {
+        amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Prix verifie mais pas de prix Amazon disponible">N/A</span>';
+    } else if (d.asin) {
+        amazonPriceHtml = '<span class="text-amber-400 text-xs" title="En attente du lookup Keepa">⏳</span>';
+    } else {
+        amazonPriceHtml = '<span class="text-gray-500">—</span>';
+    }
+
+    // Actions
+    var actionsHtml = '<a href="' + escapeHTML(d.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
+    if (d.asin && d.profit !== null && d.profit > 0) {
+        actionsHtml += '<button onclick="sendDealToChecklist(' + origIndex + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
+    }
+    actionsHtml += ' <button onclick="markDealIgnored(' + origIndex + ')" class="text-gray-500 hover:text-red-400 text-xs ml-1" title="Ignorer ce deal"><i class="fas fa-times"></i></button>';
+
+    // Image
+    var imgHtml = d.image ? '<img src="' + escapeHTML(d.image) + '" class="w-10 h-10 object-cover rounded" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-700 rounded flex items-center justify-center"><i class="fas fa-image text-gray-500 text-xs"></i></div>';
+
+    // Badges
+    var tempLabel = '';
+    if (d.temperature >= 500) tempLabel = 'Exceptionnel';
+    else if (d.temperature >= 200) tempLabel = 'Tres bon deal';
+    else if (d.temperature >= 100) tempLabel = 'Bon deal, populaire';
+    else if (d.temperature >= 50) tempLabel = 'Correct';
+    else if (d.temperature > 0) tempLabel = 'Tiede';
+    else tempLabel = 'Mal vote';
+    var tempBadge = d.temperature > 0 ? ' <span class="text-orange-400 text-xs cursor-help" title="Temperature Pepper: ' + d.temperature + '\u00B0 — ' + tempLabel + '">' + d.temperature + '\u00B0</span>' : '';
+    var amazonBadge = d.isAmazon ? ' <span class="bg-orange-500/30 text-orange-300 text-xs px-1 rounded">AMZ</span>' : '';
+    var historyBadge = '';
+    if (d.isNew) historyBadge = ' <span class="bg-green-500/30 text-green-300 text-xs px-1 rounded">NEW</span>';
+    else if (d.historyStatus === 'checklist') historyBadge = ' <span class="bg-indigo-500/30 text-indigo-300 text-xs px-1 rounded">CL</span>';
+    var feedBadge = '';
+    if (d.feedType === 'hot') feedBadge = ' <span class="bg-red-500/30 text-red-300 text-xs px-1 rounded" title="Feed Hot (populaire)">HOT</span>';
+    else if (d.feedType === 'new') feedBadge = ' <span class="bg-cyan-500/30 text-cyan-300 text-xs px-1 rounded" title="Feed New (recent)">NEW</span>';
+    else if (d.feedType === 'both') feedBadge = ' <span class="bg-yellow-500/30 text-yellow-300 text-xs px-1 rounded" title="Dans Hot et New">HOT</span>';
+    var matchBadge = d.matchedBySearch ? ' <span class="bg-purple-500/30 text-purple-300 text-xs px-1 rounded" title="ASIN trouve par recherche Keepa">MATCH</span>' : '';
+
+    // Multi-marketplace
+    var multiMktHtml = '';
+    if (d.multiMarket && d.multiMarket.best) {
+        var bestMkt = d.multiMarket.best.toUpperCase();
+        var bestData = d.multiMarket.markets[d.multiMarket.best];
+        var mktFlag = { de: '\ud83c\udde9\ud83c\uddea', fr: '\ud83c\uddeb\ud83c\uddf7', it: '\ud83c\uddee\ud83c\uddf9', es: '\ud83c\uddea\ud83c\uddf8' };
+        var flag = mktFlag[d.multiMarket.best] || '';
+        var mktTooltip = 'Comparaison 4 marketplaces:\n';
+        Object.keys(d.multiMarket.markets).forEach(function(mk) {
+            var m = d.multiMarket.markets[mk];
+            var isB = mk === d.multiMarket.best ? ' \u2190 BEST' : '';
+            mktTooltip += mk.toUpperCase() + ': ' + m.price.toFixed(2) + '€ \u2192 ' + (m.profit > 0 ? '+' : '') + m.profit.toFixed(2) + '€ (' + m.roi.toFixed(0) + '%)' + isB + '\n';
+        });
+        var bestProfitClass = bestData && bestData.profit > 0 ? 'text-green-400' : 'text-red-400';
+        multiMktHtml = '<span class="' + bestProfitClass + ' cursor-help text-xs" title="' + escapeHTML(mktTooltip) + '">' + flag + ' ' + bestMkt + '</span>';
+    } else {
+        multiMktHtml = '<span class="text-gray-500 text-xs">—</span>';
+    }
+
+    var row = '<tr id="deal-row-' + origIndex + '" class="border-b border-gray-700/50 hover:bg-gray-700/30 ' + rowBg + '">';
+    row += '<td class="p-2 text-gray-400">' + displayNum + '</td>';
+    row += '<td class="p-2">' + imgHtml + '</td>';
+    row += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
+    row += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
+    row += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName || d.source || '') + '</td>';
+    row += '<td class="p-2 text-center deal-asin">' + asinHtml + '</td>';
+    row += '<td class="p-2 text-right deal-amazon-price">' + amazonPriceHtml + '</td>';
+    row += '<td class="p-2 text-right deal-spread">' + spreadHtml + '</td>';
+    row += '<td class="p-2 text-right deal-profit">' + profitHtml + '</td>';
+    row += '<td class="p-2 text-right deal-roi">' + roiHtml + '</td>';
+    row += '<td class="p-2 text-center">' + multiMktHtml + '</td>';
+    row += '<td class="p-2 text-center deal-actions">' + actionsHtml + '</td>';
+    row += '</tr>';
+    return row;
+}
+
+// --- Helper : en-tete de tableau ---
+function buildDealTableHeader() {
+    var h = '<thead><tr class="text-gray-300 border-b border-gray-600">';
+    h += '<th class="text-left p-2 w-8">#</th>';
+    h += '<th class="text-left p-2 w-12"></th>';
+    h += '<th class="text-left p-2">Deal</th>';
+    h += '<th class="text-right p-2">Prix</th>';
+    h += '<th class="text-left p-2">Source</th>';
+    h += '<th class="text-center p-2">ASIN</th>';
+    h += '<th class="text-right p-2">Amazon</th>';
+    h += '<th class="text-right p-2">Ecart</th>';
+    h += '<th class="text-right p-2">Profit</th>';
+    h += '<th class="text-right p-2">ROI</th>';
+    h += '<th class="text-center p-2">Best MKT</th>';
+    h += '<th class="text-center p-2">Actions</th>';
+    h += '</tr></thead>';
+    return h;
+}
+
+// --- Helper : date string depuis scanHour ---
+function getDayFromScanHour(scanHour) {
+    if (!scanHour) return null;
+    return scanHour.substring(0, 10); // "2026-03-03"
+}
+
+// --- Helper : heure lisible depuis scanHour ---
+function getHourLabel(scanHour) {
+    if (!scanHour) return 'Inconnu';
+    var h = scanHour.substring(11, 16); // "15:00"
+    return h;
+}
+
+// --- Navigation jour ---
+function setDealDay(day) {
+    selectedDealDay = day;
+    collapsedHourGroups = {}; // reset quand on change de jour
+    // Mettre a jour les boutons
+    for (var i = 0; i <= 2; i++) {
+        var btn = document.getElementById('deal-day-' + i);
+        if (btn) {
+            if (i === day) {
+                btn.className = 'px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold';
+            } else {
+                btn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold';
+            }
+        }
+    }
+    renderDealResults();
+}
+
+// --- Toggle groupe horaire ---
+function toggleHourGroup(scanHour) {
+    collapsedHourGroups[scanHour] = !collapsedHourGroups[scanHour];
+    renderDealResults();
+}
+
+// --- Rendu du tableau (2 sections : nouveaux + precedents par heure) ---
 function renderDealResults() {
     var container = document.getElementById('deal-scanner-results');
     if (!container) return;
@@ -3915,18 +4118,17 @@ function renderDealResults() {
     var selectedCategory = categoryFilter ? categoryFilter.value : '';
 
     // Appliquer les filtres
-    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored'; }); // toujours cacher les ignores
+    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored'; });
     if (dealFilterMode === 'amazon') {
         filtered = filtered.filter(function(d) { return d.isAmazon || d.asin; });
     } else if (dealFilterMode === 'profitable') {
         filtered = filtered.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; });
     }
-
     if (selectedCategory) {
         filtered = filtered.filter(function(d) { return d.category && d.category.toLowerCase().includes(selectedCategory.toLowerCase()); });
     }
 
-    // Tri : par ROI desc (rentables d'abord), puis par temperature desc
+    // Tri par ROI desc puis temperature desc
     filtered.sort(function(a, b) {
         var roiA = (a.roi !== null && a.roi !== undefined) ? a.roi : -9999;
         var roiB = (b.roi !== null && b.roi !== undefined) ? b.roi : -9999;
@@ -3936,7 +4138,6 @@ function renderDealResults() {
         return (b.temperature || 0) - (a.temperature || 0);
     });
 
-    // Mettre a jour les stats
     updateDealStats();
 
     // Remplir le select categories
@@ -3958,193 +4159,140 @@ function renderDealResults() {
         });
     }
 
-    // Construire le tableau
-    var html = '<div class="p-4">';
-
-    // Tableau
-    html += '<div class="overflow-x-auto">';
-    html += '<table class="w-full text-sm">';
-    html += '<thead><tr class="text-gray-300 border-b border-gray-600">';
-    html += '<th class="text-left p-2 w-8">#</th>';
-    html += '<th class="text-left p-2 w-12"></th>';
-    html += '<th class="text-left p-2">Deal</th>';
-    html += '<th class="text-right p-2">Prix</th>';
-    html += '<th class="text-left p-2">Source</th>';
-    html += '<th class="text-center p-2">ASIN</th>';
-    html += '<th class="text-right p-2">Amazon</th>';
-    html += '<th class="text-right p-2">Ecart</th>';
-    html += '<th class="text-right p-2">Profit</th>';
-    html += '<th class="text-right p-2">ROI</th>';
-    html += '<th class="text-center p-2">Best MKT</th>';
-    html += '<th class="text-center p-2">Actions</th>';
-    html += '</tr></thead><tbody>';
-
-    var maxDisplay = Math.min(filtered.length, 100);
-    for (var i = 0; i < maxDisplay; i++) {
-        var d = filtered[i];
-        var origIndex = dealScannerResults.indexOf(d);
-
-        // Couleur de fond selon rentabilite
-        var rowBg = '';
-        if (d.profit !== null && d.profit > 0) rowBg = 'bg-green-900/20';
-        else if (d.profit !== null && d.profit < 0) rowBg = 'bg-red-900/10';
-
-        // Ecart de prix (marge brute avant frais)
-        var spreadHtml = '';
-        if (d.price > 0 && d.amazonPrice && d.amazonPrice > 0) {
-            var spread = d.amazonPrice - d.price;
-            var spreadClass = spread > 0 ? 'text-cyan-400' : 'text-red-400';
-            spreadHtml = '<span class="' + spreadClass + '">' + (spread > 0 ? '+' : '') + spread.toFixed(2) + '€</span>';
-        } else {
-            spreadHtml = '<span class="text-gray-500">—</span>';
-        }
-
-        // Profit + tooltip detaille
-        var profitHtml = '';
-        var roiHtml = '';
-        if (d.profit !== null && d.profit !== undefined) {
-            var profitClass = d.profit > 0 ? 'text-green-400 font-bold' : 'text-red-400';
-            // Construire le tooltip avec le detail des frais
-            var tooltipLines = [];
-            tooltipLines.push('ACHAT: ' + d.price.toFixed(2) + '€');
-            if (d.amazonPrice && d.amazonPrice > 0) tooltipLines.push('VENTE: ' + d.amazonPrice.toFixed(2) + '€');
-            if (d.price > 0 && d.amazonPrice > 0) tooltipLines.push('Ecart brut: ' + (d.amazonPrice > d.price ? '+' : '') + (d.amazonPrice - d.price).toFixed(2) + '€');
-            tooltipLines.push('---');
-            if (d.fees && typeof d.fees === 'object') {
-                tooltipLines.push('Commission (' + (d.fees.commPct || 15) + '%): -' + (d.fees.commission || 0).toFixed(2) + '€' + (d.fees.realCommission ? ' *' : ''));
-                tooltipLines.push('Frais AMZ: -' + (d.fees.fbaFee || 0).toFixed(2) + '€' + (d.fees.realFbaFee ? ' *' : ''));
-                var inboundLabel = 'Envoi a AMZ: -' + (d.fees.inbound || 0).toFixed(2) + '€';
-                if (d.fees.realInbound) inboundLabel += ' * (' + d.fees.weightGrams + 'g)';
-                tooltipLines.push(inboundLabel);
-                tooltipLines.push('Prep: -' + (d.fees.prep || 0).toFixed(2) + '€');
-                tooltipLines.push('URSSAF (' + (d.fees.urssafPct || 12.3) + '%): -' + (d.fees.urssaf || 0).toFixed(2) + '€');
-                tooltipLines.push('Total frais: -' + ((d.fees.total || 0) + (d.fees.urssaf || 0)).toFixed(2) + '€');
-                if (d.fees.realCommission || d.fees.realFbaFee || d.fees.realInbound) tooltipLines.push('* = donnees reelles Keepa');
-            }
-            tooltipLines.push('---');
-            tooltipLines.push('PROFIT NET: ' + (d.profit > 0 ? '+' : '') + Number(d.profit).toFixed(2) + '€');
-            if (d.roi !== null && d.roi !== undefined) tooltipLines.push('ROI: ' + Number(d.roi).toFixed(0) + '%');
-            var tooltip = tooltipLines.join('\n');
-            profitHtml = '<span class="' + profitClass + ' cursor-help deal-profit-cell" data-deal-index="' + origIndex + '" title="' + escapeHTML(tooltip) + '">' + (d.profit > 0 ? '+' : '') + Number(d.profit).toFixed(2) + '€</span>';
-            if (d.roi !== null && d.roi !== undefined) {
-                var roiClass = d.roi > 0 ? 'text-green-400' : 'text-red-400';
-                roiHtml = '<span class="' + roiClass + '">' + Number(d.roi).toFixed(0) + '%</span>';
-            } else {
-                roiHtml = '<span class="text-gray-500">—</span>';
-            }
-        } else if (d.asin && !d.keepaChecked && !d.keepaData) {
-            profitHtml = '<span class="text-amber-400 text-xs" title="En attente Keepa">⏳</span>';
-            roiHtml = '<span class="text-amber-400 text-xs">⏳</span>';
-        } else {
-            profitHtml = '<span class="text-gray-500">—</span>';
-            roiHtml = '<span class="text-gray-500">—</span>';
-        }
-
-        // ASIN
-        var asinHtml = '';
-        if (d.asin) {
-            var mktDomain = OA_MARKETPLACES[dealSellMarket] ? OA_MARKETPLACES[dealSellMarket].domain : 'amazon.de';
-            asinHtml = '<a href="https://www.' + mktDomain + '/dp/' + d.asin + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs">' + d.asin.substring(0, 5) + '...</a>';
-        } else if (d.isAmazon) {
-            asinHtml = '<span class="text-amber-400 text-xs" title="Amazon detecte, ASIN non trouve. Cliquer pour entrer manuellement."><i class="fas fa-exclamation-triangle mr-1"></i></span><button onclick="promptLinkASIN(' + origIndex + ')" class="text-amber-400 hover:text-amber-200 text-xs">lier</button>';
-        } else {
-            asinHtml = '<button onclick="promptLinkASIN(' + origIndex + ')" class="text-gray-400 hover:text-gray-200 text-xs" title="Lier a un ASIN Amazon"><i class="fas fa-link"></i></button>';
-        }
-
-        // Amazon price
-        var amazonPriceHtml = '';
-        if (d.amazonPrice && d.amazonPrice > 0) {
-            amazonPriceHtml = '<span class="text-purple-300">' + Number(d.amazonPrice).toFixed(2) + '€</span>';
-        } else if (d.priceCheckedAt) {
-            amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Prix verifie mais pas de prix Amazon disponible">N/A</span>';
-        } else if (d.asin) {
-            amazonPriceHtml = '<span class="text-amber-400 text-xs" title="En attente du lookup Keepa">⏳</span>';
-        } else {
-            amazonPriceHtml = '<span class="text-gray-500">—</span>';
-        }
-
-        // Actions
-        var actionsHtml = '<a href="' + escapeHTML(d.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
-        if (d.asin && d.profit !== null && d.profit > 0) {
-            actionsHtml += '<button onclick="sendDealToChecklist(' + origIndex + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
-        }
-
-        // Image
-        var imgHtml = d.image ? '<img src="' + escapeHTML(d.image) + '" class="w-10 h-10 object-cover rounded" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-700 rounded flex items-center justify-center"><i class="fas fa-image text-gray-500 text-xs"></i></div>';
-
-        // Temperature badge
-        var tempLabel = '';
-        if (d.temperature >= 500) tempLabel = 'Exceptionnel';
-        else if (d.temperature >= 200) tempLabel = 'Tres bon deal';
-        else if (d.temperature >= 100) tempLabel = 'Bon deal, populaire';
-        else if (d.temperature >= 50) tempLabel = 'Correct';
-        else if (d.temperature > 0) tempLabel = 'Tiede';
-        else tempLabel = 'Mal vote';
-        var tempBadge = d.temperature > 0 ? ' <span class="text-orange-400 text-xs cursor-help" title="Temperature Pepper: ' + d.temperature + '\u00B0 — ' + tempLabel + '">' + d.temperature + '\u00B0</span>' : '';
-
-        // Amazon badge
-        var amazonBadge = d.isAmazon ? ' <span class="bg-orange-500/30 text-orange-300 text-xs px-1 rounded">AMZ</span>' : '';
-
-        // History badge
-        var historyBadge = '';
-        if (d.isNew) historyBadge = ' <span class="bg-green-500/30 text-green-300 text-xs px-1 rounded">NEW</span>';
-        else if (d.historyStatus === 'checklist') historyBadge = ' <span class="bg-indigo-500/30 text-indigo-300 text-xs px-1 rounded">CL</span>';
-
-        // Feed type badge (hot/new)
-        var feedBadge = '';
-        if (d.feedType === 'hot') feedBadge = ' <span class="bg-red-500/30 text-red-300 text-xs px-1 rounded" title="Feed Hot (populaire)">HOT</span>';
-        else if (d.feedType === 'new') feedBadge = ' <span class="bg-cyan-500/30 text-cyan-300 text-xs px-1 rounded" title="Feed New (recent)">NEW</span>';
-        else if (d.feedType === 'both') feedBadge = ' <span class="bg-yellow-500/30 text-yellow-300 text-xs px-1 rounded" title="Dans Hot et New">HOT</span>';
-
-        // Matched by search badge
-        var matchBadge = d.matchedBySearch ? ' <span class="bg-purple-500/30 text-purple-300 text-xs px-1 rounded" title="ASIN trouve par recherche Keepa">MATCH</span>' : '';
-
-        // Multi-marketplace cell
-        var multiMktHtml = '';
-        if (d.multiMarket && d.multiMarket.best) {
-            var bestMkt = d.multiMarket.best.toUpperCase();
-            var bestData = d.multiMarket.markets[d.multiMarket.best];
-            var mktFlag = { de: '\ud83c\udde9\ud83c\uddea', fr: '\ud83c\uddeb\ud83c\uddf7', it: '\ud83c\uddee\ud83c\uddf9', es: '\ud83c\uddea\ud83c\uddf8' };
-            var flag = mktFlag[d.multiMarket.best] || '';
-            // Tooltip with all markets
-            var mktTooltip = 'Comparaison 4 marketplaces:\n';
-            Object.keys(d.multiMarket.markets).forEach(function(mk) {
-                var m = d.multiMarket.markets[mk];
-                var isB = mk === d.multiMarket.best ? ' ← BEST' : '';
-                mktTooltip += mk.toUpperCase() + ': ' + m.price.toFixed(2) + '€ → ' + (m.profit > 0 ? '+' : '') + m.profit.toFixed(2) + '€ (' + m.roi.toFixed(0) + '%)' + isB + '\n';
-            });
-            var bestProfitClass = bestData && bestData.profit > 0 ? 'text-green-400' : 'text-red-400';
-            multiMktHtml = '<span class="' + bestProfitClass + ' cursor-help text-xs" title="' + escapeHTML(mktTooltip) + '">' + flag + ' ' + bestMkt + '</span>';
-        } else {
-            multiMktHtml = '<span class="text-gray-500 text-xs">—</span>';
-        }
-
-        // Actions + ignore button
-        actionsHtml += ' <button onclick="markDealIgnored(' + origIndex + ')" class="text-gray-500 hover:text-red-400 text-xs ml-1" title="Ignorer ce deal"><i class="fas fa-times"></i></button>';
-
-        html += '<tr id="deal-row-' + origIndex + '" class="border-b border-gray-700/50 hover:bg-gray-700/30 ' + rowBg + '">';
-        html += '<td class="p-2 text-gray-400">' + (i + 1) + '</td>';
-        html += '<td class="p-2">' + imgHtml + '</td>';
-        html += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
-        html += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
-        html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName || d.source || '') + '</td>';
-        html += '<td class="p-2 text-center deal-asin">' + asinHtml + '</td>';
-        html += '<td class="p-2 text-right deal-amazon-price">' + amazonPriceHtml + '</td>';
-        html += '<td class="p-2 text-right deal-spread">' + spreadHtml + '</td>';
-        html += '<td class="p-2 text-right deal-profit">' + profitHtml + '</td>';
-        html += '<td class="p-2 text-right deal-roi">' + roiHtml + '</td>';
-        html += '<td class="p-2 text-center">' + multiMktHtml + '</td>';
-        html += '<td class="p-2 text-center deal-actions">' + actionsHtml + '</td>';
-        html += '</tr>';
+    // === Determiner les jours disponibles ===
+    var today = new Date();
+    var dayStrings = [];
+    for (var di = 0; di <= 2; di++) {
+        var d = new Date(today);
+        d.setDate(d.getDate() - di);
+        dayStrings.push(d.toISOString().substring(0, 10));
     }
 
-    html += '</tbody></table></div>';
-
-    if (filtered.length > maxDisplay) {
-        html += '<div class="p-4 text-center text-gray-400 text-sm">Affichage limite a ' + maxDisplay + ' / ' + filtered.length + ' deals</div>';
+    // Mettre a jour les boutons jour avec compteurs
+    for (var bi = 0; bi <= 2; bi++) {
+        var dayBtn = document.getElementById('deal-day-' + bi);
+        if (dayBtn) {
+            var dayLabel = bi === 0 ? "Aujourd'hui" : bi === 1 ? 'Hier' : 'Avant-hier';
+            var dayCount = filtered.filter(function(dd) { return getDayFromScanHour(dd.scanHour) === dayStrings[bi]; }).length;
+            dayBtn.textContent = dayLabel + ' (' + dayCount + ')';
+        }
     }
 
+    // === Filtrer par jour selectionne ===
+    var selectedDayStr = dayStrings[selectedDealDay] || dayStrings[0];
+    var dayDeals = filtered.filter(function(dd) {
+        var dealDay = getDayFromScanHour(dd.scanHour);
+        if (!dealDay) return selectedDealDay === 0; // deals sans scanHour → aujourd'hui
+        return dealDay === selectedDayStr;
+    });
+
+    if (dayDeals.length === 0) {
+        container.innerHTML = '<div class="p-8 text-center text-gray-400"><i class="fas fa-calendar-times text-5xl mb-4"></i><p class="text-lg">Aucun deal pour cette journee</p><p class="text-sm mt-2">Selectionnez un autre jour ou attendez le prochain scan</p></div>';
+        return;
+    }
+
+    // === Grouper par scanHour ===
+    var hourGroups = {};
+    var hourOrder = [];
+    dayDeals.forEach(function(dd) {
+        var key = dd.scanHour || 'unknown';
+        if (!hourGroups[key]) {
+            hourGroups[key] = [];
+            hourOrder.push(key);
+        }
+        hourGroups[key].push(dd);
+    });
+
+    // Trier les heures du plus recent au plus ancien
+    hourOrder.sort(function(a, b) { return b.localeCompare(a); });
+
+    var latestHour = hourOrder[0];
+    var olderHours = hourOrder.slice(1);
+
+    // === Construire le HTML ===
+    var html = '';
+    var globalNum = 1;
+
+    // --- Section "Nouveaux deals" (derniere heure) ---
+    var latestDeals = hourGroups[latestHour] || [];
+    var latestLabel = getHourLabel(latestHour);
+    var latestProfitable = latestDeals.filter(function(dd) { return dd.profit !== null && dd.profit > 0; }).length;
+
+    html += '<div class="mb-6">';
+    html += '<div class="flex items-center justify-between px-4 py-3 rounded-t-xl" style="background: linear-gradient(135deg, #1a365d, #2d3748)">';
+    html += '<div class="flex items-center">';
+    html += '<i class="fas fa-bolt text-yellow-400 mr-2 text-lg"></i>';
+    html += '<span class="text-white font-bold text-lg">Nouveaux deals</span>';
+    html += '<span class="ml-3 bg-white/20 text-white text-xs px-2 py-1 rounded-full">' + latestLabel + '</span>';
+    html += '<span class="ml-2 bg-white/10 text-gray-300 text-xs px-2 py-1 rounded-full">' + latestDeals.length + ' deals</span>';
+    if (latestProfitable > 0) html += '<span class="ml-2 bg-green-500/30 text-green-300 text-xs px-2 py-1 rounded-full">' + latestProfitable + ' rentables</span>';
     html += '</div>';
+    html += '</div>';
+
+    html += '<div class="overflow-x-auto rounded-b-xl" style="background-color: #2d3748">';
+    html += '<table class="w-full text-sm">';
+    html += buildDealTableHeader();
+    html += '<tbody>';
+    for (var li = 0; li < latestDeals.length; li++) {
+        var ld = latestDeals[li];
+        var origIdx = dealScannerResults.indexOf(ld);
+        html += buildDealRowHtml(ld, globalNum++, origIdx);
+    }
+    html += '</tbody></table></div>';
+    html += '</div>';
+
+    // --- Sections "Deals precedents" (heures plus anciennes, repliables) ---
+    if (olderHours.length > 0) {
+        html += '<div class="mt-4">';
+        html += '<div class="flex items-center mb-3 px-1">';
+        html += '<i class="fas fa-history text-gray-400 mr-2"></i>';
+        html += '<span class="text-gray-300 font-semibold">Deals precedents</span>';
+        var olderTotal = 0;
+        olderHours.forEach(function(h) { olderTotal += hourGroups[h].length; });
+        html += '<span class="ml-2 text-gray-500 text-sm">(' + olderTotal + ' deals)</span>';
+        html += '</div>';
+
+        for (var oi = 0; oi < olderHours.length; oi++) {
+            var hourKey = olderHours[oi];
+            var hourDeals = hourGroups[hourKey];
+            var hourLabel = getHourLabel(hourKey);
+            var hourProfitable = hourDeals.filter(function(dd) { return dd.profit !== null && dd.profit > 0; }).length;
+            var isCollapsed = collapsedHourGroups[hourKey] !== false; // collapsed par defaut
+
+            html += '<div class="mb-3">';
+            // En-tete cliquable
+            html += '<div onclick="toggleHourGroup(\'' + hourKey + '\')" class="flex items-center justify-between px-4 py-2 rounded-lg cursor-pointer hover:bg-gray-600/50" style="background-color: #374151">';
+            html += '<div class="flex items-center">';
+            html += '<i class="fas fa-chevron-' + (isCollapsed ? 'right' : 'down') + ' text-gray-400 mr-2 text-xs"></i>';
+            html += '<span class="text-gray-300 font-medium">' + hourLabel + '</span>';
+            html += '<span class="ml-2 text-gray-500 text-xs">' + hourDeals.length + ' deals</span>';
+            if (hourProfitable > 0) html += '<span class="ml-2 bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded">' + hourProfitable + ' rentables</span>';
+            html += '</div>';
+            html += '</div>';
+
+            // Contenu (masque si collapsed)
+            if (!isCollapsed) {
+                html += '<div class="overflow-x-auto rounded-b-lg" style="background-color: #2d3748">';
+                html += '<table class="w-full text-sm">';
+                html += buildDealTableHeader();
+                html += '<tbody>';
+                for (var hi = 0; hi < hourDeals.length; hi++) {
+                    var hd = hourDeals[hi];
+                    var hOrigIdx = dealScannerResults.indexOf(hd);
+                    html += buildDealRowHtml(hd, globalNum++, hOrigIdx);
+                }
+                html += '</tbody></table></div>';
+            } else {
+                // Incrementer le compteur meme si collapsed
+                globalNum += hourDeals.length;
+            }
+
+            html += '</div>';
+        }
+
+        html += '</div>';
+    }
+
     container.innerHTML = html;
 }
 

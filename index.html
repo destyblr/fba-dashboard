@@ -3097,8 +3097,16 @@
                     </div>
                 </div>
 
-                <!-- Filtres -->
+                <!-- Navigation jour + Filtres -->
                 <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <!-- Navigation par jour -->
+                    <div class="flex items-center gap-1 mr-4 pr-4 border-r border-gray-300">
+                        <i class="fas fa-calendar-alt text-gray-400 mr-2"></i>
+                        <button onclick="setDealDay(0)" id="deal-day-0" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Aujourd'hui (0)</button>
+                        <button onclick="setDealDay(1)" id="deal-day-1" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Hier (0)</button>
+                        <button onclick="setDealDay(2)" id="deal-day-2" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Avant-hier (0)</button>
+                    </div>
+                    <!-- Filtres -->
                     <button onclick="setDealFilter('all')" id="deal-filter-all" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Tous (0)</button>
                     <button onclick="setDealFilter('amazon')" id="deal-filter-amazon" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Amazon (0)</button>
                     <button onclick="setDealFilter('profitable')" id="deal-filter-profitable" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Rentables (0)</button>
@@ -3133,8 +3141,8 @@
                 </div>
 
                 <!-- Tableau resultats -->
-                <div id="deal-scanner-results" class="rounded-xl shadow-sm overflow-hidden" style="background-color: #2d3748">
-                    <div class="p-8 text-center text-gray-400">
+                <div id="deal-scanner-results" class="rounded-xl shadow-sm overflow-hidden">
+                    <div class="p-8 text-center text-gray-400" style="background-color: #2d3748">
                         <i class="fas fa-tags text-5xl mb-4"></i>
                         <p class="text-lg">Selectionnez une source et cliquez "Charger les deals"</p>
                         <p class="text-sm mt-2">Les deals des sites de promos seront analyses automatiquement</p>
@@ -3834,7 +3842,7 @@
 
     <!-- Scripts JavaScript -->
     <script src="app.js"></script>
-    <script src="oa-scanner.js?v=20260303b"></script>
+    <script src="oa-scanner.js?v=20260303c"></script>
     <script src="google-sync.js"></script>
 
 </body>
