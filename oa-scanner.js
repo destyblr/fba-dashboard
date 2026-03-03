@@ -4069,9 +4069,13 @@ function buildDealRowHtml(d, displayNum, origIndex) {
     // Amazon price
     var amazonPriceHtml = '';
     if (d.amazonPrice && d.amazonPrice > 0) {
-        amazonPriceHtml = '<span class="text-purple-300">' + Number(d.amazonPrice).toFixed(2) + '€</span>';
+        if (d.priceIsAvg) {
+            amazonPriceHtml = '<span class="text-orange-300 cursor-help" title="Prix moyen 90j (produit actuellement hors stock ou indisponible)">~' + Number(d.amazonPrice).toFixed(2) + '€</span>';
+        } else {
+            amazonPriceHtml = '<span class="text-purple-300">' + Number(d.amazonPrice).toFixed(2) + '€</span>';
+        }
     } else if (d.priceCheckedAt) {
-        amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Prix verifie mais pas de prix Amazon disponible">N/A</span>';
+        amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Aucun prix Amazon disponible (meme en moyenne)">N/A</span>';
     } else if (d.asin) {
         amazonPriceHtml = '<span class="text-amber-400 text-xs" title="En attente du lookup Keepa">⏳</span>';
     } else {

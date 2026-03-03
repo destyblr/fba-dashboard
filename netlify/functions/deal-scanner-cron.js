@@ -198,11 +198,23 @@ async function keepaLookupOne(apiKey, asin, domain) {
         if (json.products && json.products[0]) {
             var p = json.products[0];
             var amazonPrice = null;
+            var priceIsAvg = false;
             if (p.csv && p.csv[0]) { var ph = p.csv[0]; if (ph.length >= 2 && ph[ph.length - 1] > 0) amazonPrice = ph[ph.length - 1] / 100; }
             if (!amazonPrice && p.stats && p.stats.current && p.stats.current[0] > 0) amazonPrice = p.stats.current[0] / 100;
+            // Fallback : prix moyen 90j si pas de prix courant
+            if (!amazonPrice && p.stats && p.stats.avg && p.stats.avg[0] > 0) {
+                amazonPrice = p.stats.avg[0] / 100;
+                priceIsAvg = true;
+            }
+            // Fallback 2 : prix moyen 180j
+            if (!amazonPrice && p.stats && p.stats.avg180 && p.stats.avg180[0] > 0) {
+                amazonPrice = p.stats.avg180[0] / 100;
+                priceIsAvg = true;
+            }
             return {
                 data: {
                     price: amazonPrice,
+                    priceIsAvg: priceIsAvg,
                     bsr: (p.stats && p.stats.current) ? p.stats.current[3] : null,
                     fbaSellers: (p.stats && p.stats.current) ? p.stats.current[10] : null,
                     fbaPickAndPack: p.fbaFees && p.fbaFees.pickAndPackFee ? p.fbaFees.pickAndPackFee / 100 : null,
@@ -392,6 +404,7 @@ const handler = async (event) => {
 
         if (result.data) {
             deal.amazonPrice = result.data.price;
+            deal.priceIsAvg = result.data.priceIsAvg || false;
             deal.bsr = result.data.bsr;
             deal.fbaSellers = result.data.fbaSellers;
             deal.keepaData = result.data;
@@ -542,6 +555,7 @@ const handler = async (event) => {
             amazonPrice: (d.amazonPrice !== undefined && d.amazonPrice !== null) ? d.amazonPrice : null,
             profit: (d.profit !== undefined && d.profit !== null) ? d.profit : null,
             roi: (d.roi !== undefined && d.roi !== null) ? d.roi : null,
+            priceIsAvg: d.priceIsAvg || false,
             bsr: d.bsr || null, fbaSellers: d.fbaSellers || null,
             temperature: d.temperature, source: d.source, date: d.date,
             firstSeen: d.firstSeen, scanHour: d.scanHour || null,
