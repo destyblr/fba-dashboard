@@ -79,6 +79,68 @@ function filterDeals(deals) {
     });
 }
 
+// === RESOLVE PEPPER (0 tokens — suit les redirections pour trouver ASIN Amazon) ===
+async function resolvePepperAsin(dealUrl) {
+    var pepperBases = { 'dealabs.com': 'https://www.dealabs.com', 'mydealz.de': 'https://www.mydealz.de', 'chollometro.com': 'https://www.chollometro.com', 'pepper.it': 'https://www.pepper.it' };
+    var baseUrl = null;
+    var keys = Object.keys(pepperBases);
+    for (var i = 0; i < keys.length; i++) { if (dealUrl.includes(keys[i])) { baseUrl = pepperBases[keys[i]]; break; } }
+    if (!baseUrl) return null;
+
+    var threadIdMatch = dealUrl.match(/(\d{5,})(?:\?|$|#)/);
+    var threadIdFallback = dealUrl.match(/(\d{5,})/g);
+    var threadId = threadIdMatch ? threadIdMatch[1] : (threadIdFallback ? threadIdFallback[threadIdFallback.length - 1] : null);
+    if (!threadId) return null;
+
+    function extractAsin(url) {
+        if (!url) return null;
+        var m = url.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+        if (m) return m[1].toUpperCase();
+        var b = url.match(/\b(B0[A-Z0-9]{8})\b/);
+        if (b) return b[1];
+        return null;
+    }
+
+    try {
+        // Methode 1 : Suivre visit/threadmain → redirections
+        var visitUrl = baseUrl + '/visit/threadmain/' + threadId;
+        var resp = await fetch(visitUrl, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Referer': dealUrl },
+            redirect: 'manual', timeout: 8000
+        });
+        var location = resp.headers.get('location');
+        var hops = 0;
+        while (location && hops < 5) {
+            var found = extractAsin(location);
+            if (found) return found;
+            if (/amazon\.(fr|de|com|co\.uk|it|es)/i.test(location)) {
+                try {
+                    var nr = await fetch(location, { headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'manual', timeout: 5000 });
+                    var nl = nr.headers.get('location');
+                    if (nl) { var fa = extractAsin(nl); if (fa) return fa; location = nl; }
+                    else { var body = await nr.text(); var ba = extractAsin(body); if (ba) return ba; break; }
+                } catch (e) { break; }
+            } else {
+                try { var nr2 = await fetch(location, { headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'manual', timeout: 5000 }); location = nr2.headers.get('location'); }
+                catch (e) { break; }
+            }
+            hops++;
+        }
+    } catch (e) {}
+
+    // Methode 2 fallback : Fetcher la page deal, chercher ASIN dans le HTML
+    try {
+        var pr = await fetch(dealUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'Accept': 'text/html' }, redirect: 'follow', timeout: 8000 });
+        var html = await pr.text();
+        var ha = html.match(/\/dp\/([A-Z0-9]{10})/i);
+        if (ha) return ha[1].toUpperCase();
+        var hb = html.match(/\b(B0[A-Z0-9]{8})\b/);
+        if (hb) return hb[0];
+    } catch (e) {}
+
+    return null;
+}
+
 // === KEEPA ===
 function buildSearchTerm(title) {
     if (!title) return null;
@@ -244,6 +306,30 @@ const handler = async (event) => {
             if (titleToAsin[ck]) { d.asin = titleToAsin[ck].asin || titleToAsin[ck]; }
         }
     });
+
+    // === 1b. RESOLVE PEPPER — suivre les redirections pour trouver ASIN (0 tokens) ===
+    var needResolve = Object.values(accumulated).filter(function(d) {
+        return !d.asin && d.link && !d.resolveAttempted;
+    });
+    console.log('[CRON] Resolve-pepper: ' + needResolve.length + ' deals a resoudre');
+
+    var resolvedCount = 0;
+    var maxResolve = Math.min(needResolve.length, 20); // max 20 par cycle (timeout)
+    for (var ri = 0; ri < maxResolve; ri += 5) {
+        var batch = needResolve.slice(ri, Math.min(ri + 5, maxResolve));
+        await Promise.all(batch.map(function(d) {
+            return resolvePepperAsin(d.link).then(function(asin) {
+                d.resolveAttempted = true;
+                if (asin) {
+                    d.asin = asin;
+                    d.isAmazon = true;
+                    resolvedCount++;
+                    console.log('[CRON]   Pepper→ASIN: ' + asin + ' ← ' + d.title.substring(0, 40));
+                }
+            }).catch(function() { d.resolveAttempted = true; });
+        }));
+    }
+    console.log('[CRON] Resolve-pepper done: ' + resolvedCount + '/' + maxResolve + ' ASINs trouves | ' + elapsed(T));
 
     // === 2. TRAITEMENT COMPLET PAR PRODUIT ===
     var lastTokens = 999;
