@@ -3387,7 +3387,7 @@ async function fetchDealsFromSource(sourceKey) {
 // --- Compte a rebours cron ---
 var cronCountdownTimer = null;
 var lastCronUpdate = null;
-var CRON_INTERVAL = 30; // minutes
+var CRON_INTERVAL = 60; // minutes
 
 function startCronCountdown(updatedAt) {
     lastCronUpdate = new Date(updatedAt);
@@ -4054,11 +4054,9 @@ function renderDealResults() {
         // Amazon price
         var amazonPriceHtml = '';
         if (d.amazonPrice && d.amazonPrice > 0) {
-            amazonPriceHtml = '<span class="text-purple-300">' + d.amazonPrice.toFixed(2) + '€</span>';
-        } else if (d.keepaData && (!d.amazonPrice || d.amazonPrice <= 0)) {
-            amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Pas de prix Amazon disponible (rupture ou marketplace uniquement)">N/A</span>';
-        } else if (d.keepaChecked) {
-            amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Produit non trouve sur Keepa">N/A</span>';
+            amazonPriceHtml = '<span class="text-purple-300">' + Number(d.amazonPrice).toFixed(2) + '€</span>';
+        } else if (d.priceCheckedAt) {
+            amazonPriceHtml = '<span class="text-gray-500 text-xs" title="Prix verifie mais pas de prix Amazon disponible">N/A</span>';
         } else if (d.asin) {
             amazonPriceHtml = '<span class="text-amber-400 text-xs" title="En attente du lookup Keepa">⏳</span>';
         } else {
@@ -4129,7 +4127,7 @@ function renderDealResults() {
         html += '<td class="p-2">' + imgHtml + '</td>';
         html += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
         html += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
-        html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName) + '</td>';
+        html += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName || d.source || '') + '</td>';
         html += '<td class="p-2 text-center deal-asin">' + asinHtml + '</td>';
         html += '<td class="p-2 text-right deal-amazon-price">' + amazonPriceHtml + '</td>';
         html += '<td class="p-2 text-right deal-spread">' + spreadHtml + '</td>';
