@@ -4022,12 +4022,16 @@ function renderDealResults() {
                 if (d.fees.realCommission || d.fees.realFbaFee || d.fees.realInbound) tooltipLines.push('* = donnees reelles Keepa');
             }
             tooltipLines.push('---');
-            tooltipLines.push('PROFIT NET: ' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€');
-            tooltipLines.push('ROI: ' + d.roi.toFixed(0) + '%');
+            tooltipLines.push('PROFIT NET: ' + (d.profit > 0 ? '+' : '') + Number(d.profit).toFixed(2) + '€');
+            if (d.roi !== null && d.roi !== undefined) tooltipLines.push('ROI: ' + Number(d.roi).toFixed(0) + '%');
             var tooltip = tooltipLines.join('\n');
-            profitHtml = '<span class="' + profitClass + ' cursor-help deal-profit-cell" data-deal-index="' + origIndex + '" title="' + escapeHTML(tooltip) + '">' + (d.profit > 0 ? '+' : '') + d.profit.toFixed(2) + '€</span>';
-            var roiClass = d.roi > 0 ? 'text-green-400' : 'text-red-400';
-            roiHtml = '<span class="' + roiClass + '">' + d.roi.toFixed(0) + '%</span>';
+            profitHtml = '<span class="' + profitClass + ' cursor-help deal-profit-cell" data-deal-index="' + origIndex + '" title="' + escapeHTML(tooltip) + '">' + (d.profit > 0 ? '+' : '') + Number(d.profit).toFixed(2) + '€</span>';
+            if (d.roi !== null && d.roi !== undefined) {
+                var roiClass = d.roi > 0 ? 'text-green-400' : 'text-red-400';
+                roiHtml = '<span class="' + roiClass + '">' + Number(d.roi).toFixed(0) + '%</span>';
+            } else {
+                roiHtml = '<span class="text-gray-500">—</span>';
+            }
         } else if (d.asin && !d.keepaChecked && !d.keepaData) {
             profitHtml = '<span class="text-amber-400 text-xs" title="En attente Keepa">⏳</span>';
             roiHtml = '<span class="text-amber-400 text-xs">⏳</span>';
@@ -4744,6 +4748,9 @@ function initOA() {
 
 
     console.log('[OA] Module OA Scanner initialise.');
+
+    // Chargement automatique des deals a l'ouverture
+    fetchDeals();
 }
 
 // Lancer l'initialisation quand le DOM est pret
