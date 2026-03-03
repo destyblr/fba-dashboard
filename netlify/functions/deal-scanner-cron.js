@@ -248,11 +248,23 @@ const handler = async (event) => {
         return { statusCode: 200, body: 'Missing env vars' };
     }
 
+    // Netlify Blobs: auto-detect ou fallback avec token perso (scheduled functions)
+    function openStore(name) {
+        try {
+            return getStore(name);
+        } catch (e) {
+            if (process.env.SITE_ID && process.env.NETLIFY_BLOBS_TOKEN) {
+                return getStore({ name: name, siteID: process.env.SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN });
+            }
+            throw e;
+        }
+    }
+
     var dealStore, asinCache, notifiedStore;
     try {
-        dealStore = getStore('deal-results');
-        asinCache = getStore('asin-cache');
-        notifiedStore = getStore('deal-notified');
+        dealStore = openStore('deal-results');
+        asinCache = openStore('asin-cache');
+        notifiedStore = openStore('deal-notified');
     } catch (e) {
         console.log('[CRON] Blobs erreur: ' + e.message);
         return { statusCode: 200, body: 'Blobs error' };

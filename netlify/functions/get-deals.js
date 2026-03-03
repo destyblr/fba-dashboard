@@ -12,8 +12,19 @@ exports.handler = async (event) => {
         return { statusCode: 200, headers: headers, body: '' };
     }
 
+    function openStore(name) {
+        try {
+            return getStore(name);
+        } catch (e) {
+            if (process.env.SITE_ID && process.env.NETLIFY_BLOBS_TOKEN) {
+                return getStore({ name: name, siteID: process.env.SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN });
+            }
+            throw e;
+        }
+    }
+
     try {
-        var dealStore = getStore('deal-results');
+        var dealStore = openStore('deal-results');
         var data = await dealStore.get('latest', { type: 'json' });
 
         if (!data) {
