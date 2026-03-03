@@ -333,6 +333,11 @@ const handler = async (event) => {
     // Seulement les deals de CE cycle (pas les anciens)
     var needResolve = Object.values(accumulated).filter(function(d) {
         return !d.asin && d.link && !d.resolveAttempted && d.scanHour === scanHour;
+    }).sort(function(a, b) {
+        var aFR = a.source === 'Dealabs' ? 1 : 0;
+        var bFR = b.source === 'Dealabs' ? 1 : 0;
+        if (aFR !== bFR) return bFR - aFR;
+        return (b.temperature || 0) - (a.temperature || 0);
     });
     console.log('[CRON] Resolve-pepper: ' + needResolve.length + ' deals a resoudre');
 
@@ -365,7 +370,13 @@ const handler = async (event) => {
     // Seulement les deals de CE cycle (pas les anciens non-traites)
     var dealsWithAsin = Object.values(accumulated)
         .filter(function(d) { return d.asin && !d.priceCheckedAt && d.scanHour === scanHour; })
-        .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
+        .sort(function(a, b) {
+            // FR (Dealabs) en priorite
+            var aFR = a.source === 'Dealabs' ? 1 : 0;
+            var bFR = b.source === 'Dealabs' ? 1 : 0;
+            if (aFR !== bFR) return bFR - aFR;
+            return (b.temperature || 0) - (a.temperature || 0);
+        });
 
     var oldUnchecked = Object.values(accumulated).filter(function(d) { return d.asin && !d.priceCheckedAt && d.scanHour !== scanHour; }).length;
     console.log('[CRON] Phase 1: ' + dealsWithAsin.length + ' nouveaux avec ASIN' + (oldUnchecked > 0 ? ' (+ ' + oldUnchecked + ' anciens ignores)' : ''));
@@ -428,7 +439,12 @@ const handler = async (event) => {
     // Seulement les deals de CE cycle
     var needSearch = Object.values(accumulated)
         .filter(function(d) { return !d.asin && d.price > 0 && d.scanHour === scanHour; })
-        .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
+        .sort(function(a, b) {
+            var aFR = a.source === 'Dealabs' ? 1 : 0;
+            var bFR = b.source === 'Dealabs' ? 1 : 0;
+            if (aFR !== bFR) return bFR - aFR;
+            return (b.temperature || 0) - (a.temperature || 0);
+        });
 
     var searched = 0;
     console.log('[CRON] Phase 2: ' + needSearch.length + ' nouveaux sans ASIN, max ' + SEARCH_BATCH);

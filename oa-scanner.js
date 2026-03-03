@@ -3463,8 +3463,31 @@ function updateCronStatus() {
 
 function stopCronCountdown() {
     if (cronCountdownTimer) { clearInterval(cronCountdownTimer); cronCountdownTimer = null; }
+}
+
+// --- Countdown en mode "attente de scan" (pas de donnees serveur) ---
+function startWaitingCountdown() {
+    if (cronCountdownTimer) clearInterval(cronCountdownTimer);
+    updateWaitingStatus();
+    cronCountdownTimer = setInterval(updateWaitingStatus, 1000);
+}
+
+function updateWaitingStatus() {
     var el = document.getElementById('deal-cron-status');
-    if (el) el.innerHTML = '<i class="fas fa-exclamation-circle text-yellow-400 mr-1"></i><span class="text-yellow-400">Mode local</span>';
+    if (!el) return;
+    var now = new Date();
+    var nextCron = new Date(now);
+    nextCron.setMinutes(0, 0, 0);
+    nextCron.setHours(nextCron.getHours() + 1);
+    var diffSec = Math.max(0, Math.floor((nextCron - now) / 1000));
+    if (diffSec <= 0) {
+        el.innerHTML = '<i class="fas fa-sync-alt fa-spin text-green-400 mr-1"></i><span class="text-green-400">Scan en cours...</span>';
+        return;
+    }
+    var min = Math.floor(diffSec / 60);
+    var sec = diffSec % 60;
+    var nextLabel = String(nextCron.getHours()).padStart(2, '0') + ':00';
+    el.innerHTML = '<i class="fas fa-satellite-dish text-blue-400 mr-1"></i>En attente · <i class="fas fa-clock text-gray-500 mr-1"></i>Prochain scan ' + nextLabel + ' dans ' + min + ':' + String(sec).padStart(2, '0');
 }
 
 // --- Charger les deals depuis le serveur Netlify (0 token) ---
@@ -3529,37 +3552,40 @@ async function fetchDeals() {
         return;
     }
 
-    // Fallback leger : RSS seulement, PAS de Keepa (le cron s'en charge)
-    console.log('[DealScanner] Mode local (serveur non disponible) — affichage RSS seul');
-    stopCronCountdown();
+    // Pas de donnees serveur — afficher "En attente de scan" avec countdown
+    console.log('[DealScanner] Serveur vide — affichage en attente de scan');
+    dealScannerResults = [];
 
-    var allDeals = [];
-    var rssKeys = Object.keys(DEAL_SOURCES).filter(function(k) { return DEAL_SOURCES[k].type === 'rss'; });
-    var promises = rssKeys.map(function(k) { return fetchDealsFromSource(k); });
-    var results = await Promise.all(promises);
-    results.forEach(function(deals) { allDeals = allDeals.concat(deals); });
-
-    var filtered = preFilterDeals(allDeals);
-    markDealsWithHistory(filtered);
-    dealScannerResults = filtered;
-
-    var funnelEl = document.getElementById('deal-stats-funnel');
-    if (funnelEl) funnelEl.textContent = filtered.length + ' deals (mode local — sans prix Amazon)';
+    // Afficher le creneau courant en attente
+    var container2 = document.getElementById('deal-scanner-results');
+    if (container2) {
+        var now = new Date();
+        var nextH = new Date(now);
+        nextH.setMinutes(0, 0, 0);
+        nextH.setHours(nextH.getHours() + 1);
+        var curLabel = String(now.getHours()).padStart(2, '0') + ':00';
+        var nextLabel = String(nextH.getHours()).padStart(2, '0') + ':00';
+        container2.innerHTML = '<div class="p-8 text-center text-gray-400">' +
+            '<i class="fas fa-satellite-dish text-5xl mb-4 text-blue-400"></i>' +
+            '<p class="text-lg text-white mb-2">En attente du scan de ' + nextLabel + '</p>' +
+            '<p class="text-sm text-gray-500">Le cron tourne toutes les heures. Prochain scan dans quelques minutes.</p>' +
+            '</div>';
+    }
     var statsEl = document.getElementById('deal-stats');
     if (statsEl) { statsEl.classList.remove('hidden'); statsEl.style.display = ''; }
+    var funnelEl = document.getElementById('deal-stats-funnel');
+    if (funnelEl) funnelEl.textContent = 'En attente du prochain scan...';
 
-    renderDealResults();
+    // Demarrer le countdown vers la prochaine heure pile
+    startWaitingCountdown();
 
     // Restaurer le bouton
     if (fetchBtn) {
         fetchBtn.disabled = false;
-        var now = new Date();
-        var h = String(now.getHours()).padStart(2, '0');
-        var m = String(now.getMinutes()).padStart(2, '0');
-        fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>MAJ ' + h + ':' + m;
+        fetchBtn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Charger';
     }
 
-    // Retry : re-verifier le serveur dans 2 min (le cron a peut-etre pas encore fini)
+    // Retry : re-verifier le serveur dans 2 min
     startServerRetry();
 }
 
@@ -4180,7 +4206,15 @@ function renderDealResults() {
 
     var deals = dealScannerResults;
     if (deals.length === 0) {
-        container.innerHTML = '<div class="p-8 text-center text-gray-400"><i class="fas fa-inbox text-5xl mb-4"></i><p class="text-lg">Aucun deal trouve</p><p class="text-sm mt-2">Essayez une autre source ou verifiez votre connexion</p></div>';
+        var nw0 = new Date();
+        var nxH0 = new Date(nw0);
+        nxH0.setMinutes(0, 0, 0);
+        nxH0.setHours(nxH0.getHours() + 1);
+        var nxLabel0 = String(nxH0.getHours()).padStart(2, '0') + ':00';
+        container.innerHTML = '<div class="p-8 text-center text-gray-400">' +
+            '<i class="fas fa-satellite-dish text-5xl mb-4 text-blue-400"></i>' +
+            '<p class="text-lg text-white mb-2">En attente du scan de ' + nxLabel0 + '</p>' +
+            '<p class="text-sm text-gray-500">Le cron scanne automatiquement toutes les heures.</p></div>';
         return;
     }
 
@@ -4258,7 +4292,23 @@ function renderDealResults() {
     });
 
     if (dayDeals.length === 0) {
-        container.innerHTML = '<div class="p-8 text-center text-gray-400"><i class="fas fa-calendar-times text-5xl mb-4"></i><p class="text-lg">Aucun deal pour cette journee</p><p class="text-sm mt-2">Selectionnez un autre jour ou attendez le prochain scan</p></div>';
+        if (selectedDealDay === 0) {
+            // Aujourd'hui sans deals → afficher "En attente du prochain scan"
+            var nw = new Date();
+            var nxH = new Date(nw);
+            nxH.setMinutes(0, 0, 0);
+            nxH.setHours(nxH.getHours() + 1);
+            var nxLabel = String(nxH.getHours()).padStart(2, '0') + ':00';
+            container.innerHTML = '<div class="mb-6">' +
+                '<div class="flex items-center justify-between px-4 py-3 rounded-xl" style="background: linear-gradient(135deg, #1e3a5f, #2d3748); border: 1px dashed #4a5568">' +
+                '<div class="flex items-center">' +
+                '<i class="fas fa-satellite-dish text-blue-400 mr-2 text-lg"></i>' +
+                '<span class="text-gray-300 font-bold text-lg">' + nxLabel + '</span>' +
+                '<span class="ml-3 bg-blue-500/20 text-blue-300 text-xs px-2 py-1 rounded-full"><i class="fas fa-hourglass-half mr-1"></i>En attente de scan</span>' +
+                '</div></div></div>';
+        } else {
+            container.innerHTML = '<div class="p-8 text-center text-gray-400"><i class="fas fa-calendar-times text-5xl mb-4"></i><p class="text-lg">Aucun deal pour cette journee</p><p class="text-sm mt-2">Selectionnez un autre jour</p></div>';
+        }
         return;
     }
 
@@ -4277,12 +4327,34 @@ function renderDealResults() {
     // Trier les heures du plus recent au plus ancien
     hourOrder.sort(function(a, b) { return b.localeCompare(a); });
 
+    // === Ajouter le creneau courant "En attente" si pas encore de deals pour cette heure ===
+    var nowForSlot = new Date();
+    var currentHourKey = nowForSlot.toISOString().substring(0, 13) + ':00'; // "2026-03-03T19:00"
+    var hasCurrentHour = hourOrder.indexOf(currentHourKey) !== -1;
+
     var latestHour = hourOrder[0];
     var olderHours = hourOrder.slice(1);
 
     // === Construire le HTML ===
     var html = '';
     var globalNum = 1;
+
+    // --- Bandeau "En attente de scan" pour l'heure courante (si pas encore de deals) ---
+    if (selectedDealDay === 0 && !hasCurrentHour) {
+        var nextHour = new Date(nowForSlot);
+        nextHour.setMinutes(0, 0, 0);
+        nextHour.setHours(nextHour.getHours() + 1);
+        var nextHLabel = String(nextHour.getHours()).padStart(2, '0') + ':00';
+        html += '<div class="mb-6">';
+        html += '<div class="flex items-center justify-between px-4 py-3 rounded-xl" style="background: linear-gradient(135deg, #1e3a5f, #2d3748); border: 1px dashed #4a5568">';
+        html += '<div class="flex items-center">';
+        html += '<i class="fas fa-satellite-dish text-blue-400 mr-2 text-lg"></i>';
+        html += '<span class="text-gray-300 font-bold text-lg">' + nextHLabel + '</span>';
+        html += '<span class="ml-3 bg-blue-500/20 text-blue-300 text-xs px-2 py-1 rounded-full"><i class="fas fa-hourglass-half mr-1"></i>En attente de scan</span>';
+        html += '</div>';
+        html += '</div>';
+        html += '</div>';
+    }
 
     // --- Section "Nouveaux deals" (derniere heure) ---
     var latestDeals = hourGroups[latestHour] || [];
