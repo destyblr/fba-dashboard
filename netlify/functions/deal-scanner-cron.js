@@ -515,7 +515,16 @@ const handler = async (event) => {
         return rb - ra;
     });
 
-    var dealsForBrowser = allDeals.map(function(d) {
+    // Exclure les anciens deals non-traites (pas de prix = inutiles pour l'affichage)
+    // On garde : deals du cycle courant + anciens AVEC prix Amazon
+    var visibleDeals = allDeals.filter(function(d) {
+        if (d.scanHour === scanHour) return true;   // nouveau = toujours visible
+        if (d.priceCheckedAt) return true;           // ancien traite = visible
+        return false;                                // ancien non-traite = masque
+    });
+    console.log('[CRON] Visible: ' + visibleDeals.length + '/' + allDeals.length + ' (anciens non-traites masques: ' + (allDeals.length - visibleDeals.length) + ')');
+
+    var dealsForBrowser = visibleDeals.map(function(d) {
         return {
             title: d.title, link: d.link, price: d.price, merchant: d.merchant, isAmazon: d.isAmazon,
             asin: d.asin || null,
