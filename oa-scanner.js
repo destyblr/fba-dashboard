@@ -3925,7 +3925,7 @@ function getDealsForSelectedDay() {
 
 // --- Mettre a jour les stats (dynamiques par jour) ---
 function updateDealStats() {
-    var dayDeals = getDealsForSelectedDay().filter(function(d) { return d.sellStatus !== 'gated'; });
+    var dayDeals = getDealsForSelectedDay().filter(function(d) { return d.sellStatus !== 'gated' && d.sellStatus !== 'amazon_sells' && d.sellStatus !== 'no_fba'; });
 
     var allCount = dayDeals.length;
     var amazonCount = dayDeals.filter(function(d) { return d.asin; }).length;
@@ -4299,6 +4299,10 @@ function updateDealRow(index, deal) {
             fbaHtml = '<span class="text-yellow-400 cursor-help text-xs" title="A verifier: ' + escapeHTML(deal.sellReason || '') + '">\u26A0\uFE0F</span>';
         } else if (deal.sellStatus === 'gated') {
             fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Categorie restreinte: ' + escapeHTML(deal.sellReason || '') + '">\u{1F6AB}</span>';
+        } else if (deal.sellStatus === 'amazon_sells') {
+            fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Amazon vendeur direct">\u{1F6AB}</span>';
+        } else if (deal.sellStatus === 'no_fba') {
+            fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="0 vendeur FBA">\u{1F6AB}</span>';
         }
         if (fbaHtml) fbaCell.innerHTML = fbaHtml;
     }
@@ -4469,6 +4473,10 @@ function buildDealRowHtml(d, displayNum, origIndex) {
         fbaHtml = '<span class="text-yellow-400 cursor-help text-xs" title="A verifier: ' + escapeHTML(d.sellReason || '') + (d.categoryName ? '\nCat: ' + d.categoryName : '') + '">\u26A0\uFE0F</span>';
     } else if (d.sellStatus === 'gated') {
         fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Categorie restreinte: ' + escapeHTML(d.sellReason || '') + '">\u{1F6AB}</span>';
+    } else if (d.sellStatus === 'amazon_sells') {
+        fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Amazon vendeur direct">\u{1F6AB}</span>';
+    } else if (d.sellStatus === 'no_fba') {
+        fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="0 vendeur FBA">\u{1F6AB}</span>';
     } else {
         fbaHtml = '<span class="text-gray-500 text-xs">—</span>';
     }
@@ -4559,7 +4567,7 @@ function renderDealResults() {
     }
 
     // Appliquer les filtres — masquer ignores et gated
-    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored' && d.sellStatus !== 'gated'; });
+    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored' && d.sellStatus !== 'gated' && d.sellStatus !== 'amazon_sells' && d.sellStatus !== 'no_fba'; });
     if (dealFilterMode === 'amazon') {
         filtered = filtered.filter(function(d) { return d.asin; });
     } else if (dealFilterMode === 'profitable') {

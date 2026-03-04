@@ -85,13 +85,23 @@ function getSellStatus(keepaData) {
         }
     }
 
-    // Categorie ouverte — verifier vendeurs FBA + BSR
+    // Amazon vendeur direct — filtre
+    if (keepaData.amazonSells) {
+        return { status: 'amazon_sells', reason: 'Amazon vendeur direct' };
+    }
+
+    // 0 vendeur FBA — filtre
     var fbaSellers = keepaData.fbaSellers;
+    if (!fbaSellers || fbaSellers <= 0) {
+        return { status: 'no_fba', reason: '0 vendeur FBA' };
+    }
+
+    // Categorie ouverte + vendeurs FBA
     var bsr = keepaData.bsr;
-    if (fbaSellers && fbaSellers > 0 && bsr && bsr > 0) {
+    if (bsr && bsr > 0) {
         return { status: 'ok', reason: fbaSellers + ' vendeurs FBA, BSR ' + bsr };
     }
-    return { status: 'check', reason: (!fbaSellers || fbaSellers <= 0 ? '0 vendeur FBA' : '') + (!bsr || bsr <= 0 ? ' pas de BSR' : '') };
+    return { status: 'check', reason: fbaSellers + ' vendeurs FBA, pas de BSR' };
 }
 
 // === HELPERS ===
@@ -261,8 +271,10 @@ async function keepaLookupOne(apiKey, asin, domain) {
             var p = json.products[0];
             var amazonPrice = null;
             var priceIsAvg = false;
-            if (p.csv && p.csv[0]) { var ph = p.csv[0]; if (ph.length >= 2 && ph[ph.length - 1] > 0) amazonPrice = ph[ph.length - 1] / 100; }
-            if (!amazonPrice && p.stats && p.stats.current && p.stats.current[0] > 0) amazonPrice = p.stats.current[0] / 100;
+            var amazonSells = false;
+            // csv[0] = prix Amazon vendeur direct
+            if (p.csv && p.csv[0]) { var ph = p.csv[0]; if (ph.length >= 2 && ph[ph.length - 1] > 0) { amazonPrice = ph[ph.length - 1] / 100; amazonSells = true; } }
+            if (!amazonPrice && p.stats && p.stats.current && p.stats.current[0] > 0) { amazonPrice = p.stats.current[0] / 100; amazonSells = true; }
             // Fallback : prix moyen 90j si pas de prix courant
             if (!amazonPrice && p.stats && p.stats.avg && p.stats.avg[0] > 0) {
                 amazonPrice = p.stats.avg[0] / 100;
@@ -284,6 +296,7 @@ async function keepaLookupOne(apiKey, asin, domain) {
                     fbaPickAndPack: p.fbaFees && p.fbaFees.pickAndPackFee ? p.fbaFees.pickAndPackFee / 100 : null,
                     referralFeePct: p.referralFeePercent || null,
                     weight: p.packageWeight || null,
+                    amazonSells: amazonSells,
                     rootCategory: p.rootCategory || null,
                     categoryName: catName
                 },
@@ -501,8 +514,8 @@ const handler = async (event) => {
             deal.sellStatus = ss ? ss.status : null;
             deal.sellReason = ss ? ss.reason : null;
 
-            if (deal.sellStatus === 'gated') {
-                console.log('[CRON]   ' + deal.asin + ': GATED (' + deal.categoryName + ') — skip | tokens=' + lastTokens);
+            if (deal.sellStatus === 'gated' || deal.sellStatus === 'amazon_sells' || deal.sellStatus === 'no_fba') {
+                console.log('[CRON]   ' + deal.asin + ': ' + deal.sellStatus.toUpperCase() + ' (' + (deal.sellReason || '') + ') — skip | tokens=' + lastTokens);
                 processedCount++;
                 continue;
             }
@@ -601,8 +614,8 @@ const handler = async (event) => {
                     sd.sellStatus = ss3 ? ss3.status : null;
                     sd.sellReason = ss3 ? ss3.reason : null;
 
-                    if (sd.sellStatus === 'gated') {
-                        console.log('[CRON]   SEARCH+LOOKUP ' + sd.asin + ': GATED (' + sd.categoryName + ') — skip | tokens=' + lastTokens);
+                    if (sd.sellStatus === 'gated' || sd.sellStatus === 'amazon_sells' || sd.sellStatus === 'no_fba') {
+                        console.log('[CRON]   SEARCH+LOOKUP ' + sd.asin + ': ' + sd.sellStatus.toUpperCase() + ' (' + (sd.sellReason || '') + ') — skip | tokens=' + lastTokens);
                         processedCount++;
                     } else {
                         if (sd.amazonPrice && sd.price > 0) {
