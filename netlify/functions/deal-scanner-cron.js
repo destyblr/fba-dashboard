@@ -385,6 +385,7 @@ const handler = async (event) => {
 
     // === 2. TRAITEMENT COMPLET PAR PRODUIT ===
     var lastTokens = 999;
+    var startTokens = null; // sera mis a jour au 1er appel Keepa
     var processedCount = 0;
     var profitableCount = 0;
     var newNotifs = 0;
@@ -412,7 +413,10 @@ const handler = async (event) => {
         var dom = SOURCE_DOMAINS[deal.source] || 4;
         var result = await keepaLookupOne(apiKey, deal.asin, dom);
 
-        if (result.tokensLeft !== undefined && result.tokensLeft >= 0) lastTokens = result.tokensLeft;
+        if (result.tokensLeft !== undefined && result.tokensLeft >= 0) {
+            if (startTokens === null) startTokens = result.tokensLeft + 1; // +1 car on vient d'en consommer 1
+            lastTokens = result.tokensLeft;
+        }
 
         if (result.data) {
             deal.amazonPrice = result.data.price;
@@ -650,18 +654,15 @@ const handler = async (event) => {
     console.log('[CRON] Saved | ' + elapsed(T));
 
     // === 4. TELEGRAM COMPTE-RENDU (toujours envoye) ===
-    var totalWithAsin = allDeals.filter(function(d) { return d.asin; }).length;
-    var totalChecked = allDeals.filter(function(d) { return d.priceCheckedAt; }).length;
     var newDealsThisCycle = Object.values(accumulated).filter(function(d) { return d.scanHour === scanHour; }).length;
-    var tokensUsed = 60 - lastTokens; // estimation (60 tokens/h max)
+    var tokensUsed = startTokens !== null ? startTokens - lastTokens : 0;
 
     var crHour = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
     var crMsg = '\u{1F4CA} *Compte-rendu ' + crHour + '*\n\n';
     crMsg += '\u{1F4E1} ' + newDealsThisCycle + ' nouveaux deals (Dealabs)\n';
     crMsg += '\u{1F50D} ' + resolvedCount + ' ASINs resolve-pepper | ' + searched + ' ASINs recherche\n';
     crMsg += '\u2705 ' + processedCount + ' deals traites | ' + profitableCount + ' rentables\n';
-    crMsg += '\u{1F4B0} Tokens: ~' + tokensUsed + ' utilises | ' + lastTokens + ' restants\n';
-    crMsg += '\u{1F4E6} Total en base: ' + allDeals.length + ' deals (' + totalWithAsin + ' avec ASIN, ' + totalChecked + ' avec prix)';
+    crMsg += '\u{1F4B0} Tokens: ' + tokensUsed + ' utilises | ' + lastTokens + ' restants' + (startTokens !== null ? ' (depart: ' + startTokens + ')' : '');
 
     if (searchSkipped.length > 0) {
         crMsg += '\n\n\u26A0\uFE0F *' + searchSkipped.length + ' deals non traites (tokens epuises) :*\n';

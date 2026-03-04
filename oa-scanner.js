@@ -4094,9 +4094,6 @@ function buildDealRowHtml(d, displayNum, origIndex) {
     }
     actionsHtml += ' <button onclick="markDealIgnored(' + origIndex + ')" class="text-gray-500 hover:text-red-400 text-xs ml-1" title="Ignorer ce deal"><i class="fas fa-times"></i></button>';
 
-    // Image
-    var imgHtml = d.image ? '<img src="' + escapeHTML(d.image) + '" class="w-10 h-10 object-cover rounded" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-700 rounded flex items-center justify-center"><i class="fas fa-image text-gray-500 text-xs"></i></div>';
-
     // Badges
     var tempLabel = '';
     if (d.temperature >= 500) tempLabel = 'Exceptionnel';
@@ -4137,7 +4134,6 @@ function buildDealRowHtml(d, displayNum, origIndex) {
 
     var row = '<tr id="deal-row-' + origIndex + '" class="border-b border-gray-700/50 hover:bg-gray-700/30 ' + rowBg + '">';
     row += '<td class="p-2 text-gray-400">' + displayNum + '</td>';
-    row += '<td class="p-2">' + imgHtml + '</td>';
     row += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
     row += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
     row += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName || d.source || '') + '</td>';
@@ -4156,7 +4152,6 @@ function buildDealRowHtml(d, displayNum, origIndex) {
 function buildDealTableHeader() {
     var h = '<thead><tr class="text-gray-300 border-b border-gray-600">';
     h += '<th class="text-left p-2 w-8">#</th>';
-    h += '<th class="text-left p-2 w-12"></th>';
     h += '<th class="text-left p-2">Deal</th>';
     h += '<th class="text-right p-2">Prix</th>';
     h += '<th class="text-left p-2">Source</th>';
