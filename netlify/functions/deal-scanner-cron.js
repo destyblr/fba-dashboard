@@ -458,10 +458,20 @@ const handler = async (event) => {
     }
     console.log('[CRON] Phase 1 done: ' + processedCount + '/' + dealsWithAsin.length + ' traites | ' + elapsed(T));
 
-    // --- Phase 3 : Recherche mot-cle ILLIMITEE pour deals sans ASIN (un par un) ---
+    // --- Phase 3 : Recherche mot-cle pour deals sans ASIN ---
+    // Cycle courant EN PRIORITE, puis anciens tokens_exhausted a rattraper
     var needSearch = Object.values(accumulated)
-        .filter(function(d) { return !d.asin && d.price > 0 && d.scanHour === scanHour; })
-        .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
+        .filter(function(d) { return !d.asin && d.price > 0 && (d.scanHour === scanHour || d.searchStatus === 'tokens_exhausted'); })
+        .sort(function(a, b) {
+            // Cycle courant en priorite
+            var aCurrent = a.scanHour === scanHour ? 1 : 0;
+            var bCurrent = b.scanHour === scanHour ? 1 : 0;
+            if (aCurrent !== bCurrent) return bCurrent - aCurrent;
+            return (b.temperature || 0) - (a.temperature || 0);
+        });
+
+    var newSearch = needSearch.filter(function(d) { return d.scanHour === scanHour; }).length;
+    var oldSearch = needSearch.length - newSearch;
 
     // Reserver tokens pour Phase 4 (multi-MKT) : 3 tokens par deal rentable sans multiMarket
     var pendingMultiMkt = Object.values(accumulated).filter(function(d) {
@@ -473,7 +483,7 @@ const handler = async (event) => {
 
     var searched = 0;
     var searchSkipped = []; // deals non traites par manque de tokens
-    console.log('[CRON] Phase 3: ' + needSearch.length + ' deals sans ASIN a chercher');
+    console.log('[CRON] Phase 3: ' + newSearch + ' nouveaux sans ASIN' + (oldSearch > 0 ? ' + ' + oldSearch + ' anciens a rattraper' : ''));
 
     for (var j = 0; j < needSearch.length; j++) {
         if (lastTokens <= phase3StopAt) {
