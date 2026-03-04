@@ -3925,9 +3925,12 @@ function getDealsForSelectedDay() {
 
 // --- Mettre a jour les stats (dynamiques par jour) ---
 function updateDealStats() {
-    var dayDeals = getDealsForSelectedDay().filter(function(d) { return d.sellStatus !== 'gated' && d.sellStatus !== 'amazon_sells' && d.sellStatus !== 'no_fba' && d.sellStatus !== 'too_competitive'; });
+    // Tous les deals du jour non-ignores (y compris gated/amazon_sells/no_fba/too_competitive)
+    var allDayDeals = getDealsForSelectedDay(); // getDealsForSelectedDay filtre deja 'ignored'
+    // Deals non-rejetes pour les compteurs specifiques
+    var dayDeals = allDayDeals.filter(function(d) { return d.sellStatus !== 'gated' && d.sellStatus !== 'amazon_sells' && d.sellStatus !== 'no_fba' && d.sellStatus !== 'too_competitive'; });
 
-    var allCount = dayDeals.length;
+    var allCount = allDayDeals.length; // inclure les exclus dans le compteur "Tous"
     var amazonCount = dayDeals.filter(function(d) { return d.asin; }).length;
     var profitableCount = dayDeals.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; }).length;
     var noAsinCount = dayDeals.filter(function(d) {
@@ -4324,9 +4327,11 @@ function updateDealRow(index, deal) {
 
 // --- Helper : generer le HTML d'une ligne de deal ---
 function buildDealRowHtml(d, displayNum, origIndex) {
-    // Couleur de fond selon rentabilite
+    // Couleur de fond selon rentabilite / statut
     var rowBg = '';
-    if (d.profit !== null && d.profit > 0) rowBg = 'bg-green-900/20';
+    var isExcluded = d.sellStatus === 'gated' || d.sellStatus === 'amazon_sells' || d.sellStatus === 'no_fba' || d.sellStatus === 'too_competitive';
+    if (isExcluded) rowBg = 'opacity-50';
+    else if (d.profit !== null && d.profit > 0) rowBg = 'bg-green-900/20';
     else if (d.profit !== null && d.profit < 0) rowBg = 'bg-red-900/10';
 
     // Ecart de prix
@@ -4578,8 +4583,8 @@ function renderDealResults() {
         return;
     }
 
-    // Appliquer les filtres — masquer ignores et gated
-    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored' && d.sellStatus !== 'gated' && d.sellStatus !== 'amazon_sells' && d.sellStatus !== 'no_fba' && d.sellStatus !== 'too_competitive'; });
+    // Appliquer les filtres — masquer seulement les ignores (gated/amazon_sells/no_fba/too_competitive visibles avec badge 🚫)
+    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored'; });
     if (dealFilterMode === 'amazon') {
         filtered = filtered.filter(function(d) { return d.asin; });
     } else if (dealFilterMode === 'profitable') {

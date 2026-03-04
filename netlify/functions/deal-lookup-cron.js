@@ -35,12 +35,16 @@ function openStore(name) {
     }
 }
 
+function normalizeStr(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function getSellStatus(keepaData) {
     if (!keepaData) return null;
-    var cat = (keepaData.categoryName || '').toLowerCase();
+    var cat = normalizeStr(keepaData.categoryName || '');
     if (cat) {
         for (var i = 0; i < GATED_CATEGORIES.length; i++) {
-            if (cat.indexOf(GATED_CATEGORIES[i]) !== -1) {
+            if (cat.indexOf(normalizeStr(GATED_CATEGORIES[i])) !== -1) {
                 return { status: 'gated', reason: keepaData.categoryName };
             }
         }
@@ -99,8 +103,10 @@ async function keepaLookupOne(apiKey, asin, domain) {
             var amazonPrice = null;
             var priceIsAvg = false;
             var amazonSells = false;
-            if (p.csv && p.csv[0]) { var ph = p.csv[0]; if (ph.length >= 2 && ph[ph.length - 1] > 0) { amazonPrice = ph[ph.length - 1] / 100; amazonSells = true; } }
-            if (!amazonPrice && p.stats && p.stats.current && p.stats.current[0] > 0) { amazonPrice = p.stats.current[0] / 100; amazonSells = true; }
+            // amazonSells = Amazon vend ACTUELLEMENT (stats.current[0] = prix courant Amazon)
+            if (p.stats && p.stats.current && p.stats.current[0] > 0) { amazonPrice = p.stats.current[0] / 100; amazonSells = true; }
+            // csv[0] = historique prix Amazon (peut etre ancien) — prix seulement, pas amazonSells
+            if (!amazonPrice && p.csv && p.csv[0]) { var ph = p.csv[0]; if (ph.length >= 2 && ph[ph.length - 1] > 0) { amazonPrice = ph[ph.length - 1] / 100; } }
             if (!amazonPrice && p.stats && p.stats.avg && p.stats.avg[0] > 0) { amazonPrice = p.stats.avg[0] / 100; priceIsAvg = true; }
             if (!amazonPrice && p.stats && p.stats.avg180 && p.stats.avg180[0] > 0) { amazonPrice = p.stats.avg180[0] / 100; priceIsAvg = true; }
             var catName = null;
@@ -245,7 +251,7 @@ const handler = async () => {
             processed++;
             console.log('[LOOKUP]   ' + deal.asin + ': ' + (deal.amazonPrice ? deal.amazonPrice.toFixed(2) + '€' : 'N/A') + (deal.profit ? ' profit=' + deal.profit.toFixed(2) + '€' : '') + ' [' + (deal.sellStatus || '?') + '] (tokens=' + lastTokens + ')');
 
-            if (deal.profit > 0 && deal.amazonPrice > 0) {
+            if (deal.profit >= 5 && deal.roi >= 20 && deal.amazonPrice > 0) {
                 pendingNotifs.push(deal);
             }
         }

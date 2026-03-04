@@ -78,12 +78,12 @@ const GATED_CATEGORIES = [
 
 function getSellStatus(keepaData) {
     if (!keepaData) return null;
-    var cat = (keepaData.categoryName || '').toLowerCase();
+    var cat = normalizeStr(keepaData.categoryName || '');
 
-    // Verifier si categorie gated
+    // Verifier si categorie gated (normalise pour gerer les accents FR)
     if (cat) {
         for (var i = 0; i < GATED_CATEGORIES.length; i++) {
-            if (cat.indexOf(GATED_CATEGORIES[i]) !== -1) {
+            if (cat.indexOf(normalizeStr(GATED_CATEGORIES[i])) !== -1) {
                 return { status: 'gated', reason: keepaData.categoryName };
             }
         }
@@ -163,11 +163,25 @@ function parseItem(item, sourceName) {
     return { title: title, link: link, price: price, merchant: merchant, isAmazon: isAmazon, asin: asin, temperature: temperature, source: sourceName, date: item.pubDate || new Date().toISOString(), firstSeen: new Date().toISOString() };
 }
 
+function normalizeStr(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function filterDeals(deals) {
     return deals.filter(function(d) {
         if (!d.title || d.price <= 0 || d.price < FILTERS.minPrice || d.price > FILTERS.maxPrice) return false;
-        var t = d.title.toLowerCase();
-        for (var i = 0; i < BLACKLIST.length; i++) { if (t.includes(BLACKLIST[i].trim())) return false; }
+        var t = normalizeStr(d.title);
+        for (var i = 0; i < BLACKLIST.length; i++) {
+            var kw = BLACKLIST[i].trim();
+            // Mot entier si 1 mot, sous-chaine si expression multi-mots
+            var isMultiWord = kw.indexOf(' ') !== -1;
+            if (isMultiWord) {
+                if (t.includes(normalizeStr(kw))) return false;
+            } else {
+                var re = new RegExp('(?<![a-z])' + normalizeStr(kw) + '(?![a-z])', 'i');
+                if (re.test(t)) return false;
+            }
+        }
         return true;
     });
 }
@@ -287,9 +301,10 @@ async function keepaLookupOne(apiKey, asin, domain) {
             var amazonPrice = null;
             var priceIsAvg = false;
             var amazonSells = false;
-            // csv[0] = prix Amazon vendeur direct
-            if (p.csv && p.csv[0]) { var ph = p.csv[0]; if (ph.length >= 2 && ph[ph.length - 1] > 0) { amazonPrice = ph[ph.length - 1] / 100; amazonSells = true; } }
-            if (!amazonPrice && p.stats && p.stats.current && p.stats.current[0] > 0) { amazonPrice = p.stats.current[0] / 100; amazonSells = true; }
+            // amazonSells = Amazon vend ACTUELLEMENT (stats.current[0] = prix courant Amazon)
+            if (p.stats && p.stats.current && p.stats.current[0] > 0) { amazonPrice = p.stats.current[0] / 100; amazonSells = true; }
+            // csv[0] = historique prix Amazon (peut etre ancien) — prix seulement, pas amazonSells
+            if (!amazonPrice && p.csv && p.csv[0]) { var ph = p.csv[0]; if (ph.length >= 2 && ph[ph.length - 1] > 0) { amazonPrice = ph[ph.length - 1] / 100; } }
             // Fallback : prix moyen 90j si pas de prix courant
             if (!amazonPrice && p.stats && p.stats.avg && p.stats.avg[0] > 0) {
                 amazonPrice = p.stats.avg[0] / 100;
@@ -562,7 +577,7 @@ const handler = async (event) => {
             console.log('[CRON]   ' + deal.asin + ': ' + (deal.amazonPrice ? deal.amazonPrice.toFixed(2) + '€' : 'N/A') + (deal.profit ? ' profit=' + deal.profit.toFixed(2) + '€' : '') + ' [' + (deal.sellStatus || '?') + '] (tokens=' + lastTokens + ')');
 
             // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
-            if (deal.profit > 0 && deal.amazonPrice > 0) {
+            if (deal.profit >= 5 && deal.roi >= 20 && deal.amazonPrice > 0) {
                 pendingNotifs.push(deal);
             }
         }
