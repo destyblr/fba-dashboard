@@ -157,28 +157,44 @@ async function resolvePepperAsin(dealUrl) {
 }
 
 // === KEEPA ===
-function buildSearchTerm(title) {
-    if (!title) return null;
+function buildSearchTerms(title) {
+    if (!title) return [];
     var base = title.replace(/\s*\d+°\s*/, '').replace(/\([^)]*\)/g, ' ').replace(/\s+[-–—]\s+/g, ' ').replace(/[|€$£%]/g, '').replace(/\d+[,.]?\d*\s*€/g, '').replace(/\s+/g, ' ').trim();
     var noise = /\b(promo|offre|bon plan|deal|livraison gratuite|en stock|disponible|gratuit|soldes?|destockage|vente flash|code promo|reduction|remise|pas cher|meilleur prix|noir|noire|blanc|blanche|rouge|bleu|bleue|vert|verte|gris|grise|avec|pour|sans|fil|edition|version|pack|lot|kit|set|paire|neuf|occasion|compatible)\b/gi;
     var words = base.replace(noise, ' ').replace(/\s+/g, ' ').trim().split(' ').filter(function(w) { return w.length > 1; });
-    if (words.length > 6) words = words.slice(0, 6);
-    return words.length >= 2 ? words.join(' ') : null;
+    var terms = [];
+    // Essai 1 : titre complet (max 6 mots)
+    var full = words.slice(0, 6);
+    if (full.length >= 2) terms.push(full.join(' '));
+    // Essai 2 : raccourci (3 premiers mots = marque + modele)
+    var short = words.slice(0, 3);
+    if (short.length >= 2 && short.join(' ') !== full.join(' ')) terms.push(short.join(' '));
+    return terms;
 }
 
 async function keepaSearch(apiKey, title, domain) {
-    var term = buildSearchTerm(title);
-    if (!term) return null;
-    try {
-        var resp = await fetch('https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term) + '&asins-only=1&page=0');
-        var data = await resp.json();
-        if (data.asinList && data.asinList.length > 0) {
-            console.log('[CRON] FOUND: "' + term.substring(0, 25) + '" -> ' + data.asinList[0] + ' (tokens=' + data.tokensLeft + ')');
-            return { asin: data.asinList[0], tokensLeft: data.tokensLeft };
+    var terms = buildSearchTerms(title);
+    if (terms.length === 0) return null;
+    var lastTokens = 0;
+
+    for (var ti = 0; ti < terms.length; ti++) {
+        var term = terms[ti];
+        try {
+            var resp = await fetch('https://api.keepa.com/search?key=' + apiKey + '&domain=' + domain + '&type=product&term=' + encodeURIComponent(term) + '&asins-only=1&page=0');
+            var data = await resp.json();
+            lastTokens = data.tokensLeft || 0;
+            if (data.asinList && data.asinList.length > 0) {
+                console.log('[CRON] FOUND (essai ' + (ti + 1) + '): "' + term.substring(0, 30) + '" -> ' + data.asinList[0] + ' (tokens=' + lastTokens + ')');
+                return { asin: data.asinList[0], tokensLeft: lastTokens };
+            }
+            console.log('[CRON] NOT FOUND (essai ' + (ti + 1) + '): "' + term.substring(0, 30) + '" (tokens=' + lastTokens + ')');
+            // Si plus assez de tokens pour un 2e essai, arreter
+            if (lastTokens <= 15) break;
+        } catch (e) {
+            console.log('[CRON] Search erreur: ' + e.message);
         }
-        return { asin: null, tokensLeft: data.tokensLeft || 0 };
-    } catch (e) {}
-    return null;
+    }
+    return { asin: null, tokensLeft: lastTokens };
 }
 
 // Lookup individuel (1 ASIN = 1 token) → retourne { data, tokensLeft }
