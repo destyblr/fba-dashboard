@@ -4201,13 +4201,13 @@ function renderRecapDeals() {
         }
 
         // Liens
-        var linksHtml = '<a href="' + escapeHTML(d.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
+        var linksHtml = '';
         if (d.asin) {
             linksHtml += '<a href="https://www.' + mktDomain + '/dp/' + d.asin + '" target="_blank" class="text-orange-300 hover:text-orange-200" title="Amazon"><i class="fab fa-amazon"></i></a>';
         }
 
         html += '<tr class="border-b border-gray-700/30 hover:bg-white/5">';
-        html += '<td class="py-1.5 px-2 text-gray-200 max-w-[250px] truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 60)) + '</td>';
+        html += '<td class="py-1.5 px-2 max-w-[250px] truncate" title="' + escapeHTML(d.title) + '"><a href="' + escapeHTML(d.link) + '" target="_blank" class="text-gray-200 hover:text-blue-300 hover:underline">' + escapeHTML(d.title.substring(0, 60)) + '</a></td>';
         html += '<td class="py-1.5 px-2 text-right text-blue-300">' + Number(d.price).toFixed(2) + '\u20AC</td>';
         html += '<td class="py-1.5 px-2 text-right text-purple-300">' + priceAvgMark + Number(d.amazonPrice).toFixed(2) + '\u20AC</td>';
         html += '<td class="py-1.5 px-2 text-right ' + profitClass + '">+' + Number(d.profit).toFixed(2) + '\u20AC</td>';
@@ -4279,10 +4279,11 @@ function updateDealRow(index, deal) {
         }
     }
     if (actionsCell) {
-        var actionsHtml = '<a href="' + escapeHTML(deal.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
+        var actionsHtml = '';
         if (deal.asin && deal.profit !== null && deal.profit > 0) {
-            actionsHtml += '<button onclick="sendDealToChecklist(' + index + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
+            actionsHtml += '<button onclick="sendDealToChecklist(' + index + ')" class="text-green-400 hover:text-green-300 text-xs mr-1" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
         }
+        actionsHtml += '<button onclick="markDealIgnored(' + index + ')" class="text-gray-500 hover:text-red-400 text-xs" title="Ignorer ce deal"><i class="fas fa-times"></i></button>';
         actionsCell.innerHTML = actionsHtml;
     }
 
@@ -4389,11 +4390,11 @@ function buildDealRowHtml(d, displayNum, origIndex) {
     }
 
     // Actions
-    var actionsHtml = '<a href="' + escapeHTML(d.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
+    var actionsHtml = '';
     if (d.asin && d.profit !== null && d.profit > 0) {
-        actionsHtml += '<button onclick="sendDealToChecklist(' + origIndex + ')" class="text-green-400 hover:text-green-300 text-xs" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
+        actionsHtml += '<button onclick="sendDealToChecklist(' + origIndex + ')" class="text-green-400 hover:text-green-300 text-xs mr-1" title="Verifier dans Checklist"><i class="fas fa-clipboard-check"></i></button>';
     }
-    actionsHtml += ' <button onclick="markDealIgnored(' + origIndex + ')" class="text-gray-500 hover:text-red-400 text-xs ml-1" title="Ignorer ce deal"><i class="fas fa-times"></i></button>';
+    actionsHtml += '<button onclick="markDealIgnored(' + origIndex + ')" class="text-gray-500 hover:text-red-400 text-xs" title="Ignorer ce deal"><i class="fas fa-times"></i></button>';
 
     // Badges
     var tempLabel = '';
@@ -4435,7 +4436,7 @@ function buildDealRowHtml(d, displayNum, origIndex) {
 
     var row = '<tr id="deal-row-' + origIndex + '" class="border-b border-gray-700/50 hover:bg-gray-700/30 ' + rowBg + '">';
     row += '<td class="p-2 text-gray-400">' + displayNum + '</td>';
-    row += '<td class="p-2"><div class="text-gray-100 text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 80)) + '</div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
+    row += '<td class="p-2"><div class="text-xs leading-tight max-w-xs truncate" title="' + escapeHTML(d.title) + '"><a href="' + escapeHTML(d.link) + '" target="_blank" class="text-gray-100 hover:text-blue-300 hover:underline">' + escapeHTML(d.title.substring(0, 80)) + '</a></div><div class="text-gray-400 text-xs mt-1">' + historyBadge + amazonBadge + feedBadge + matchBadge + tempBadge + '</div></td>';
     row += '<td class="p-2 text-right text-blue-300 font-medium">' + (d.price > 0 ? d.price.toFixed(2) + '€' : '—') + '</td>';
     row += '<td class="p-2 text-gray-300 text-xs">' + escapeHTML(d.sourceName || d.source || '') + '</td>';
     row += '<td class="p-2 text-center deal-asin">' + asinHtml + '</td>';

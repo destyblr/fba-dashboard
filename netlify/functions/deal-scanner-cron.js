@@ -469,51 +469,6 @@ const handler = async (event) => {
     }
     console.log('[CRON] Phase 1 done: ' + processedCount + '/' + dealsWithAsin.length + ' traites | ' + elapsed(T));
 
-    // --- Phase 1.5 : Multi-marketplace pour deals rentables (3 tokens par deal) ---
-    var profitableDeals = Object.values(accumulated).filter(function(d) {
-        return d.asin && d.profit > 0 && d.scanHour === scanHour && !d.multiMarket;
-    });
-    console.log('[CRON] Phase 1.5: ' + profitableDeals.length + ' deals rentables a checker multi-marketplace');
-
-    for (var mi = 0; mi < profitableDeals.length; mi++) {
-        if (lastTokens <= MIN_TOKENS + 3) { console.log('[CRON] Phase 1.5 STOP: tokens=' + lastTokens); break; }
-        var md = profitableDeals[mi];
-        var markets = {};
-        var bestMarket = null;
-        var bestProfit = -Infinity;
-
-        // On a deja le prix FR (domain 4), ajouter les autres
-        var frData = md.keepaData;
-        if (frData && frData.price > 0) {
-            var frCalc = calculateProfit(md.price, frData);
-            markets['fr'] = { price: frData.price, profit: frCalc ? frCalc.profit : 0, roi: frCalc ? frCalc.roi : 0 };
-            if (frCalc && frCalc.profit > bestProfit) { bestProfit = frCalc.profit; bestMarket = 'fr'; }
-        }
-
-        // Lookup DE, IT, ES (3 tokens)
-        var otherDomains = [3, 8, 9]; // DE, IT, ES
-        var domainKeys = { 3: 'de', 8: 'it', 9: 'es' };
-        for (var di = 0; di < otherDomains.length; di++) {
-            if (lastTokens <= MIN_TOKENS) break;
-            var domId = otherDomains[di];
-            var mktKey = domainKeys[domId];
-            var mktResult = await keepaLookupOne(apiKey, md.asin, domId);
-            if (mktResult.tokensLeft !== undefined && mktResult.tokensLeft >= 0) lastTokens = mktResult.tokensLeft;
-            if (mktResult.data && mktResult.data.price > 0) {
-                var mktCalc = calculateProfit(md.price, mktResult.data);
-                markets[mktKey] = { price: mktResult.data.price, profit: mktCalc ? mktCalc.profit : 0, roi: mktCalc ? mktCalc.roi : 0 };
-                if (mktCalc && mktCalc.profit > bestProfit) { bestProfit = mktCalc.profit; bestMarket = mktKey; }
-            } else {
-                markets[mktKey] = { price: 0, profit: 0, roi: 0 };
-            }
-        }
-
-        md.multiMarket = { best: bestMarket, markets: markets };
-        var bestLabel = bestMarket ? bestMarket.toUpperCase() : '?';
-        console.log('[CRON]   Multi ' + md.asin + ': best=' + bestLabel + ' (' + bestProfit.toFixed(2) + '€) | tokens=' + lastTokens);
-    }
-    console.log('[CRON] Phase 1.5 done | ' + elapsed(T));
-
     // --- Phase 3 : Recherche mot-cle ILLIMITEE pour deals sans ASIN (un par un) ---
     var needSearch = Object.values(accumulated)
         .filter(function(d) { return !d.asin && d.price > 0 && d.scanHour === scanHour; })
@@ -616,6 +571,51 @@ const handler = async (event) => {
             if (rCalc) { deal.profit = rCalc.profit; deal.roi = rCalc.roi; if (rCalc.profit > 0) profitableCount++; }
         }
     });
+
+    // --- Phase 4 : Multi-marketplace pour TOUS les deals rentables sans multiMarket ---
+    var profitableDeals = allDeals.filter(function(d) {
+        return d.asin && d.profit > 0 && !d.multiMarket;
+    });
+    console.log('[CRON] Phase 4 (multi-MKT): ' + profitableDeals.length + ' deals rentables a checker');
+
+    for (var mi = 0; mi < profitableDeals.length; mi++) {
+        if (lastTokens <= MIN_TOKENS + 3) { console.log('[CRON] Phase 4 STOP: tokens=' + lastTokens); break; }
+        var md = profitableDeals[mi];
+        var markets = {};
+        var bestMarket = null;
+        var bestProfit = -Infinity;
+
+        // On a deja le prix FR (domain 4), ajouter les autres
+        var frData = md.keepaData;
+        if (frData && frData.price > 0) {
+            var frCalc = calculateProfit(md.price, frData);
+            markets['fr'] = { price: frData.price, profit: frCalc ? frCalc.profit : 0, roi: frCalc ? frCalc.roi : 0 };
+            if (frCalc && frCalc.profit > bestProfit) { bestProfit = frCalc.profit; bestMarket = 'fr'; }
+        }
+
+        // Lookup DE, IT, ES (3 tokens)
+        var otherDomains = [3, 8, 9]; // DE, IT, ES
+        var domainKeys = { 3: 'de', 8: 'it', 9: 'es' };
+        for (var mdi = 0; mdi < otherDomains.length; mdi++) {
+            if (lastTokens <= MIN_TOKENS) break;
+            var domId = otherDomains[mdi];
+            var mktKey = domainKeys[domId];
+            var mktResult = await keepaLookupOne(apiKey, md.asin, domId);
+            if (mktResult.tokensLeft !== undefined && mktResult.tokensLeft >= 0) lastTokens = mktResult.tokensLeft;
+            if (mktResult.data && mktResult.data.price > 0) {
+                var mktCalc = calculateProfit(md.price, mktResult.data);
+                markets[mktKey] = { price: mktResult.data.price, profit: mktCalc ? mktCalc.profit : 0, roi: mktCalc ? mktCalc.roi : 0 };
+                if (mktCalc && mktCalc.profit > bestProfit) { bestProfit = mktCalc.profit; bestMarket = mktKey; }
+            } else {
+                markets[mktKey] = { price: 0, profit: 0, roi: 0 };
+            }
+        }
+
+        md.multiMarket = { best: bestMarket, markets: markets };
+        var bestLabel = bestMarket ? bestMarket.toUpperCase() : '?';
+        console.log('[CRON]   Multi ' + md.asin + ': best=' + bestLabel + ' (' + bestProfit.toFixed(2) + '€) | tokens=' + lastTokens);
+    }
+    console.log('[CRON] Phase 4 done | ' + elapsed(T));
 
     // === 3. SAVE ===
     allDeals.sort(function(a, b) {
