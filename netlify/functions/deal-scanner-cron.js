@@ -17,21 +17,30 @@ const BLACKLIST = [
     'lego','bose','rolex','canon','nikon','gopro','dji','garmin','philips','braun','karcher',
     // Electronique / informatique surdimensionne
     'televiseur','television','ordinateur portable','laptop','pc portable','smartphone','ecran pc',
+    'pc gamer','pc fixe','pc de bureau','tour pc','unite centrale','moniteur','imprimante',
     // Electromenager (trop gros/lourd)
     'lave-linge','lave-vaisselle','refrigerateur','congelateur','micro-ondes','climatiseur',
-    'radiateur','seche-linge','four encastrable','hotte aspirante',
+    'radiateur','seche-linge','four encastrable','hotte aspirante','aspirateur robot',
     // Mobilier (trop gros)
-    'canape','matelas','armoire','sommier','meuble','lit coffre',
+    'canape','matelas','armoire','sommier','meuble','lit coffre','table','bureau','etagere',
+    'commode','bibliotheque','chaise de bureau','fauteuil','tabouret','banquette',
     // Exterieur / jardin surdimensionne
     'trottinette','trotinette','trampoline','piscine','barbecue','tondeuse','jacuzzi','parasol',
     'pergola','balancoire','portique','abri de jardin','groupe electrogene','nettoyeur haute pression',
-    'motoculteur','debroussailleuse','tronconneuse',
+    'motoculteur','debroussailleuse','tronconneuse','salon de jardin',
     // Mobilite / sport surdimensionne
     'velo electrique','velo enfant','vtt','draisienne','kayak','paddle','rameur',
+    'tapis de course','velo elliptique','banc de musculation','home trainer',
     // Auto / moto
-    'pneu','demarreur','pare-brise',
+    'pneu','demarreur','pare-brise','siege auto','poussette',
+    // Dematerialise (pas FBA)
+    'carte cadeau','gift card','e-carte','bon d\'achat','code de telechargement',
+    'abonnement','cle cd','steam key','licence numerique','jeu demat','xbox game pass',
+    'ps plus','playstation plus','nintendo eshop','xbox live','spotify','netflix','disney+',
     // Hazmat / restreint
-    'e-liquide','cigarette electronique'
+    'e-liquide','cigarette electronique','parfum','eau de toilette','eau de parfum',
+    // Alimentaire / perissable
+    'chocolat','bonbon','cafe capsule','the','complement alimentaire','proteine whey'
 ];
 
 const FEES = { commissionPct: 15, fbaFee: 3.50, inboundShipping: 2.00, prepCost: 0.25, urssafPct: 12.3 };
