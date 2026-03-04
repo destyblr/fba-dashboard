@@ -528,6 +528,11 @@ const handler = async (event) => {
         if (!sr) continue;
         if (sr.tokensLeft !== undefined) lastTokens = sr.tokensLeft;
 
+        if (!sr.asin) {
+            searchSkipped.push(sd.title.substring(0, 50) + ' (ASIN introuvable)');
+            continue;
+        }
+
         if (sr.asin) {
             sd.asin = sr.asin;
             titleToAsin[sd.title.substring(0, 50).toLowerCase().trim()] = { asin: sr.asin, date: new Date().toISOString() };
