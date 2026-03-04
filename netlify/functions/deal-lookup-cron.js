@@ -5,7 +5,7 @@ const { getStore } = require('@netlify/blobs');
 // === CONFIG (memes valeurs que deal-scanner-cron) ===
 const FEES = { commissionPct: 15, fbaFee: 3.50, inboundShipping: 2.00, prepCost: 0.25, urssafPct: 12.3 };
 const EFN_SURCHARGE = 3.50;
-const MIN_TOKENS = 5;
+const MIN_TOKENS = 10;
 const MAX_TELEGRAM = 2;
 const MAX_LOOKUPS = 15; // Max lookups par cycle (leger)
 

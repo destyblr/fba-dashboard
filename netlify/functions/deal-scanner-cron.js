@@ -31,6 +31,10 @@ const BLACKLIST = [
     // Mobilite / sport surdimensionne
     'velo electrique','velo enfant','vtt','draisienne','kayak','paddle','rameur',
     'tapis de course','velo elliptique','banc de musculation','home trainer',
+    // Vetements / mode (categorie gated Amazon FR)
+    't-shirt','tshirt','chemise','pantalon','jean','robe','veste','manteau','pull','sweat',
+    'hoodie','pyjama','sous-vetement','chaussette','collant','legging','short','bermuda',
+    'maillot de bain','bikini','lingerie','soutien-gorge','calecon','boxer',
     // Auto / moto
     'pneu','demarreur','pare-brise','siege auto','poussette',
     // Dematerialise (pas FBA)
@@ -49,7 +53,7 @@ const FILTERS = { minPrice: 5, maxPrice: 200 };
 const MAX_LOOKUPS = 50;
 const DEAL_EXPIRY_H = 24;
 const MAX_TELEGRAM = 3;
-const MIN_TOKENS = 5;
+const MIN_TOKENS = 10;
 
 // Categories gated/interdites Amazon (patterns multi-langue FR/DE/EN)
 const GATED_CATEGORIES = [
@@ -847,8 +851,12 @@ const handler = async (event) => {
     } catch (e) { console.log('[CRON] Save erreur: ' + e.message); }
     console.log('[CRON] Saved | ' + elapsed(T));
 
-    // === 4. TELEGRAM COMPTE-RENDU (seulement si aucune alerte deal envoyee) ===
-    if (newNotifs === 0) {
+    // === 4. TELEGRAM COMPTE-RENDU (seulement si aucune alerte deal envoyee + anti-doublon) ===
+    var crKey = 'cr_' + scanHour.replace(/[^0-9]/g, '').substring(0, 10);
+    var crAlreadySent = false;
+    try { var crCheck = await notifiedStore.get(crKey); if (crCheck) crAlreadySent = true; } catch (e) {}
+
+    if (newNotifs === 0 && !crAlreadySent) {
         var newDealsThisCycle = Object.values(accumulated).filter(function(d) { return d.scanHour === scanHour; }).length;
         var realTokensLeft = (lastTokens !== 999) ? lastTokens : startTokens;
         var tokensUsed = (startTokens !== null && realTokensLeft !== null) ? startTokens - realTokensLeft : 0;
@@ -873,6 +881,7 @@ const handler = async (event) => {
         }
 
         crMsg += '\n\n\u{1F504} Prochain scan dans 1h';
+        try { await notifiedStore.set(crKey, '1'); } catch (e) {}
         await sendTelegram(botToken, chatId, crMsg);
     }
 
