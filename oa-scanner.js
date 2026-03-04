@@ -4160,6 +4160,7 @@ function buildDealTableHeader() {
     h += '<th class="text-right p-2">Ecart</th>';
     h += '<th class="text-right p-2">Profit</th>';
     h += '<th class="text-right p-2">ROI</th>';
+    h += '<th class="text-center p-2">Best MKT</th>';
     h += '<th class="text-center p-2">Actions</th>';
     h += '</tr></thead>';
     return h;
