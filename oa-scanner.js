@@ -4931,9 +4931,11 @@ async function addManualDeal() {
         fees: null,
         category: '',
         temperature: 0,
-        date: new Date(),
+        date: new Date().toISOString(),
         source: 'manual',
         sourceName: sourceName || 'Manuel',
+        scanHour: new Date().toISOString().substring(0, 13),
+        firstSeen: new Date().toISOString(),
         manual: true
     };
 
