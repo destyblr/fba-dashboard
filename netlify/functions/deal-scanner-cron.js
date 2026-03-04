@@ -62,8 +62,6 @@ const GATED_CATEGORIES = [
     // Vetements / Chaussures / Bijoux
     'vetement','clothing','shoes','chaussure','bijou','jewelry','schmuck','bekleidung','mode',
     'accessoires mode',
-    // Jouets (gated pour nouveaux vendeurs)
-    'jouet','toys','spiele','giocattoli','juguete',
     // Auto / Moto
     'auto','automotive','moto','fahrzeug','kfz',
     // Montres
@@ -71,9 +69,7 @@ const GATED_CATEGORIES = [
     // Alcool / Vin
     'vin','wine','wein','biere','alcool','spiritueux',
     // Art / Collectibles
-    'fine art','collectible','sammler',
-    // Bebe (certaines sous-cat)
-    'bebe','baby'
+    'fine art','collectible','sammler'
 ];
 
 function getSellStatus(keepaData) {
