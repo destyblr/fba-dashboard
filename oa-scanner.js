@@ -4056,10 +4056,19 @@ function buildDealRowHtml(d, displayNum, origIndex) {
     if (d.asin) {
         var mktDomain = OA_MARKETPLACES[dealSellMarket] ? OA_MARKETPLACES[dealSellMarket].domain : 'amazon.de';
         asinHtml = '<a href="https://www.' + mktDomain + '/dp/' + d.asin + '" target="_blank" class="text-blue-300 hover:text-blue-200 text-xs">' + d.asin.substring(0, 5) + '...</a>';
-    } else if (d.isAmazon) {
-        asinHtml = '<span class="text-amber-400 text-xs" title="Amazon detecte, ASIN non trouve."><i class="fas fa-exclamation-triangle mr-1"></i></span><button onclick="promptLinkASIN(' + origIndex + ')" class="text-amber-400 hover:text-amber-200 text-xs">lier</button>';
     } else {
-        asinHtml = '<button onclick="promptLinkASIN(' + origIndex + ')" class="text-gray-400 hover:text-gray-200 text-xs" title="Lier a un ASIN Amazon"><i class="fas fa-link"></i></button>';
+        // Tooltip selon le searchStatus
+        var statusLabels = {
+            'resolve_no_amazon': 'Redirect Pepper → site non-Amazon (pas de lien Amazon)',
+            'resolve_error': 'Erreur lors du suivi de la redirection Pepper',
+            'search_not_found': 'Recherche Keepa echouee (2 essais, produit introuvable)',
+            'tokens_exhausted': 'Pas assez de tokens Keepa pour chercher',
+            'search_ok_no_tokens': 'ASIN trouve mais plus de tokens pour le prix'
+        };
+        var statusTip = statusLabels[d.searchStatus] || (d.isAmazon ? 'Amazon detecte, ASIN non trouve' : 'Lier a un ASIN Amazon');
+        var iconClass = d.searchStatus ? 'text-amber-400' : 'text-gray-400';
+        var icon = d.searchStatus ? '<i class="fas fa-exclamation-triangle mr-1"></i>' : '<i class="fas fa-link mr-1"></i>';
+        asinHtml = '<span class="' + iconClass + ' text-xs cursor-help" title="' + statusTip + '">' + icon + '</span><button onclick="promptLinkASIN(' + origIndex + ')" class="' + iconClass + ' hover:text-gray-200 text-xs">lier</button>';
     }
 
     // Amazon price

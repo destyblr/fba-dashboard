@@ -372,10 +372,13 @@ const handler = async (event) => {
                 if (asin) {
                     d.asin = asin;
                     d.isAmazon = true;
+                    d.searchStatus = 'resolve_ok';
                     resolvedCount++;
                     console.log('[CRON]   Pepper→ASIN: ' + asin + ' ← ' + d.title.substring(0, 40));
+                } else {
+                    d.searchStatus = 'resolve_no_amazon';
                 }
-            }).catch(function() { d.resolveAttempted = true; });
+            }).catch(function() { d.resolveAttempted = true; d.searchStatus = 'resolve_error'; });
         }));
     }
     console.log('[CRON] Resolve-pepper done: ' + resolvedCount + '/' + maxResolve + ' ASINs trouves | ' + elapsed(T));
@@ -515,6 +518,7 @@ const handler = async (event) => {
         if (lastTokens <= 15) {
             // Plus assez de tokens — noter les deals restants
             for (var sk = j; sk < needSearch.length; sk++) {
+                needSearch[sk].searchStatus = 'tokens_exhausted';
                 searchSkipped.push(needSearch[sk].title.substring(0, 50));
             }
             tokensRanOut = true;
@@ -529,6 +533,7 @@ const handler = async (event) => {
         if (sr.tokensLeft !== undefined) lastTokens = sr.tokensLeft;
 
         if (!sr.asin) {
+            sd.searchStatus = 'search_not_found';
             searchSkipped.push(sd.title.substring(0, 50) + ' (ASIN introuvable)');
             continue;
         }
@@ -585,6 +590,7 @@ const handler = async (event) => {
                     }
                 }
             } else {
+                sd.searchStatus = 'search_ok_no_tokens';
                 searchSkipped.push(sd.title.substring(0, 50) + ' (ASIN trouve, pas de tokens pour lookup)');
                 tokensRanOut = true;
             }
@@ -620,6 +626,7 @@ const handler = async (event) => {
             profit: (d.profit !== undefined && d.profit !== null) ? d.profit : null,
             roi: (d.roi !== undefined && d.roi !== null) ? d.roi : null,
             priceIsAvg: d.priceIsAvg || false,
+            searchStatus: d.searchStatus || null,
             multiMarket: d.multiMarket || null,
             bsr: d.bsr || null, fbaSellers: d.fbaSellers || null,
             temperature: d.temperature, source: d.source, date: d.date,
