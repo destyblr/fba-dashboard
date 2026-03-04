@@ -56,17 +56,28 @@ function getSellStatus(keepaData) {
         return { status: 'no_fba', reason: '0 vendeur FBA' };
     }
 
+    // Trop de vendeurs (>15) — filtre
+    var offerCount = keepaData.newOfferCount;
+    if (offerCount && offerCount > 15) {
+        return { status: 'too_competitive', reason: offerCount + ' vendeurs (>15)' };
+    }
+
+    // Info supplementaire pour le reason
+    var sellerInfo = fbaSellers + ' FBA';
+    if (offerCount) sellerInfo += ', ' + offerCount + ' total';
+    var monthlySoldInfo = keepaData.monthlySold ? ', ~' + keepaData.monthlySold + ' ventes/mois' : '';
+
     // Categorie ouverte + vendeurs FBA
     var bsr = keepaData.bsr;
     if (bsr && bsr > 0) {
-        return { status: 'ok', reason: fbaSellers + ' vendeurs FBA, BSR ' + bsr };
+        return { status: 'ok', reason: sellerInfo + monthlySoldInfo + ', BSR ' + bsr };
     }
-    return { status: 'check', reason: fbaSellers + ' vendeurs FBA, pas de BSR' };
+    return { status: 'check', reason: sellerInfo + monthlySoldInfo + ', pas de BSR' };
 }
 
 function calculateProfit(dealPrice, kd, efnSurcharge) {
-    if (!kd || !kd.price || kd.price <= 0) return null;
-    var sell = kd.price;
+    var sell = kd && (kd.buyBoxPrice || kd.price);
+    if (!sell || sell <= 0) return null;
     var comm = sell * ((kd.referralFeePct || FEES.commissionPct) / 100);
     var fba = kd.fbaPickAndPack || FEES.fbaFee;
     var inbound = kd.weight ? Math.max(0.50, (kd.weight / 1000) * 1.20) : FEES.inboundShipping;
@@ -94,9 +105,21 @@ async function keepaLookupOne(apiKey, asin, domain) {
             if (!amazonPrice && p.stats && p.stats.avg180 && p.stats.avg180[0] > 0) { amazonPrice = p.stats.avg180[0] / 100; priceIsAvg = true; }
             var catName = null;
             if (p.categoryTree && p.categoryTree.length > 0) catName = p.categoryTree[0].name || null;
+            // Buy Box price (index 18)
+            var buyBoxPrice = null;
+            if (p.stats && p.stats.current && p.stats.current[18] > 0) {
+                buyBoxPrice = p.stats.current[18] / 100;
+            }
+            // New offer count = total vendeurs (index 7)
+            var newOfferCount = (p.stats && p.stats.current && p.stats.current[7] > 0) ? p.stats.current[7] : null;
+            // Monthly sold
+            var monthlySold = p.monthlySold || null;
             return {
                 data: {
                     price: amazonPrice, priceIsAvg: priceIsAvg,
+                    buyBoxPrice: buyBoxPrice,
+                    newOfferCount: newOfferCount,
+                    monthlySold: monthlySold,
                     bsr: (p.stats && p.stats.current) ? p.stats.current[3] : null,
                     fbaSellers: (p.stats && p.stats.current) ? p.stats.current[10] : null,
                     fbaPickAndPack: p.fbaFees && p.fbaFees.pickAndPackFee ? p.fbaFees.pickAndPackFee / 100 : null,
@@ -190,8 +213,11 @@ const handler = async () => {
         if (result.tokensLeft !== undefined && result.tokensLeft >= 0) lastTokens = result.tokensLeft;
 
         if (result.data) {
-            deal.amazonPrice = result.data.price;
+            deal.amazonPrice = result.data.buyBoxPrice || result.data.price;
             deal.priceIsAvg = result.data.priceIsAvg || false;
+            deal.buyBoxPrice = result.data.buyBoxPrice || null;
+            deal.newOfferCount = result.data.newOfferCount || null;
+            deal.monthlySold = result.data.monthlySold || null;
             deal.bsr = result.data.bsr;
             deal.fbaSellers = result.data.fbaSellers;
             deal.keepaData = result.data;
@@ -202,7 +228,7 @@ const handler = async () => {
             deal.sellStatus = ss ? ss.status : null;
             deal.sellReason = ss ? ss.reason : null;
 
-            if (deal.sellStatus === 'gated' || deal.sellStatus === 'amazon_sells' || deal.sellStatus === 'no_fba') {
+            if (deal.sellStatus === 'gated' || deal.sellStatus === 'amazon_sells' || deal.sellStatus === 'no_fba' || deal.sellStatus === 'too_competitive') {
                 console.log('[LOOKUP]   ' + deal.asin + ': ' + deal.sellStatus.toUpperCase() + ' (' + (deal.sellReason || '') + ') — skip | tokens=' + lastTokens);
                 processed++;
                 continue;
@@ -299,6 +325,8 @@ const handler = async () => {
             '\n\u2705 Profit: +' + Number(nd.profit).toFixed(2) + '\u20AC | ROI: ' + Number(nd.roi).toFixed(0) + '%' +
             bestMktLine +
             (nd.bsr ? '\n\u{1F4CA} BSR: ' + Number(nd.bsr).toLocaleString() : '') +
+            (nd.newOfferCount ? ' | \u{1F465} ' + nd.newOfferCount + ' vendeurs' : '') +
+            (nd.monthlySold ? ' | \u{1F4E6} ~' + nd.monthlySold + ' ventes/mois' : '') +
             '\n\u{1F3EA} ' + nd.source + (nd.temperature > 0 ? ' ' + nd.temperature + '\u00B0' : '') +
             '\n\u{1F517} [Deal](' + nd.link + ')' + (nd.asin ? ' | [Amazon](https://www.' + nDomName + '/dp/' + nd.asin + ')' : '');
         var tgSent = await sendTelegram(botToken, chatId, tgMsg);
@@ -333,6 +361,9 @@ const handler = async () => {
                     priceIsAvg: d.priceIsAvg || false,
                     searchStatus: d.searchStatus || null,
                     multiMarket: d.multiMarket || null,
+                    buyBoxPrice: d.buyBoxPrice || null,
+                    newOfferCount: d.newOfferCount || null,
+                    monthlySold: d.monthlySold || null,
                     bsr: d.bsr || null, fbaSellers: d.fbaSellers || null,
                     sellStatus: d.sellStatus || null, sellReason: d.sellReason || null,
                     categoryName: d.categoryName || null,
