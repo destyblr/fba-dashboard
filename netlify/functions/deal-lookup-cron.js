@@ -56,10 +56,10 @@ function getSellStatus(keepaData) {
         return { status: 'no_fba', reason: '0 vendeur FBA' };
     }
 
-    // Trop de vendeurs (>15) — filtre
+    // Trop de vendeurs (>30) — filtre
     var offerCount = keepaData.newOfferCount;
-    if (offerCount && offerCount > 15) {
-        return { status: 'too_competitive', reason: offerCount + ' vendeurs (>15)' };
+    if (offerCount && offerCount > 30) {
+        return { status: 'too_competitive', reason: offerCount + ' vendeurs (>30)' };
     }
 
     // Info supplementaire pour le reason
