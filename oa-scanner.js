@@ -4476,28 +4476,47 @@ function buildDealRowHtml(d, displayNum, origIndex) {
     row += '<td class="p-2 text-right deal-profit">' + profitHtml + '</td>';
     row += '<td class="p-2 text-right deal-roi">' + roiHtml + '</td>';
     row += '<td class="p-2 text-center">' + multiMktHtml + '</td>';
-    // Badge FBA vendabilite
-    var fbaHtml = '';
-    var fbaExtra = '';
-    if (d.monthlySold) fbaExtra += '\nVentes: ~' + d.monthlySold + '/mois';
-    if (d.newOfferCount) fbaExtra += '\nVendeurs: ' + d.newOfferCount + ' total';
-    if (d.categoryName) fbaExtra += '\nCat: ' + d.categoryName;
-    if (d.sellStatus === 'ok') {
-        fbaHtml = '<span class="text-green-400 cursor-help text-xs" title="' + escapeHTML(d.sellReason || 'Vendable') + fbaExtra + '">\u2705</span>';
-    } else if (d.sellStatus === 'check') {
-        fbaHtml = '<span class="text-yellow-400 cursor-help text-xs" title="A verifier: ' + escapeHTML(d.sellReason || '') + fbaExtra + '">\u26A0\uFE0F</span>';
-    } else if (d.sellStatus === 'gated') {
-        fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Categorie restreinte: ' + escapeHTML(d.sellReason || '') + '">\u{1F6AB}</span>';
-    } else if (d.sellStatus === 'amazon_sells') {
-        fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Amazon vendeur direct">\u{1F6AB}</span>';
-    } else if (d.sellStatus === 'no_fba') {
-        fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="0 vendeur FBA">\u{1F6AB}</span>';
-    } else if (d.sellStatus === 'too_competitive') {
-        fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Trop concurrentiel: ' + escapeHTML(d.sellReason || '') + '">\u{1F6AB}</span>';
-    } else {
-        fbaHtml = '<span class="text-gray-500 text-xs">—</span>';
+    // Badge Etape — indique ou le deal est bloque dans le pipeline
+    var etapeHtml = '';
+    var etapeExtra = '';
+    if (d.monthlySold) etapeExtra += '\nVentes estimees: ~' + d.monthlySold + '/mois';
+    if (d.newOfferCount) etapeExtra += '\nNb vendeurs FBA: ' + d.newOfferCount;
+    if (d.categoryName) etapeExtra += '\nCategorie: ' + d.categoryName;
+
+    function pill(bg, text, tip) {
+        return '<span class="' + bg + ' text-white text-xs font-semibold px-2 py-0.5 rounded-full cursor-help whitespace-nowrap" title="' + escapeHTML(tip) + '">' + text + '</span>';
     }
-    row += '<td class="p-2 text-center deal-fba">' + fbaHtml + '</td>';
+
+    if (d.profit !== null && d.profit !== undefined && d.profit > 0) {
+        etapeHtml = pill('bg-green-600', '\u2705 RENTABLE', 'Deal rentable ! Profit calcule : +' + Number(d.profit).toFixed(2) + '\u20AC' + etapeExtra);
+    } else if (d.sellStatus === 'amazon_sells') {
+        etapeHtml = pill('bg-red-700', '\uD83D\uDED1 AMZ VEND', 'Amazon est vendeur direct sur ce produit.\nImpossible de concurrencer Amazon en tant que 3P seller.' + etapeExtra);
+    } else if (d.sellStatus === 'gated') {
+        etapeHtml = pill('bg-red-800', '\uD83D\uDD12 GATED', 'Categorie ou marque restreinte : ' + (d.sellReason || 'approbation requise') + '\nTu dois demander une autorisation sur Seller Central.' + etapeExtra);
+    } else if (d.sellStatus === 'no_fba') {
+        etapeHtml = pill('bg-red-700', '\u26D4 0 FBA', 'Aucun vendeur FBA actif sur ce produit.\nProbablement non eligible FBA ou trop de stock Amazon.' + etapeExtra);
+    } else if (d.sellStatus === 'too_competitive') {
+        etapeHtml = pill('bg-orange-600', '\u26A0 CONC', 'Trop de vendeurs FBA concurrents (' + (d.sellReason || '>30') + ').\nLa marge serait impossible a tenir.' + etapeExtra);
+    } else if (d.sellStatus === 'check') {
+        etapeHtml = pill('bg-yellow-600', '\u26A0 VERIF', 'A verifier manuellement : ' + (d.sellReason || '') + etapeExtra);
+    } else if (d.profit !== null && d.profit !== undefined && d.profit <= 0) {
+        etapeHtml = pill('bg-pink-800', '\uD83D\uDCC9 PERTE', 'Profit calcule negatif : ' + Number(d.profit).toFixed(2) + '\u20AC\nLe prix du deal est trop eleve par rapport au prix Amazon.' + etapeExtra);
+    } else if (d.searchStatus === 'tokens_exhausted' || d.searchStatus === 'search_ok_no_tokens') {
+        etapeHtml = pill('bg-amber-600', '\u23F3 TOKENS', 'Tokens Keepa epuises lors de ce scan.\nCe deal sera retraite au prochain cycle (dans ~1h).');
+    } else if (d.asin && !d.priceCheckedAt) {
+        etapeHtml = pill('bg-amber-500', '\u23F3 LOOKUP', 'ASIN trouve, en attente du prix Keepa.\nLe lookup sera fait au prochain cycle disponible.');
+    } else if (d.searchStatus === 'resolve_no_amazon') {
+        etapeHtml = pill('bg-gray-600', '\u2197 PAS AMZ', 'Le lien Pepper redirige vers un site non-Amazon.\nCe deal ne peut pas etre vendu via FBA.');
+    } else if (d.searchStatus === 'search_not_found') {
+        etapeHtml = pill('bg-gray-600', '? INTROUVABLE', 'Produit non trouve sur Amazon apres 2 tentatives Keepa.\nPeut-etre un produit exclusif ou mal reference.');
+    } else if (d.searchStatus === 'resolve_error') {
+        etapeHtml = pill('bg-gray-700', '! ERREUR', 'Erreur lors du suivi du lien Pepper.\nLe lien est peut-etre expir\u00e9 ou inaccessible.');
+    } else if (d.sellStatus === 'ok') {
+        etapeHtml = pill('bg-green-700', '\u2705 OK', 'Produit vendable FBA' + etapeExtra);
+    } else {
+        etapeHtml = '<span class="text-gray-500 text-xs cursor-help" title="Statut non determine">—</span>';
+    }
+    row += '<td class="p-2 text-center deal-fba">' + etapeHtml + '</td>';
     row += '<td class="p-2 text-center deal-actions">' + actionsHtml + '</td>';
     row += '</tr>';
     return row;
@@ -4516,7 +4535,7 @@ function buildDealTableHeader() {
     h += '<th class="text-right p-2">Profit</th>';
     h += '<th class="text-right p-2">ROI</th>';
     h += '<th class="text-center p-2">Best MKT</th>';
-    h += '<th class="text-center p-2">FBA</th>';
+    h += '<th class="text-center p-2">Etape</th>';
     h += '<th class="text-center p-2">Actions</th>';
     h += '</tr></thead>';
     return h;
