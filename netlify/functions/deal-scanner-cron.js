@@ -277,15 +277,17 @@ const handler = async (event) => {
         notifiedStore = openStore('deal-notified');
     } catch (e) { console.log('[CRON] Blobs: ' + e.message); return { statusCode: 200, body: 'blobs error' }; }
 
-    // === 1. Charger blobs + RSS en parallele ===
-    var accRaw, cacheRaw, rssResults;
+    // === 1. Charger blobs + RSS + tokens en parallele ===
+    var accRaw, cacheRaw, rssResults, startTokens;
     try {
         var p = await Promise.all([
             dealStore.get('accumulated', { type: 'json' }).catch(function() { return null; }),
             asinCache.get('title-map', { type: 'json' }).catch(function() { return null; }),
-            Promise.all(RSS_SOURCES.map(fetchRSS))
+            Promise.all(RSS_SOURCES.map(fetchRSS)),
+            fetch('https://api.keepa.com/token?key=' + apiKey).then(function(r) { return r.json(); }).then(function(j) { return j.tokensLeft; }).catch(function() { return null; })
         ]);
-        accRaw = p[0]; cacheRaw = p[1]; rssResults = p[2];
+        accRaw = p[0]; cacheRaw = p[1]; rssResults = p[2]; startTokens = p[3];
+    console.log('[CRON] Tokens au depart: ' + startTokens);
     } catch (e) {
         console.log('[CRON] Load erreur: ' + e.message);
         return { statusCode: 200, body: 'load error' };
@@ -389,8 +391,7 @@ const handler = async (event) => {
     console.log('[CRON] Resolve-pepper done: ' + resolvedCount + '/' + maxResolve + ' ASINs trouves | ' + elapsed(T));
 
     // === 2. TRAITEMENT COMPLET PAR PRODUIT ===
-    var lastTokens = 999;
-    var startTokens = null; // sera mis a jour au 1er appel Keepa
+    var lastTokens = (startTokens !== null) ? startTokens : 999;
     var processedCount = 0;
     var profitableCount = 0;
     var newNotifs = 0;
@@ -419,7 +420,6 @@ const handler = async (event) => {
         var result = await keepaLookupOne(apiKey, deal.asin, dom);
 
         if (result.tokensLeft !== undefined && result.tokensLeft >= 0) {
-            if (startTokens === null) startTokens = result.tokensLeft + 1; // +1 car on vient d'en consommer 1
             lastTokens = result.tokensLeft;
         }
 
@@ -655,8 +655,8 @@ const handler = async (event) => {
         searchedAsin: searched,
         priceChecked: processedCount,
         profitable: profitableCount,
-        tokensUsed: startTokens !== null ? startTokens - lastTokens : 0,
-        tokensLeft: lastTokens !== 999 ? lastTokens : null,
+        tokensUsed: (startTokens !== null && lastTokens !== 999) ? startTokens - lastTokens : 0,
+        tokensLeft: (lastTokens !== 999) ? lastTokens : startTokens,
         startTokens: startTokens
     };
 
@@ -691,14 +691,19 @@ const handler = async (event) => {
 
     // === 4. TELEGRAM COMPTE-RENDU (toujours envoye) ===
     var newDealsThisCycle = Object.values(accumulated).filter(function(d) { return d.scanHour === scanHour; }).length;
-    var tokensUsed = startTokens !== null ? startTokens - lastTokens : 0;
+    var realTokensLeft = (lastTokens !== 999) ? lastTokens : startTokens;
+    var tokensUsed = (startTokens !== null && realTokensLeft !== null) ? startTokens - realTokensLeft : 0;
 
     var crHour = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
     var crMsg = '\u{1F4CA} *Compte-rendu ' + crHour + '*\n\n';
     crMsg += '\u{1F4E1} ' + newDealsThisCycle + ' nouveaux deals (Dealabs)\n';
     crMsg += '\u{1F50D} ' + resolvedCount + ' ASINs resolve-pepper | ' + searched + ' ASINs recherche\n';
     crMsg += '\u2705 ' + processedCount + ' deals traites | ' + profitableCount + ' rentables\n';
-    crMsg += '\u{1F4B0} Tokens: ' + tokensUsed + ' utilises | ' + lastTokens + ' restants' + (startTokens !== null ? ' (depart: ' + startTokens + ')' : '');
+    if (startTokens !== null) {
+        crMsg += '\u{1F4B0} Tokens: ' + tokensUsed + ' utilises | ' + (realTokensLeft !== null ? realTokensLeft : '?') + ' restants (depart: ' + startTokens + ')';
+    } else {
+        crMsg += '\u{1F4B0} Tokens: info indisponible';
+    }
 
     if (searchSkipped.length > 0) {
         crMsg += '\n\n\u26A0\uFE0F *' + searchSkipped.length + ' deals non traites (tokens epuises) :*\n';
