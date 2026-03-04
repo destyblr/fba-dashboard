@@ -3925,7 +3925,7 @@ function getDealsForSelectedDay() {
 
 // --- Mettre a jour les stats (dynamiques par jour) ---
 function updateDealStats() {
-    var dayDeals = getDealsForSelectedDay();
+    var dayDeals = getDealsForSelectedDay().filter(function(d) { return d.sellStatus !== 'gated'; });
 
     var allCount = dayDeals.length;
     var amazonCount = dayDeals.filter(function(d) { return d.asin; }).length;
@@ -4289,6 +4289,20 @@ function updateDealRow(index, deal) {
         actionsCell.innerHTML = actionsHtml;
     }
 
+    // Badge FBA
+    var fbaCell = row.querySelector('.deal-fba');
+    if (fbaCell && deal.sellStatus) {
+        var fbaHtml = '';
+        if (deal.sellStatus === 'ok') {
+            fbaHtml = '<span class="text-green-400 cursor-help text-xs" title="' + escapeHTML(deal.sellReason || 'Vendable') + '">\u2705</span>';
+        } else if (deal.sellStatus === 'check') {
+            fbaHtml = '<span class="text-yellow-400 cursor-help text-xs" title="A verifier: ' + escapeHTML(deal.sellReason || '') + '">\u26A0\uFE0F</span>';
+        } else if (deal.sellStatus === 'gated') {
+            fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Categorie restreinte: ' + escapeHTML(deal.sellReason || '') + '">\u{1F6AB}</span>';
+        }
+        if (fbaHtml) fbaCell.innerHTML = fbaHtml;
+    }
+
     // Couleur de fond selon rentabilite
     row.className = row.className.replace(/bg-green-900\/20|bg-red-900\/10/g, '');
     if (deal.profit !== null && deal.profit > 0) row.className += ' bg-green-900/20';
@@ -4447,6 +4461,18 @@ function buildDealRowHtml(d, displayNum, origIndex) {
     row += '<td class="p-2 text-right deal-profit">' + profitHtml + '</td>';
     row += '<td class="p-2 text-right deal-roi">' + roiHtml + '</td>';
     row += '<td class="p-2 text-center">' + multiMktHtml + '</td>';
+    // Badge FBA vendabilite
+    var fbaHtml = '';
+    if (d.sellStatus === 'ok') {
+        fbaHtml = '<span class="text-green-400 cursor-help text-xs" title="' + escapeHTML(d.sellReason || 'Vendable') + (d.categoryName ? '\nCat: ' + d.categoryName : '') + '">\u2705</span>';
+    } else if (d.sellStatus === 'check') {
+        fbaHtml = '<span class="text-yellow-400 cursor-help text-xs" title="A verifier: ' + escapeHTML(d.sellReason || '') + (d.categoryName ? '\nCat: ' + d.categoryName : '') + '">\u26A0\uFE0F</span>';
+    } else if (d.sellStatus === 'gated') {
+        fbaHtml = '<span class="text-red-400 cursor-help text-xs" title="Categorie restreinte: ' + escapeHTML(d.sellReason || '') + '">\u{1F6AB}</span>';
+    } else {
+        fbaHtml = '<span class="text-gray-500 text-xs">—</span>';
+    }
+    row += '<td class="p-2 text-center deal-fba">' + fbaHtml + '</td>';
     row += '<td class="p-2 text-center deal-actions">' + actionsHtml + '</td>';
     row += '</tr>';
     return row;
@@ -4465,6 +4491,7 @@ function buildDealTableHeader() {
     h += '<th class="text-right p-2">Profit</th>';
     h += '<th class="text-right p-2">ROI</th>';
     h += '<th class="text-center p-2">Best MKT</th>';
+    h += '<th class="text-center p-2">FBA</th>';
     h += '<th class="text-center p-2">Actions</th>';
     h += '</tr></thead>';
     return h;
@@ -4531,8 +4558,8 @@ function renderDealResults() {
         return;
     }
 
-    // Appliquer les filtres
-    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored'; });
+    // Appliquer les filtres — masquer ignores et gated
+    var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored' && d.sellStatus !== 'gated'; });
     if (dealFilterMode === 'amazon') {
         filtered = filtered.filter(function(d) { return d.asin; });
     } else if (dealFilterMode === 'profitable') {

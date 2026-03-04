@@ -51,6 +51,53 @@ const DEAL_EXPIRY_H = 24;
 const MAX_TELEGRAM = 3;
 const MIN_TOKENS = 5;
 
+// Categories gated/interdites Amazon (patterns multi-langue FR/DE/EN)
+const GATED_CATEGORIES = [
+    // Alimentaire / Epicerie
+    'epicerie','grocery','gourmet','lebensmittel','alimentari','alimentacion',
+    // Beaute / Parfum
+    'beaute','beauty','parfum','kosmetik','bellezza',
+    // Hygiene / Sante
+    'hygiene','sante','health','gesundheit','salute','salud',
+    // Vetements / Chaussures / Bijoux
+    'vetement','clothing','shoes','chaussure','bijou','jewelry','schmuck','bekleidung','mode',
+    'accessoires mode',
+    // Jouets (gated pour nouveaux vendeurs)
+    'jouet','toys','spiele','giocattoli','juguete',
+    // Auto / Moto
+    'auto','automotive','moto','fahrzeug','kfz',
+    // Montres
+    'montre','watches','uhren','orologi',
+    // Alcool / Vin
+    'vin','wine','wein','biere','alcool','spiritueux',
+    // Art / Collectibles
+    'fine art','collectible','sammler',
+    // Bebe (certaines sous-cat)
+    'bebe','baby'
+];
+
+function getSellStatus(keepaData) {
+    if (!keepaData) return null;
+    var cat = (keepaData.categoryName || '').toLowerCase();
+
+    // Verifier si categorie gated
+    if (cat) {
+        for (var i = 0; i < GATED_CATEGORIES.length; i++) {
+            if (cat.indexOf(GATED_CATEGORIES[i]) !== -1) {
+                return { status: 'gated', reason: keepaData.categoryName };
+            }
+        }
+    }
+
+    // Categorie ouverte — verifier vendeurs FBA + BSR
+    var fbaSellers = keepaData.fbaSellers;
+    var bsr = keepaData.bsr;
+    if (fbaSellers && fbaSellers > 0 && bsr && bsr > 0) {
+        return { status: 'ok', reason: fbaSellers + ' vendeurs FBA, BSR ' + bsr };
+    }
+    return { status: 'check', reason: (!fbaSellers || fbaSellers <= 0 ? '0 vendeur FBA' : '') + (!bsr || bsr <= 0 ? ' pas de BSR' : '') };
+}
+
 // === HELPERS ===
 function elapsed(start) { return ((Date.now() - start) / 1000).toFixed(1) + 's'; }
 
@@ -230,6 +277,8 @@ async function keepaLookupOne(apiKey, asin, domain) {
                 amazonPrice = p.stats.avg180[0] / 100;
                 priceIsAvg = true;
             }
+            var catName = null;
+            if (p.categoryTree && p.categoryTree.length > 0) catName = p.categoryTree[0].name || null;
             return {
                 data: {
                     price: amazonPrice,
@@ -238,7 +287,9 @@ async function keepaLookupOne(apiKey, asin, domain) {
                     fbaSellers: (p.stats && p.stats.current) ? p.stats.current[10] : null,
                     fbaPickAndPack: p.fbaFees && p.fbaFees.pickAndPackFee ? p.fbaFees.pickAndPackFee / 100 : null,
                     referralFeePct: p.referralFeePercent || null,
-                    weight: p.packageWeight || null
+                    weight: p.packageWeight || null,
+                    rootCategory: p.rootCategory || null,
+                    categoryName: catName
                 },
                 tokensLeft: tokensLeft
             };
@@ -446,7 +497,19 @@ const handler = async (event) => {
             deal.bsr = result.data.bsr;
             deal.fbaSellers = result.data.fbaSellers;
             deal.keepaData = result.data;
+            deal.categoryName = result.data.categoryName || null;
             deal.priceCheckedAt = new Date().toISOString();
+
+            // Verifier vendabilite FBA
+            var ss = getSellStatus(result.data);
+            deal.sellStatus = ss ? ss.status : null;
+            deal.sellReason = ss ? ss.reason : null;
+
+            if (deal.sellStatus === 'gated') {
+                console.log('[CRON]   ' + deal.asin + ': GATED (' + deal.categoryName + ') — skip | tokens=' + lastTokens);
+                processedCount++;
+                continue;
+            }
 
             if (deal.amazonPrice && deal.price > 0) {
                 var r = calculateProfit(deal.price, result.data);
@@ -457,7 +520,7 @@ const handler = async (event) => {
                 }
             }
             processedCount++;
-            console.log('[CRON]   ' + deal.asin + ': ' + (deal.amazonPrice ? deal.amazonPrice.toFixed(2) + '€' : 'N/A') + (deal.profit ? ' profit=' + deal.profit.toFixed(2) + '€' : '') + ' (tokens=' + lastTokens + ')');
+            console.log('[CRON]   ' + deal.asin + ': ' + (deal.amazonPrice ? deal.amazonPrice.toFixed(2) + '€' : 'N/A') + (deal.profit ? ' profit=' + deal.profit.toFixed(2) + '€' : '') + ' [' + (deal.sellStatus || '?') + '] (tokens=' + lastTokens + ')');
 
             // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
             if (deal.profit > 0 && deal.amazonPrice > 0) {
@@ -534,21 +597,33 @@ const handler = async (event) => {
                     sd.bsr = lr.data.bsr;
                     sd.fbaSellers = lr.data.fbaSellers;
                     sd.keepaData = lr.data;
+                    sd.categoryName = lr.data.categoryName || null;
                     sd.priceCheckedAt = new Date().toISOString();
-                    if (sd.amazonPrice && sd.price > 0) {
-                        var rr = calculateProfit(sd.price, lr.data);
-                        if (rr) {
-                            sd.profit = rr.profit;
-                            sd.roi = rr.roi;
-                            if (rr.profit > 0) profitableCount++;
-                        }
-                    }
-                    processedCount++;
-                    console.log('[CRON]   SEARCH+LOOKUP ' + sd.asin + ': ' + (sd.amazonPrice ? sd.amazonPrice.toFixed(2) + '€' : 'N/A') + (sd.profit ? ' profit=' + sd.profit.toFixed(2) + '€' : '') + ' (tokens=' + lastTokens + ')');
 
-                    // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
-                    if (sd.profit > 0 && sd.amazonPrice > 0) {
-                        pendingNotifs.push(sd);
+                    // Verifier vendabilite FBA
+                    var ss3 = getSellStatus(lr.data);
+                    sd.sellStatus = ss3 ? ss3.status : null;
+                    sd.sellReason = ss3 ? ss3.reason : null;
+
+                    if (sd.sellStatus === 'gated') {
+                        console.log('[CRON]   SEARCH+LOOKUP ' + sd.asin + ': GATED (' + sd.categoryName + ') — skip | tokens=' + lastTokens);
+                        processedCount++;
+                    } else {
+                        if (sd.amazonPrice && sd.price > 0) {
+                            var rr = calculateProfit(sd.price, lr.data);
+                            if (rr) {
+                                sd.profit = rr.profit;
+                                sd.roi = rr.roi;
+                                if (rr.profit > 0) profitableCount++;
+                            }
+                        }
+                        processedCount++;
+                        console.log('[CRON]   SEARCH+LOOKUP ' + sd.asin + ': ' + (sd.amazonPrice ? sd.amazonPrice.toFixed(2) + '€' : 'N/A') + (sd.profit ? ' profit=' + sd.profit.toFixed(2) + '€' : '') + ' [' + (sd.sellStatus || '?') + '] (tokens=' + lastTokens + ')');
+
+                        // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
+                        if (sd.profit > 0 && sd.amazonPrice > 0) {
+                            pendingNotifs.push(sd);
+                        }
                     }
                 }
             } else {
@@ -675,6 +750,8 @@ const handler = async (event) => {
             searchStatus: d.searchStatus || null,
             multiMarket: d.multiMarket || null,
             bsr: d.bsr || null, fbaSellers: d.fbaSellers || null,
+            sellStatus: d.sellStatus || null, sellReason: d.sellReason || null,
+            categoryName: d.categoryName || null,
             temperature: d.temperature, source: d.source, date: d.date,
             firstSeen: d.firstSeen, scanHour: d.scanHour || null,
             priceCheckedAt: d.priceCheckedAt || null
