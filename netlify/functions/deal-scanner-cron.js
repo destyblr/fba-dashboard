@@ -323,11 +323,16 @@ const handler = async (event) => {
         });
     }
 
-    // RSS merge
+    // RSS merge + pipeline counters
+    var rssRawCount = 0;
+    rssResults.forEach(function(items) { rssRawCount += items.length; });
+
     var seenLinks = {};
     var freshDeals = [];
     rssResults.forEach(function(items) { items.forEach(function(d) { if (!seenLinks[d.link]) { seenLinks[d.link] = true; freshDeals.push(d); } }); });
+    var afterDedupCount = freshDeals.length;
     freshDeals = filterDeals(freshDeals);
+    var afterFilterCount = freshDeals.length;
 
     var newCount = 0;
     freshDeals.forEach(function(deal) {
@@ -340,7 +345,7 @@ const handler = async (event) => {
             accumulated[key].temperature = Math.max(accumulated[key].temperature || 0, deal.temperature || 0);
         }
     });
-    console.log('[CRON] RSS: ' + freshDeals.length + ' filtres, ' + newCount + ' nouveaux | Total: ' + Object.keys(accumulated).length + ' | ' + elapsed(T));
+    console.log('[CRON] RSS: ' + rssRawCount + ' brut → ' + afterDedupCount + ' uniques → ' + afterFilterCount + ' filtres, ' + newCount + ' nouveaux | Total: ' + Object.keys(accumulated).length + ' | ' + elapsed(T));
 
     // Resoudre ASINs depuis le cache
     Object.values(accumulated).forEach(function(d) {
@@ -544,6 +549,7 @@ const handler = async (event) => {
 
         if (sr.asin) {
             sd.asin = sr.asin;
+            sd.searchStatus = 'search_found';
             titleToAsin[sd.title.substring(0, 50).toLowerCase().trim()] = { asin: sr.asin, date: new Date().toISOString() };
             searched++;
 
@@ -639,6 +645,34 @@ const handler = async (event) => {
         };
     });
 
+    // Pipeline stats pour ce cycle
+    var pipelineStats = {
+        rssRaw: rssRawCount,
+        afterDedup: afterDedupCount,
+        afterFilter: afterFilterCount,
+        newDeals: newCount,
+        resolvedAsin: resolvedCount,
+        searchedAsin: searched,
+        priceChecked: processedCount,
+        profitable: profitableCount,
+        tokensUsed: startTokens !== null ? startTokens - lastTokens : 0,
+        tokensLeft: lastTokens !== 999 ? lastTokens : null,
+        startTokens: startTokens
+    };
+
+    // Charger l'historique pipeline et ajouter ce cycle
+    var pipelineHistory = {};
+    try {
+        var ph = await dealStore.get('pipeline-history', { type: 'json' });
+        if (ph) pipelineHistory = ph;
+    } catch (e) {}
+    pipelineHistory[scanHour] = pipelineStats;
+    // Nettoyer les entrees > 72h
+    var pipelineCutoff = now - 72 * 3600000;
+    Object.keys(pipelineHistory).forEach(function(k) {
+        try { if (new Date(k.length <= 16 ? k + ':00Z' : k).getTime() < pipelineCutoff) delete pipelineHistory[k]; } catch (e) { delete pipelineHistory[k]; }
+    });
+
     try {
         await Promise.all([
             dealStore.setJSON('accumulated', accumulated),
@@ -646,8 +680,10 @@ const handler = async (event) => {
                 deals: dealsForBrowser,
                 updatedAt: new Date().toISOString(),
                 scanHour: scanHour,
-                stats: { total: allDeals.length, withAsin: allDeals.filter(function(d) { return d.asin; }).length, profitable: profitableCount }
+                stats: { total: allDeals.length, withAsin: allDeals.filter(function(d) { return d.asin; }).length, profitable: profitableCount },
+                pipelineStats: pipelineStats
             }),
+            dealStore.setJSON('pipeline-history', pipelineHistory),
             asinCache.setJSON('title-map', titleToAsin)
         ]);
     } catch (e) { console.log('[CRON] Save erreur: ' + e.message); }

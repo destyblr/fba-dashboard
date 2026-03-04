@@ -25,15 +25,23 @@ exports.handler = async (event) => {
 
     try {
         var dealStore = openStore('deal-results');
-        var data = await dealStore.get('latest', { type: 'json' });
+        var results = await Promise.all([
+            dealStore.get('latest', { type: 'json' }).catch(function() { return null; }),
+            dealStore.get('pipeline-history', { type: 'json' }).catch(function() { return null; })
+        ]);
+        var data = results[0];
+        var pipelineHistory = results[1];
 
         if (!data) {
             return {
                 statusCode: 200,
                 headers: headers,
-                body: JSON.stringify({ deals: [], updatedAt: null, stats: { total: 0, withAsin: 0, profitable: 0 } })
+                body: JSON.stringify({ deals: [], updatedAt: null, stats: { total: 0, withAsin: 0, profitable: 0 }, pipelineHistory: {} })
             };
         }
+
+        // Ajouter l'historique pipeline aux donnees
+        data.pipelineHistory = pipelineHistory || {};
 
         return {
             statusCode: 200,

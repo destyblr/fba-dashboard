@@ -3057,16 +3057,10 @@
                 <!-- Barre de controles -->
                 <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
                     <div class="flex flex-wrap items-end gap-4">
-                        <!-- Source -->
-                        <div class="flex-1 min-w-[200px]">
-                            <label class="text-xs font-medium text-gray-600 mb-1 block">Source des deals</label>
-                            <select id="deal-source-select" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg bg-white text-sm" >
-                                <option value="dealabs">&#127467;&#127479; Dealabs (FR)</option>
-                                <option value="mydealz">&#127465;&#127466; MyDealz (DE)</option>
-                                <option value="chollometro">&#127466;&#127480; Chollometro (ES)</option>
-                                <option value="pepper_it">&#127470;&#127481; Pepper.it (IT)</option>
-                                <option value="all_rss">&#127758; Tous les RSS</option>
-                            </select>
+                        <!-- Source (fixe) -->
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-medium text-gray-600">Source</span>
+                            <span class="px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700">&#127467;&#127479; Dealabs (FR)</span>
                         </div>
                         <!-- Marketplace vente -->
                         <div class="min-w-[160px]">
@@ -3086,16 +3080,15 @@
                             <span id="deal-cron-status" class="text-xs text-gray-400"></span>
                         </div>
                     </div>
-                    <!-- Entonnoir + Stats -->
+                    <!-- Stats dynamiques -->
                     <div id="deal-stats" class="mt-3 text-sm text-gray-500 hidden">
                         <span id="deal-stats-funnel" class="text-gray-400 mr-3"></span>
-                        <span class="text-gray-300 mr-3">|</span>
-                        <span id="deal-stats-total" class="mr-3 font-medium"></span>
-                        <span id="deal-stats-amazon" class="mr-3 text-blue-600 font-medium"></span>
-                        <span id="deal-stats-profitable" class="mr-3 text-green-600 font-medium"></span>
                         <span id="deal-stats-keepa" class="text-amber-500"></span>
                     </div>
                 </div>
+
+                <!-- Pipeline entonnoir -->
+                <div id="deal-pipeline" class="mb-4 hidden"></div>
 
                 <!-- Navigation jour + Filtres -->
                 <div class="flex flex-wrap items-center gap-3 mb-4">
@@ -3106,14 +3099,12 @@
                         <button onclick="setDealDay(1)" id="deal-day-1" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Hier (0)</button>
                         <button onclick="setDealDay(2)" id="deal-day-2" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Avant-hier (0)</button>
                     </div>
-                    <!-- Filtres -->
+                    <!-- Filtres dynamiques -->
                     <button onclick="setDealFilter('all')" id="deal-filter-all" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Tous (0)</button>
-                    <button onclick="setDealFilter('amazon')" id="deal-filter-amazon" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Amazon (0)</button>
                     <button onclick="setDealFilter('profitable')" id="deal-filter-profitable" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Rentables (0)</button>
-                    <!-- Categorie filter -->
-                    <select id="deal-category-filter" class="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white" onchange="renderDealResults()">
-                        <option value="">Toutes categories</option>
-                    </select>
+                    <button onclick="setDealFilter('amazon')" id="deal-filter-amazon" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Amazon (0)</button>
+                    <button onclick="setDealFilter('no_asin')" id="deal-filter-no_asin" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Sans ASIN (0)</button>
+                    <button onclick="setDealFilter('unprocessed')" id="deal-filter-unprocessed" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Non traites (0)</button>
                 </div>
 
                 <!-- Ajout manuel -->
@@ -3842,7 +3833,7 @@
 
     <!-- Scripts JavaScript -->
     <script src="app.js"></script>
-    <script src="oa-scanner.js?v=20260304h"></script>
+    <script src="oa-scanner.js?v=20260304i"></script>
     <script src="google-sync.js"></script>
 
 </body>

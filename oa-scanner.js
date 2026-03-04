@@ -17,7 +17,8 @@ let oaFilterMode = 'strict'; // Mode de filtrage actif (strict ou souple)
 
 // --- DEAL SCANNER ---
 let dealScannerResults = [];    // Tous les deals fetches
-let dealFilterMode = 'all';     // 'all', 'amazon', 'profitable', 'new'
+let dealFilterMode = 'all';     // 'all', 'amazon', 'profitable', 'no_asin', 'unprocessed'
+let dealPipelineHistory = {};   // scanHour → pipelineStats (from server)
 let dealSellMarket = 'de';      // Marketplace de vente cible
 let keepaCache = {};             // Cache ASIN → {price, bsr, timestamp}
 let keepaQueue = [];             // ASINs en attente de lookup Keepa
@@ -3525,6 +3526,9 @@ async function fetchDeals() {
         markDealsWithHistory(filtered);
         dealScannerResults = filtered;
 
+        // Stocker pipeline history
+        if (serverData.pipelineHistory) dealPipelineHistory = serverData.pipelineHistory;
+
         // Stats
         var statsEl = document.getElementById('deal-stats');
         if (statsEl) { statsEl.classList.remove('hidden'); statsEl.style.display = ''; }
@@ -3876,48 +3880,219 @@ async function resolveASINFromPepper(dealUrl) {
 function setDealFilter(mode) {
     dealFilterMode = mode;
 
-    // Mettre a jour les boutons actifs
-    ['all', 'new', 'hot', 'feed-new', 'amazon', 'profitable'].forEach(function(m) {
+    // Couleurs par filtre
+    var filterColors = {
+        all: { active: 'bg-gray-700 text-white', inactive: 'bg-gray-200 text-gray-700' },
+        profitable: { active: 'bg-green-600 text-white', inactive: 'bg-green-100 text-green-700' },
+        amazon: { active: 'bg-blue-600 text-white', inactive: 'bg-blue-100 text-blue-700' },
+        no_asin: { active: 'bg-orange-600 text-white', inactive: 'bg-orange-100 text-orange-700' },
+        unprocessed: { active: 'bg-red-600 text-white', inactive: 'bg-red-100 text-red-700' }
+    };
+
+    ['all', 'profitable', 'amazon', 'no_asin', 'unprocessed'].forEach(function(m) {
         var btn = document.getElementById('deal-filter-' + m);
         if (btn) {
-            if (m === mode) {
-                btn.className = 'px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold';
-            } else {
-                btn.className = 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold';
-            }
+            var colors = filterColors[m] || filterColors.all;
+            var cls = (m === mode) ? colors.active : colors.inactive;
+            btn.className = 'px-4 py-2 ' + cls + ' rounded-lg text-sm font-semibold transition';
         }
     });
 
     renderDealResults();
 }
 
-// --- Mettre a jour les stats ---
-function updateDealStats() {
+// --- Helper : deals du jour selectionne (avant filtres) ---
+function getDealsForSelectedDay() {
     var deals = dealScannerResults;
-    var amazonCount = deals.filter(function(d) { return d.isAmazon; }).length;
-    var withAsin = deals.filter(function(d) { return d.asin; }).length;
-    var profitableCount = deals.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; }).length;
+    if (deals.length === 0) return [];
 
-    var totalEl = document.getElementById('deal-stats-total');
-    var amazonEl = document.getElementById('deal-stats-amazon');
-    var profitEl = document.getElementById('deal-stats-profitable');
+    var today = new Date();
+    var dayStrings = [];
+    for (var di = 0; di <= 2; di++) {
+        var d = new Date(today);
+        d.setDate(d.getDate() - di);
+        dayStrings.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+    }
+    var selectedDayStr = dayStrings[selectedDealDay] || dayStrings[0];
+
+    return deals.filter(function(dd) {
+        if (dd.historyStatus === 'ignored') return false;
+        var dealDay = getDayFromScanHour(dd.scanHour);
+        if (!dealDay) return selectedDealDay === 0;
+        return dealDay === selectedDayStr;
+    });
+}
+
+// --- Mettre a jour les stats (dynamiques par jour) ---
+function updateDealStats() {
+    var dayDeals = getDealsForSelectedDay();
+
+    var allCount = dayDeals.length;
+    var amazonCount = dayDeals.filter(function(d) { return d.asin; }).length;
+    var profitableCount = dayDeals.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; }).length;
+    var noAsinCount = dayDeals.filter(function(d) {
+        return !d.asin && (d.searchStatus === 'resolve_no_amazon' || d.searchStatus === 'search_not_found');
+    }).length;
+    var unprocessedCount = dayDeals.filter(function(d) {
+        // Tokens epuises (pas d'ASIN), OU ASIN trouve mais pas de prix
+        return d.searchStatus === 'tokens_exhausted' ||
+               d.searchStatus === 'search_ok_no_tokens' ||
+               (d.asin && !d.priceCheckedAt);
+    }).length;
+
     var statsEl = document.getElementById('deal-stats');
+    if (statsEl) { statsEl.classList.remove('hidden'); statsEl.style.display = ''; }
 
-    if (totalEl) totalEl.textContent = deals.length + ' deals';
-    if (amazonEl) amazonEl.textContent = amazonCount + ' Amazon (' + withAsin + ' ASIN)';
-    if (profitEl) profitEl.textContent = profitableCount + ' rentables';
-    if (statsEl) {
-        statsEl.classList.remove('hidden');
-        statsEl.style.display = ''; // forcer l'affichage
+    // Mettre a jour chaque filtre avec compteur du jour
+    var filters = {
+        all: { label: 'Tous', count: allCount },
+        profitable: { label: 'Rentables', count: profitableCount },
+        amazon: { label: 'Amazon', count: amazonCount },
+        no_asin: { label: 'Sans ASIN', count: noAsinCount },
+        unprocessed: { label: 'Non traites', count: unprocessedCount }
+    };
+
+    Object.keys(filters).forEach(function(key) {
+        var btn = document.getElementById('deal-filter-' + key);
+        if (btn) {
+            var f = filters[key];
+            btn.textContent = f.label + ' (' + f.count + ')';
+            // Masquer si 0 (sauf Tous et le filtre actif)
+            if (key !== 'all' && key !== dealFilterMode && f.count === 0) {
+                btn.style.opacity = '0.5';
+            } else {
+                btn.style.opacity = '1';
+            }
+        }
+    });
+
+    // Pipeline
+    renderPipeline();
+}
+
+// --- Pipeline entonnoir visuel ---
+function renderPipeline() {
+    var container = document.getElementById('deal-pipeline');
+    if (!container) return;
+
+    // Determiner le jour selectionne
+    var today = new Date();
+    var dayStrings = [];
+    for (var di = 0; di <= 2; di++) {
+        var d = new Date(today);
+        d.setDate(d.getDate() - di);
+        dayStrings.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
+    }
+    var selectedDayStr = dayStrings[selectedDealDay] || dayStrings[0];
+
+    // Agreger les pipelineStats de toutes les heures du jour selectionne
+    var agg = { rssRaw: 0, afterDedup: 0, afterFilter: 0, newDeals: 0, resolvedAsin: 0, searchedAsin: 0, priceChecked: 0, profitable: 0, tokensUsed: 0, tokensLeft: null };
+    var hasData = false;
+    var hourCount = 0;
+
+    Object.keys(dealPipelineHistory).forEach(function(scanHour) {
+        var hourDay = getDayFromScanHour(scanHour);
+        if (hourDay === selectedDayStr) {
+            var s = dealPipelineHistory[scanHour];
+            agg.rssRaw += s.rssRaw || 0;
+            agg.afterDedup += s.afterDedup || 0;
+            agg.afterFilter += s.afterFilter || 0;
+            agg.newDeals += s.newDeals || 0;
+            agg.resolvedAsin += s.resolvedAsin || 0;
+            agg.searchedAsin += s.searchedAsin || 0;
+            agg.priceChecked += s.priceChecked || 0;
+            agg.profitable += s.profitable || 0;
+            agg.tokensUsed += s.tokensUsed || 0;
+            if (s.tokensLeft !== null && s.tokensLeft !== undefined) agg.tokensLeft = s.tokensLeft;
+            hasData = true;
+            hourCount++;
+        }
+    });
+
+    // Si pas de pipeline data, reconstruire depuis les deals
+    if (!hasData) {
+        var dayDeals = getDealsForSelectedDay();
+        if (dayDeals.length === 0) {
+            container.classList.add('hidden');
+            return;
+        }
+        agg.newDeals = dayDeals.length;
+        agg.resolvedAsin = dayDeals.filter(function(d) { return d.asin && d.searchStatus === 'resolve_ok'; }).length;
+        agg.searchedAsin = dayDeals.filter(function(d) { return d.asin && d.searchStatus === 'search_found'; }).length;
+        agg.priceChecked = dayDeals.filter(function(d) { return d.priceCheckedAt; }).length;
+        agg.profitable = dayDeals.filter(function(d) { return d.profit !== null && d.profit > 0; }).length;
+        // On n'a pas rssRaw/afterDedup/afterFilter sans pipeline data
     }
 
-    // Mettre a jour les filtres restants (Tous, Amazon, Rentables)
-    var filterAll = document.getElementById('deal-filter-all');
-    var filterAmazon = document.getElementById('deal-filter-amazon');
-    var filterProfitable = document.getElementById('deal-filter-profitable');
-    if (filterAll) filterAll.textContent = 'Tous (' + deals.length + ')';
-    if (filterAmazon) filterAmazon.textContent = 'Amazon (' + amazonCount + ')';
-    if (filterProfitable) filterProfitable.textContent = 'Rentables (' + profitableCount + ')';
+    container.classList.remove('hidden');
+
+    // Construire les 6 etapes de l'entonnoir
+    var totalAsin = agg.resolvedAsin + agg.searchedAsin;
+    var steps = [];
+
+    if (agg.rssRaw > 0) {
+        steps.push({ icon: 'fa-satellite-dish', label: 'RSS', value: agg.rssRaw, color: '#6b7280', bg: '#374151', loss: null });
+        var dedupLoss = agg.rssRaw - agg.afterDedup;
+        steps.push({ icon: 'fa-layer-group', label: 'Uniques', value: agg.afterDedup, color: '#9ca3af', bg: '#374151', loss: dedupLoss > 0 ? '-' + dedupLoss + ' doublons' : null });
+        var filterLoss = agg.afterDedup - agg.afterFilter;
+        steps.push({ icon: 'fa-filter', label: 'Filtres', value: agg.afterFilter, color: '#f59e0b', bg: '#78350f', loss: filterLoss > 0 ? '-' + filterLoss + ' prix/blacklist' : null });
+    }
+
+    var knownLoss = agg.afterFilter > 0 ? agg.afterFilter - agg.newDeals : null;
+    steps.push({ icon: 'fa-plus-circle', label: 'Nouveaux', value: agg.newDeals, color: '#3b82f6', bg: '#1e3a5f', loss: knownLoss > 0 ? '-' + knownLoss + ' deja vus' : null });
+
+    var asinDetail = '';
+    if (agg.resolvedAsin > 0 || agg.searchedAsin > 0) {
+        var parts = [];
+        if (agg.resolvedAsin > 0) parts.push(agg.resolvedAsin + ' redirect');
+        if (agg.searchedAsin > 0) parts.push(agg.searchedAsin + ' recherche');
+        asinDetail = parts.join(' + ');
+    }
+    steps.push({ icon: 'fa-barcode', label: 'ASIN', value: totalAsin, color: '#8b5cf6', bg: '#4c1d95', loss: null, detail: asinDetail });
+
+    steps.push({ icon: 'fa-check-circle', label: 'Rentables', value: agg.profitable, color: '#10b981', bg: '#064e3b', loss: null });
+
+    // Tokens info
+    var tokensHtml = '';
+    if (agg.tokensUsed > 0 || agg.tokensLeft !== null) {
+        tokensHtml = '<div class="flex items-center gap-2 mt-2 text-xs text-gray-400">';
+        tokensHtml += '<i class="fas fa-coins text-amber-400"></i>';
+        if (agg.tokensUsed > 0) tokensHtml += '<span>' + agg.tokensUsed + ' tokens utilises</span>';
+        if (agg.tokensLeft !== null) tokensHtml += '<span class="text-gray-500">|</span><span>' + agg.tokensLeft + ' restants</span>';
+        if (hourCount > 0) tokensHtml += '<span class="text-gray-500">|</span><span>' + hourCount + ' scan' + (hourCount > 1 ? 's' : '') + '</span>';
+        tokensHtml += '</div>';
+    }
+
+    // Render HTML
+    var html = '<div class="rounded-xl p-4" style="background: linear-gradient(135deg, #1a1a2e, #16213e)">';
+    html += '<div class="flex items-center gap-1 overflow-x-auto">';
+
+    for (var si = 0; si < steps.length; si++) {
+        var st = steps[si];
+        // Bloc
+        html += '<div class="flex flex-col items-center min-w-[80px]">';
+        html += '<div class="rounded-lg px-3 py-2 text-center" style="background: ' + st.bg + '; border: 1px solid ' + st.color + '40">';
+        html += '<div class="text-lg font-bold" style="color: ' + st.color + '">' + st.value + '</div>';
+        html += '<div class="text-xs text-gray-400"><i class="fas ' + st.icon + ' mr-1" style="color: ' + st.color + '"></i>' + st.label + '</div>';
+        if (st.detail) html += '<div class="text-xs text-gray-500 mt-0.5">' + st.detail + '</div>';
+        html += '</div>';
+        // Perte en dessous
+        if (st.loss) {
+            html += '<div class="text-xs text-red-400/70 mt-1">' + st.loss + '</div>';
+        }
+        html += '</div>';
+
+        // Fleche entre blocs (sauf dernier)
+        if (si < steps.length - 1) {
+            html += '<div class="text-gray-500 text-sm mx-1"><i class="fas fa-chevron-right"></i></div>';
+        }
+    }
+
+    html += '</div>';
+    html += tokensHtml;
+    html += '</div>';
+
+    container.innerHTML = html;
 }
 
 // --- Mettre a jour une ligne du tableau ---
@@ -4227,19 +4402,20 @@ function renderDealResults() {
         return;
     }
 
-    // Filtrage par categorie
-    var categoryFilter = document.getElementById('deal-category-filter');
-    var selectedCategory = categoryFilter ? categoryFilter.value : '';
-
     // Appliquer les filtres
     var filtered = deals.filter(function(d) { return d.historyStatus !== 'ignored'; });
     if (dealFilterMode === 'amazon') {
-        filtered = filtered.filter(function(d) { return d.isAmazon || d.asin; });
+        filtered = filtered.filter(function(d) { return d.asin; });
     } else if (dealFilterMode === 'profitable') {
         filtered = filtered.filter(function(d) { return !d.excludedPostKeepa && d.profit !== null && d.profit > 0; });
-    }
-    if (selectedCategory) {
-        filtered = filtered.filter(function(d) { return d.category && d.category.toLowerCase().includes(selectedCategory.toLowerCase()); });
+    } else if (dealFilterMode === 'no_asin') {
+        filtered = filtered.filter(function(d) { return !d.asin && (d.searchStatus === 'resolve_no_amazon' || d.searchStatus === 'search_not_found'); });
+    } else if (dealFilterMode === 'unprocessed') {
+        filtered = filtered.filter(function(d) {
+            return d.searchStatus === 'tokens_exhausted' ||
+                   d.searchStatus === 'search_ok_no_tokens' ||
+                   (d.asin && !d.priceCheckedAt);
+        });
     }
 
     // Tri par ROI desc puis temperature desc
@@ -4254,25 +4430,6 @@ function renderDealResults() {
 
     updateDealStats();
 
-    // Remplir le select categories
-    if (categoryFilter && categoryFilter.options.length <= 1) {
-        var cats = {};
-        deals.forEach(function(d) {
-            if (d.category) {
-                d.category.split(',').forEach(function(c) {
-                    c = c.trim();
-                    if (c) cats[c] = (cats[c] || 0) + 1;
-                });
-            }
-        });
-        Object.keys(cats).sort().forEach(function(cat) {
-            var opt = document.createElement('option');
-            opt.value = cat;
-            opt.textContent = cat + ' (' + cats[cat] + ')';
-            categoryFilter.appendChild(opt);
-        });
-    }
-
     // === Determiner les jours disponibles (heure locale) ===
     var today = new Date();
     var dayStrings = [];
@@ -4282,12 +4439,13 @@ function renderDealResults() {
         dayStrings.push(d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'));
     }
 
-    // Mettre a jour les boutons jour avec compteurs
+    // Mettre a jour les boutons jour avec compteurs (total non filtre)
+    var allNonIgnored = deals.filter(function(d) { return d.historyStatus !== 'ignored'; });
     for (var bi = 0; bi <= 2; bi++) {
         var dayBtn = document.getElementById('deal-day-' + bi);
         if (dayBtn) {
             var dayLabel = bi === 0 ? "Aujourd'hui" : bi === 1 ? 'Hier' : 'Avant-hier';
-            var dayCount = filtered.filter(function(dd) { return getDayFromScanHour(dd.scanHour) === dayStrings[bi]; }).length;
+            var dayCount = allNonIgnored.filter(function(dd) { return getDayFromScanHour(dd.scanHour) === dayStrings[bi]; }).length;
             dayBtn.textContent = dayLabel + ' (' + dayCount + ')';
         }
     }
