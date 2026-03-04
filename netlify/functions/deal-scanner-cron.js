@@ -401,10 +401,14 @@ const handler = async (event) => {
     var pendingNotifs = []; // Deals rentables a notifier (Telegram differe apres Phase 4)
 
     // --- Phase 1 : Deals AVEC ASIN (1 token chacun — pas cher) ---
-    // Seulement les deals de CE cycle (pas les anciens non-traites)
+    // Nouveaux du cycle courant EN PRIORITE, puis anciens non-traites
     var dealsWithAsin = Object.values(accumulated)
-        .filter(function(d) { return d.asin && !d.priceCheckedAt && d.scanHour === scanHour; })
+        .filter(function(d) { return d.asin && !d.priceCheckedAt; })
         .sort(function(a, b) {
+            // Cycle courant en priorite
+            var aCurrent = a.scanHour === scanHour ? 1 : 0;
+            var bCurrent = b.scanHour === scanHour ? 1 : 0;
+            if (aCurrent !== bCurrent) return bCurrent - aCurrent;
             // FR (Dealabs) en priorite
             var aFR = a.source === 'Dealabs' ? 1 : 0;
             var bFR = b.source === 'Dealabs' ? 1 : 0;
@@ -412,8 +416,9 @@ const handler = async (event) => {
             return (b.temperature || 0) - (a.temperature || 0);
         });
 
-    var oldUnchecked = Object.values(accumulated).filter(function(d) { return d.asin && !d.priceCheckedAt && d.scanHour !== scanHour; }).length;
-    console.log('[CRON] Phase 1: ' + dealsWithAsin.length + ' nouveaux avec ASIN' + (oldUnchecked > 0 ? ' (+ ' + oldUnchecked + ' anciens ignores)' : ''));
+    var newWithAsin = dealsWithAsin.filter(function(d) { return d.scanHour === scanHour; }).length;
+    var oldWithAsin = dealsWithAsin.length - newWithAsin;
+    console.log('[CRON] Phase 1: ' + newWithAsin + ' nouveaux avec ASIN' + (oldWithAsin > 0 ? ' + ' + oldWithAsin + ' anciens a rattraper' : ''));
 
     for (var i = 0; i < Math.min(dealsWithAsin.length, MAX_LOOKUPS); i++) {
         if (lastTokens <= MIN_TOKENS) { tokensRanOut = true; console.log('[CRON] Phase 1 STOP: tokens=' + lastTokens); break; }
