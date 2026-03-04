@@ -35,6 +35,7 @@ const BLACKLIST = [
 ];
 
 const FEES = { commissionPct: 15, fbaFee: 3.50, inboundShipping: 2.00, prepCost: 0.25, urssafPct: 12.3 };
+const EFN_SURCHARGE = 3.50; // Surcout EFN cross-border (stock FR, vente DE/IT/ES)
 const FILTERS = { minPrice: 5, maxPrice: 200 };
 const MAX_LOOKUPS = 50;
 const DEAL_EXPIRY_H = 24;
@@ -237,13 +238,14 @@ async function keepaLookupOne(apiKey, asin, domain) {
     } catch (e) { console.log('[CRON] Lookup erreur ' + asin + ': ' + e.message); return { data: null, tokensLeft: -1 }; }
 }
 
-function calculateProfit(dealPrice, kd) {
+function calculateProfit(dealPrice, kd, efnSurcharge) {
     if (!kd || !kd.price || kd.price <= 0) return null;
     var sell = kd.price;
     var comm = sell * ((kd.referralFeePct || FEES.commissionPct) / 100);
     var fba = kd.fbaPickAndPack || FEES.fbaFee;
     var inbound = kd.weight ? Math.max(0.50, (kd.weight / 1000) * 1.20) : FEES.inboundShipping;
-    var total = comm + fba + inbound + FEES.prepCost + (sell * FEES.urssafPct / 100);
+    var efn = efnSurcharge || 0;
+    var total = comm + fba + inbound + FEES.prepCost + (sell * FEES.urssafPct / 100) + efn;
     var profit = sell - dealPrice - total;
     var roi = dealPrice > 0 ? (profit / dealPrice) * 100 : 0;
     return { profit: Math.round(profit * 100) / 100, roi: Math.round(roi * 10) / 10 };
@@ -396,6 +398,7 @@ const handler = async (event) => {
     var profitableCount = 0;
     var newNotifs = 0;
     var tokensRanOut = false;
+    var pendingNotifs = []; // Deals rentables a notifier (Telegram differe apres Phase 4)
 
     // --- Phase 1 : Deals AVEC ASIN (1 token chacun — pas cher) ---
     // Seulement les deals de CE cycle (pas les anciens non-traites)
@@ -442,28 +445,9 @@ const handler = async (event) => {
             processedCount++;
             console.log('[CRON]   ' + deal.asin + ': ' + (deal.amazonPrice ? deal.amazonPrice.toFixed(2) + '€' : 'N/A') + (deal.profit ? ' profit=' + deal.profit.toFixed(2) + '€' : '') + ' (tokens=' + lastTokens + ')');
 
-            // Telegram si rentable
-            if (deal.profit > 0 && deal.amazonPrice > 0 && newNotifs < MAX_TELEGRAM) {
-                var nk = 'notif_' + deal.asin;
-                var skip = false;
-                try {
-                    var ex = await notifiedStore.get(nk);
-                    if (ex) { var nd = JSON.parse(ex); if (nd.date && (now - new Date(nd.date).getTime() < 7 * 86400000)) skip = true; }
-                } catch (e) {}
-                if (!skip) {
-                    var dn = DOMAIN_NAMES[dom] || 'amazon.fr';
-                    var msg = '\u{1F514} *Deal rentable !*\n\n\u{1F4E6} ' + deal.title.substring(0, 80) +
-                        '\n\u{1F4B0} ' + Number(deal.price).toFixed(2) + '\u20AC \u2192 Amazon: ' + Number(deal.amazonPrice).toFixed(2) + '\u20AC' +
-                        '\n\u2705 Profit: +' + Number(deal.profit).toFixed(2) + '\u20AC | ROI: ' + Number(deal.roi).toFixed(0) + '%' +
-                        (deal.bsr ? '\n\u{1F4CA} BSR: ' + Number(deal.bsr).toLocaleString() : '') +
-                        '\n\u{1F3EA} ' + deal.source + (deal.temperature > 0 ? ' ' + deal.temperature + '\u00B0' : '') +
-                        '\n\u{1F517} [Deal](' + deal.link + ')' + (deal.asin ? ' | [Amazon](https://www.' + dn + '/dp/' + deal.asin + ')' : '');
-                    var sent = await sendTelegram(botToken, chatId, msg);
-                    if (sent) {
-                        try { await notifiedStore.set(nk, JSON.stringify({ asin: deal.asin, date: new Date().toISOString() })); } catch (e) {}
-                        newNotifs++;
-                    }
-                }
+            // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
+            if (deal.profit > 0 && deal.amazonPrice > 0) {
+                pendingNotifs.push(deal);
             }
         }
     }
@@ -474,12 +458,20 @@ const handler = async (event) => {
         .filter(function(d) { return !d.asin && d.price > 0 && d.scanHour === scanHour; })
         .sort(function(a, b) { return (b.temperature || 0) - (a.temperature || 0); });
 
+    // Reserver tokens pour Phase 4 (multi-MKT) : 3 tokens par deal rentable sans multiMarket
+    var pendingMultiMkt = Object.values(accumulated).filter(function(d) {
+        return d.asin && d.profit > 0 && !d.multiMarket;
+    }).length;
+    var phase4Reserve = Math.min(pendingMultiMkt * 3, 30) + MIN_TOKENS;
+    var phase3StopAt = Math.max(15, phase4Reserve);
+    console.log('[CRON] Phase 4 reserve: ' + phase4Reserve + ' tokens (' + pendingMultiMkt + ' deals en attente multi-MKT) | Phase 3 stop a ' + phase3StopAt);
+
     var searched = 0;
     var searchSkipped = []; // deals non traites par manque de tokens
     console.log('[CRON] Phase 3: ' + needSearch.length + ' deals sans ASIN a chercher');
 
     for (var j = 0; j < needSearch.length; j++) {
-        if (lastTokens <= 15) {
+        if (lastTokens <= phase3StopAt) {
             // Plus assez de tokens — noter les deals restants
             for (var sk = j; sk < needSearch.length; sk++) {
                 needSearch[sk].searchStatus = 'tokens_exhausted';
@@ -530,28 +522,9 @@ const handler = async (event) => {
                     processedCount++;
                     console.log('[CRON]   SEARCH+LOOKUP ' + sd.asin + ': ' + (sd.amazonPrice ? sd.amazonPrice.toFixed(2) + '€' : 'N/A') + (sd.profit ? ' profit=' + sd.profit.toFixed(2) + '€' : '') + ' (tokens=' + lastTokens + ')');
 
-                    // Telegram si rentable
-                    if (sd.profit > 0 && sd.amazonPrice > 0 && newNotifs < MAX_TELEGRAM) {
-                        var nk2 = 'notif_' + sd.asin;
-                        var skip2 = false;
-                        try {
-                            var ex2 = await notifiedStore.get(nk2);
-                            if (ex2) { var nd2 = JSON.parse(ex2); if (nd2.date && (now - new Date(nd2.date).getTime() < 7 * 86400000)) skip2 = true; }
-                        } catch (e) {}
-                        if (!skip2) {
-                            var dn2 = DOMAIN_NAMES[sDom] || 'amazon.fr';
-                            var msg2 = '\u{1F514} *Deal rentable !*\n\n\u{1F4E6} ' + sd.title.substring(0, 80) +
-                                '\n\u{1F4B0} ' + Number(sd.price).toFixed(2) + '\u20AC \u2192 Amazon: ' + Number(sd.amazonPrice).toFixed(2) + '\u20AC' +
-                                '\n\u2705 Profit: +' + Number(sd.profit).toFixed(2) + '\u20AC | ROI: ' + Number(sd.roi).toFixed(0) + '%' +
-                                (sd.bsr ? '\n\u{1F4CA} BSR: ' + Number(sd.bsr).toLocaleString() : '') +
-                                '\n\u{1F3EA} ' + sd.source + (sd.temperature > 0 ? ' ' + sd.temperature + '\u00B0' : '') +
-                                '\n\u{1F517} [Deal](' + sd.link + ')' + (sd.asin ? ' | [Amazon](https://www.' + dn2 + '/dp/' + sd.asin + ')' : '');
-                            var sent2 = await sendTelegram(botToken, chatId, msg2);
-                            if (sent2) {
-                                try { await notifiedStore.set(nk2, JSON.stringify({ asin: sd.asin, date: new Date().toISOString() })); } catch (e) {}
-                                newNotifs++;
-                            }
-                        }
+                    // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
+                    if (sd.profit > 0 && sd.amazonPrice > 0) {
+                        pendingNotifs.push(sd);
                     }
                 }
             } else {
@@ -603,7 +576,7 @@ const handler = async (event) => {
             var mktResult = await keepaLookupOne(apiKey, md.asin, domId);
             if (mktResult.tokensLeft !== undefined && mktResult.tokensLeft >= 0) lastTokens = mktResult.tokensLeft;
             if (mktResult.data && mktResult.data.price > 0) {
-                var mktCalc = calculateProfit(md.price, mktResult.data);
+                var mktCalc = calculateProfit(md.price, mktResult.data, EFN_SURCHARGE);
                 markets[mktKey] = { price: mktResult.data.price, profit: mktCalc ? mktCalc.profit : 0, roi: mktCalc ? mktCalc.roi : 0 };
                 if (mktCalc && mktCalc.profit > bestProfit) { bestProfit = mktCalc.profit; bestMarket = mktKey; }
             } else {
@@ -616,6 +589,45 @@ const handler = async (event) => {
         console.log('[CRON]   Multi ' + md.asin + ': best=' + bestLabel + ' (' + bestProfit.toFixed(2) + '€) | tokens=' + lastTokens);
     }
     console.log('[CRON] Phase 4 done | ' + elapsed(T));
+
+    // --- Telegram differe : envoyer les notifs avec Best MKT ---
+    for (var ni = 0; ni < pendingNotifs.length && newNotifs < MAX_TELEGRAM; ni++) {
+        var nd = pendingNotifs[ni];
+        var nk = 'notif_' + nd.asin;
+        var skipNotif = false;
+        try {
+            var exNotif = await notifiedStore.get(nk);
+            if (exNotif) { var parsed = JSON.parse(exNotif); if (parsed.date && (now - new Date(parsed.date).getTime() < 7 * 86400000)) skipNotif = true; }
+        } catch (e) {}
+        if (skipNotif) continue;
+
+        var nDom = SOURCE_DOMAINS[nd.source] || 4;
+        var nDomName = DOMAIN_NAMES[nDom] || 'amazon.fr';
+        var bestMktLine = '';
+        if (nd.multiMarket && nd.multiMarket.best) {
+            var mktFlags = { fr: '\u{1F1EB}\u{1F1F7}', de: '\u{1F1E9}\u{1F1EA}', it: '\u{1F1EE}\u{1F1F9}', es: '\u{1F1EA}\u{1F1F8}' };
+            var bm = nd.multiMarket.best;
+            var bmData = nd.multiMarket.markets[bm];
+            if (bmData) {
+                bestMktLine = '\n\u{1F3C6} Best: ' + (mktFlags[bm] || '') + ' ' + bm.toUpperCase() + ' (+' + bmData.profit.toFixed(2) + '\u20AC, ' + bmData.roi.toFixed(0) + '%)';
+                if (bm !== 'fr') bestMktLine += ' _(EFN -' + EFN_SURCHARGE.toFixed(2) + '\u20AC inclus)_';
+            }
+        }
+
+        var tgMsg = '\u{1F514} *Deal rentable !*\n\n\u{1F4E6} ' + nd.title.substring(0, 80) +
+            '\n\u{1F4B0} ' + Number(nd.price).toFixed(2) + '\u20AC \u2192 Amazon: ' + Number(nd.amazonPrice).toFixed(2) + '\u20AC' +
+            '\n\u2705 Profit: +' + Number(nd.profit).toFixed(2) + '\u20AC | ROI: ' + Number(nd.roi).toFixed(0) + '%' +
+            bestMktLine +
+            (nd.bsr ? '\n\u{1F4CA} BSR: ' + Number(nd.bsr).toLocaleString() : '') +
+            '\n\u{1F3EA} ' + nd.source + (nd.temperature > 0 ? ' ' + nd.temperature + '\u00B0' : '') +
+            '\n\u{1F517} [Deal](' + nd.link + ')' + (nd.asin ? ' | [Amazon](https://www.' + nDomName + '/dp/' + nd.asin + ')' : '');
+        var tgSent = await sendTelegram(botToken, chatId, tgMsg);
+        if (tgSent) {
+            try { await notifiedStore.set(nk, JSON.stringify({ asin: nd.asin, date: new Date().toISOString() })); } catch (e) {}
+            newNotifs++;
+        }
+    }
+    console.log('[CRON] Telegram: ' + newNotifs + ' notifs envoyees | ' + elapsed(T));
 
     // === 3. SAVE ===
     allDeals.sort(function(a, b) {
