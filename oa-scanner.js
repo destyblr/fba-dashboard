@@ -3966,8 +3966,9 @@ function updateDealStats() {
         }
     });
 
-    // Pipeline
+    // Pipeline + Recap deals
     renderPipeline();
+    renderRecapDeals();
 }
 
 // --- Pipeline entonnoir visuel ---
@@ -4136,6 +4137,87 @@ function renderPipeline() {
 
     html += '</div>';
 
+    container.innerHTML = html;
+}
+
+// --- Deals rentables du jour dans OA Recap ---
+function renderRecapDeals() {
+    var container = document.getElementById('oa-recap-deals');
+    if (!container) return;
+
+    // Deals d'aujourd'hui uniquement
+    var today = new Date();
+    var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+
+    var profitable = dealScannerResults.filter(function(d) {
+        if (d.historyStatus === 'ignored') return false;
+        if (!d.profit || d.profit <= 0 || d.excludedPostKeepa) return false;
+        var dealDay = getDayFromScanHour(d.scanHour);
+        return dealDay === todayStr;
+    });
+
+    if (profitable.length === 0) {
+        container.classList.add('hidden');
+        return;
+    }
+
+    // Trier par ROI desc
+    profitable.sort(function(a, b) { return (b.roi || 0) - (a.roi || 0); });
+
+    container.classList.remove('hidden');
+    var mktDomain = OA_MARKETPLACES[dealSellMarket] ? OA_MARKETPLACES[dealSellMarket].domain : 'amazon.de';
+
+    var html = '<div class="text-xs text-green-400 font-semibold mb-2"><i class="fas fa-fire mr-1"></i>Deals rentables aujourd\'hui (' + profitable.length + ')</div>';
+    html += '<div class="overflow-x-auto rounded-lg" style="background: rgba(0,0,0,0.2)">';
+    html += '<table class="w-full text-xs">';
+    html += '<thead><tr class="text-gray-400 border-b border-gray-600/50">';
+    html += '<th class="text-left py-1.5 px-2">Deal</th>';
+    html += '<th class="text-right py-1.5 px-2">Prix</th>';
+    html += '<th class="text-right py-1.5 px-2">Amazon</th>';
+    html += '<th class="text-right py-1.5 px-2">Profit</th>';
+    html += '<th class="text-right py-1.5 px-2">ROI</th>';
+    html += '<th class="text-center py-1.5 px-2">Best MKT</th>';
+    html += '<th class="text-center py-1.5 px-2">Liens</th>';
+    html += '</tr></thead><tbody>';
+
+    for (var i = 0; i < profitable.length; i++) {
+        var d = profitable[i];
+        var roiClass = d.roi >= 50 ? 'text-green-300 font-bold' : d.roi >= 30 ? 'text-green-400' : 'text-green-500';
+        var profitClass = d.profit >= 10 ? 'text-green-300 font-bold' : 'text-green-400';
+        var priceAvgMark = d.priceIsAvg ? '~' : '';
+
+        // Best MKT
+        var mktHtml = '<span class="text-gray-500">—</span>';
+        if (d.multiMarket && d.multiMarket.best) {
+            var mktFlags = { de: '\ud83c\udde9\ud83c\uddea', fr: '\ud83c\uddeb\ud83c\uddf7', it: '\ud83c\uddee\ud83c\uddf9', es: '\ud83c\uddea\ud83c\uddf8' };
+            var bestMk = d.multiMarket.best;
+            var bestInfo = d.multiMarket.markets[bestMk];
+            var tip = '';
+            Object.keys(d.multiMarket.markets).forEach(function(mk) {
+                var m = d.multiMarket.markets[mk];
+                tip += mk.toUpperCase() + ': ' + m.price.toFixed(2) + '\u20AC \u2192 ' + (m.profit > 0 ? '+' : '') + m.profit.toFixed(2) + '\u20AC' + (mk === bestMk ? ' \u2190 BEST' : '') + '\n';
+            });
+            mktHtml = '<span class="text-green-400 cursor-help" title="' + escapeHTML(tip) + '">' + (mktFlags[bestMk] || '') + ' ' + bestMk.toUpperCase() + '</span>';
+        }
+
+        // Liens
+        var linksHtml = '<a href="' + escapeHTML(d.link) + '" target="_blank" class="text-blue-300 hover:text-blue-200 mr-2" title="Voir le deal"><i class="fas fa-external-link-alt"></i></a>';
+        if (d.asin) {
+            linksHtml += '<a href="https://www.' + mktDomain + '/dp/' + d.asin + '" target="_blank" class="text-orange-300 hover:text-orange-200" title="Amazon"><i class="fab fa-amazon"></i></a>';
+        }
+
+        html += '<tr class="border-b border-gray-700/30 hover:bg-white/5">';
+        html += '<td class="py-1.5 px-2 text-gray-200 max-w-[250px] truncate" title="' + escapeHTML(d.title) + '">' + escapeHTML(d.title.substring(0, 60)) + '</td>';
+        html += '<td class="py-1.5 px-2 text-right text-blue-300">' + Number(d.price).toFixed(2) + '\u20AC</td>';
+        html += '<td class="py-1.5 px-2 text-right text-purple-300">' + priceAvgMark + Number(d.amazonPrice).toFixed(2) + '\u20AC</td>';
+        html += '<td class="py-1.5 px-2 text-right ' + profitClass + '">+' + Number(d.profit).toFixed(2) + '\u20AC</td>';
+        html += '<td class="py-1.5 px-2 text-right ' + roiClass + '">' + Number(d.roi).toFixed(0) + '%</td>';
+        html += '<td class="py-1.5 px-2 text-center">' + mktHtml + '</td>';
+        html += '<td class="py-1.5 px-2 text-center">' + linksHtml + '</td>';
+        html += '</tr>';
+    }
+
+    html += '</tbody></table></div>';
     container.innerHTML = html;
 }
 
