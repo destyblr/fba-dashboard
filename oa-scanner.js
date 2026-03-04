@@ -3987,7 +3987,7 @@ function renderPipeline() {
     var selectedDayStr = dayStrings[selectedDealDay] || dayStrings[0];
 
     // Agreger les pipelineStats de toutes les heures du jour selectionne
-    var agg = { rssRaw: 0, afterDedup: 0, afterFilter: 0, newDeals: 0, resolvedAsin: 0, searchedAsin: 0, priceChecked: 0, profitable: 0, tokensUsed: 0, tokensLeft: null };
+    var agg = { rssRaw: 0, afterDedup: 0, afterFilter: 0, newDeals: 0, resolvedAsin: 0, searchedAsin: 0, priceChecked: 0, profitable: 0, pendingMultiMkt: 0, tokensUsed: 0, tokensLeft: null };
     var hasData = false;
     var hourCount = 0;
     var hourEntries = []; // pour le detail par scan
@@ -4004,6 +4004,7 @@ function renderPipeline() {
             agg.searchedAsin += s.searchedAsin || 0;
             agg.priceChecked += s.priceChecked || 0;
             agg.profitable += s.profitable || 0;
+            if (s.pendingMultiMkt !== undefined) agg.pendingMultiMkt = s.pendingMultiMkt; // derniere valeur (etat courant)
             agg.tokensUsed += s.tokensUsed || 0;
             if (s.tokensLeft !== null && s.tokensLeft !== undefined) agg.tokensLeft = s.tokensLeft;
             hourEntries.push({ scanHour: scanHour, label: getHourLabel(scanHour), stats: s });
@@ -4065,6 +4066,7 @@ function renderPipeline() {
         if (agg.tokensUsed > 0) tokensHtml += '<span>' + agg.tokensUsed + ' tokens utilises</span>';
         if (agg.tokensLeft !== null) tokensHtml += '<span class="text-gray-500">|</span><span>' + agg.tokensLeft + ' restants</span>';
         if (hourCount > 0) tokensHtml += '<span class="text-gray-500">|</span><span>' + hourCount + ' scan' + (hourCount > 1 ? 's' : '') + '</span>';
+        if (agg.pendingMultiMkt > 0) tokensHtml += '<span class="text-gray-500">|</span><span class="text-orange-400">' + agg.pendingMultiMkt + ' en attente Best MKT</span>';
         tokensHtml += '</div>';
     }
 

@@ -658,6 +658,7 @@ const handler = async (event) => {
     });
 
     // Pipeline stats pour ce cycle
+    var pendingMultiMktAfter = allDeals.filter(function(d) { return d.asin && d.profit > 0 && !d.multiMarket; }).length;
     var pipelineStats = {
         rssRaw: rssRawCount,
         afterDedup: afterDedupCount,
@@ -667,6 +668,7 @@ const handler = async (event) => {
         searchedAsin: searched,
         priceChecked: processedCount,
         profitable: profitableCount,
+        pendingMultiMkt: pendingMultiMktAfter,
         tokensUsed: (startTokens !== null && lastTokens !== 999) ? startTokens - lastTokens : 0,
         tokensLeft: (lastTokens !== 999) ? lastTokens : startTokens,
         startTokens: startTokens
