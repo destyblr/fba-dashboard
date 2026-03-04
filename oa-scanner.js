@@ -3989,6 +3989,7 @@ function renderPipeline() {
     var agg = { rssRaw: 0, afterDedup: 0, afterFilter: 0, newDeals: 0, resolvedAsin: 0, searchedAsin: 0, priceChecked: 0, profitable: 0, tokensUsed: 0, tokensLeft: null };
     var hasData = false;
     var hourCount = 0;
+    var hourEntries = []; // pour le detail par scan
 
     Object.keys(dealPipelineHistory).forEach(function(scanHour) {
         var hourDay = getDayFromScanHour(scanHour);
@@ -4004,10 +4005,13 @@ function renderPipeline() {
             agg.profitable += s.profitable || 0;
             agg.tokensUsed += s.tokensUsed || 0;
             if (s.tokensLeft !== null && s.tokensLeft !== undefined) agg.tokensLeft = s.tokensLeft;
+            hourEntries.push({ scanHour: scanHour, label: getHourLabel(scanHour), stats: s });
             hasData = true;
             hourCount++;
         }
     });
+    // Trier par heure desc (plus recent en haut)
+    hourEntries.sort(function(a, b) { return b.scanHour.localeCompare(a.scanHour); });
 
     // Si pas de pipeline data, reconstruire depuis les deals
     if (!hasData) {
@@ -4090,6 +4094,46 @@ function renderPipeline() {
 
     html += '</div>';
     html += tokensHtml;
+
+    // Detail par scan (depliable)
+    if (hourEntries.length > 0) {
+        html += '<div class="mt-2">';
+        html += '<button onclick="document.getElementById(\'pipeline-detail\').classList.toggle(\'hidden\')" class="text-xs text-gray-400 hover:text-gray-200 transition">';
+        html += '<i class="fas fa-list mr-1"></i>Detail par scan (' + hourEntries.length + ')';
+        html += '</button>';
+        html += '<div id="pipeline-detail" class="hidden mt-2">';
+        html += '<table class="w-full text-xs">';
+        html += '<thead><tr class="text-gray-500 border-b border-gray-600/50">';
+        html += '<th class="text-left py-1 px-2">Heure</th>';
+        html += '<th class="text-right py-1 px-2">RSS</th>';
+        html += '<th class="text-right py-1 px-2">Filtres</th>';
+        html += '<th class="text-right py-1 px-2">Nouveaux</th>';
+        html += '<th class="text-right py-1 px-2">ASIN</th>';
+        html += '<th class="text-right py-1 px-2">Rentables</th>';
+        html += '<th class="text-right py-1 px-2">Tokens</th>';
+        html += '</tr></thead><tbody>';
+
+        for (var hi = 0; hi < hourEntries.length; hi++) {
+            var he = hourEntries[hi];
+            var hs = he.stats;
+            var hAsin = (hs.resolvedAsin || 0) + (hs.searchedAsin || 0);
+            var hTokens = hs.tokensUsed || 0;
+            var rowClass = hs.profitable > 0 ? 'text-green-300' : 'text-gray-300';
+            html += '<tr class="' + rowClass + ' border-b border-gray-700/30 hover:bg-white/5">';
+            html += '<td class="py-1 px-2 font-medium">' + he.label + '</td>';
+            html += '<td class="py-1 px-2 text-right text-gray-400">' + (hs.rssRaw || 0) + '</td>';
+            html += '<td class="py-1 px-2 text-right text-amber-400">' + (hs.afterFilter || 0) + '</td>';
+            html += '<td class="py-1 px-2 text-right text-blue-400">' + (hs.newDeals || 0) + '</td>';
+            html += '<td class="py-1 px-2 text-right text-purple-400">' + hAsin + '</td>';
+            html += '<td class="py-1 px-2 text-right ' + (hs.profitable > 0 ? 'text-green-400 font-bold' : 'text-gray-500') + '">' + (hs.profitable || 0) + '</td>';
+            html += '<td class="py-1 px-2 text-right text-amber-300">' + (hTokens > 0 ? '-' + hTokens : '0') + '</td>';
+            html += '</tr>';
+        }
+
+        html += '</tbody></table>';
+        html += '</div></div>';
+    }
+
     html += '</div>';
 
     container.innerHTML = html;
