@@ -577,7 +577,7 @@ const handler = async (event) => {
             console.log('[CRON]   ' + deal.asin + ': ' + (deal.amazonPrice ? deal.amazonPrice.toFixed(2) + '€' : 'N/A') + (deal.profit ? ' profit=' + deal.profit.toFixed(2) + '€' : '') + ' [' + (deal.sellStatus || '?') + '] (tokens=' + lastTokens + ')');
 
             // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
-            if (deal.profit >= 5 && deal.roi >= 20 && deal.amazonPrice > 0) {
+            if (deal.profit > 0 && deal.roi >= 20 && deal.amazonPrice > 0) {
                 pendingNotifs.push(deal);
             }
         }
@@ -678,7 +678,7 @@ const handler = async (event) => {
                         console.log('[CRON]   SEARCH+LOOKUP ' + sd.asin + ': ' + (sd.amazonPrice ? sd.amazonPrice.toFixed(2) + '€' : 'N/A') + (sd.profit ? ' profit=' + sd.profit.toFixed(2) + '€' : '') + ' [' + (sd.sellStatus || '?') + '] (tokens=' + lastTokens + ')');
 
                         // Collecter pour Telegram (envoye apres Phase 4 avec Best MKT)
-                        if (sd.profit > 0 && sd.amazonPrice > 0) {
+                        if (sd.profit > 0 && sd.roi >= 20 && sd.amazonPrice > 0) {
                             pendingNotifs.push(sd);
                         }
                     }

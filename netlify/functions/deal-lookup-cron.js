@@ -251,7 +251,7 @@ const handler = async () => {
             processed++;
             console.log('[LOOKUP]   ' + deal.asin + ': ' + (deal.amazonPrice ? deal.amazonPrice.toFixed(2) + '€' : 'N/A') + (deal.profit ? ' profit=' + deal.profit.toFixed(2) + '€' : '') + ' [' + (deal.sellStatus || '?') + '] (tokens=' + lastTokens + ')');
 
-            if (deal.profit >= 5 && deal.roi >= 20 && deal.amazonPrice > 0) {
+            if (deal.profit > 0 && deal.roi >= 20 && deal.amazonPrice > 0) {
                 pendingNotifs.push(deal);
             }
         }
