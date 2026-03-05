@@ -866,39 +866,6 @@ const handler = async (event) => {
     } catch (e) { console.log('[CRON] Save erreur: ' + e.message); }
     console.log('[CRON] Saved | ' + elapsed(T));
 
-    // === 4. TELEGRAM COMPTE-RENDU (seulement si aucune alerte deal envoyee + anti-doublon) ===
-    var crKey = 'cr_' + scanHour.replace(/[^0-9]/g, '').substring(0, 10);
-    var crAlreadySent = false;
-    try { var crCheck = await notifiedStore.get(crKey); if (crCheck) crAlreadySent = true; } catch (e) {}
-
-    if (newNotifs === 0 && !crAlreadySent) {
-        var newDealsThisCycle = Object.values(accumulated).filter(function(d) { return d.scanHour === scanHour; }).length;
-        var realTokensLeft = (lastTokens !== 999) ? lastTokens : startTokens;
-        var tokensUsed = (startTokens !== null && realTokensLeft !== null) ? startTokens - realTokensLeft : 0;
-
-        var crHour = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
-        var crMsg = '\u{1F4CA} *Compte-rendu ' + crHour + '*\n\n';
-        crMsg += '\u{1F4E1} ' + newDealsThisCycle + ' nouveaux deals (Dealabs)\n';
-        crMsg += '\u{1F50D} ' + resolvedCount + ' ASINs resolve-pepper | ' + searched + ' ASINs recherche\n';
-        crMsg += '\u2705 ' + processedCount + ' deals traites | ' + profitableCount + ' rentables\n';
-        if (startTokens !== null) {
-            crMsg += '\u{1F4B0} Tokens: ' + tokensUsed + ' utilises | ' + (realTokensLeft !== null ? realTokensLeft : '?') + ' restants (depart: ' + startTokens + ')';
-        } else {
-            crMsg += '\u{1F4B0} Tokens: info indisponible';
-        }
-
-        if (searchSkipped.length > 0) {
-            crMsg += '\n\n\u26A0\uFE0F *' + searchSkipped.length + ' deals non traites (tokens epuises) :*\n';
-            for (var si = 0; si < Math.min(searchSkipped.length, 10); si++) {
-                crMsg += '\u2022 ' + searchSkipped[si] + '\n';
-            }
-            if (searchSkipped.length > 10) crMsg += '\u2022 ... et ' + (searchSkipped.length - 10) + ' autres';
-        }
-
-        crMsg += '\n\n\u{1F504} Prochain scan dans 1h';
-        try { await notifiedStore.set(crKey, '1'); } catch (e) {}
-        await sendTelegram(botToken, chatId, crMsg);
-    }
 
     console.log('[CRON] === Done: ' + allDeals.length + ' deals, ' + processedCount + ' traites, ' + profitableCount + ' rentables, ' + newNotifs + ' notifs' + (tokensRanOut ? ' | TOKENS EPUISES' : '') + ' | TOTAL ' + elapsed(T) + ' ===');
     return { statusCode: 200, body: JSON.stringify({ total: allDeals.length, processed: processedCount, profitable: profitableCount, notified: newNotifs, tokensRanOut: tokensRanOut }) };
