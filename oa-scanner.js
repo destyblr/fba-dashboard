@@ -5423,6 +5423,336 @@ function initOA() {
     fetchDeals();
 }
 
+// ============================================================
+// SOURCING MANUEL
+// ============================================================
+
+var sourcingBrands = [];   // [{id, name, category, note, lastChecked}]
+var sourcingHistory = [];  // [{ts, link, price, asin, title, amazonPrice, profit, roi, sellStatus}]
+var sourcingTokens = null;
+var sourcingTokensTs = null; // timestamp du dernier fetch tokens
+
+var SOURCING_STORAGE_KEY = 'oa_sourcing_brands';
+var SOURCING_HISTORY_KEY = 'oa_sourcing_history';
+
+function sourcingTodayKey() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function loadSourcingData() {
+    try {
+        var raw = localStorage.getItem(SOURCING_STORAGE_KEY);
+        sourcingBrands = raw ? JSON.parse(raw) : [];
+    } catch (e) { sourcingBrands = []; }
+    try {
+        var hraw = localStorage.getItem(SOURCING_HISTORY_KEY + '_' + sourcingTodayKey());
+        sourcingHistory = hraw ? JSON.parse(hraw) : [];
+    } catch (e) { sourcingHistory = []; }
+}
+
+function saveSourcingBrands() {
+    localStorage.setItem(SOURCING_STORAGE_KEY, JSON.stringify(sourcingBrands));
+}
+
+function saveSourcingHistory() {
+    localStorage.setItem(SOURCING_HISTORY_KEY + '_' + sourcingTodayKey(), JSON.stringify(sourcingHistory));
+}
+
+function initSourcing() {
+    loadSourcingData();
+    renderSourcingBrands();
+    renderSourcingHistory();
+    updateSourcingStats();
+    sourcingRefreshTokens();
+    // Afficher info reset
+    var resetEl = document.getElementById('sourcing-reset-info');
+    if (resetEl) resetEl.textContent = 'Les checks se remettent à zéro chaque jour à minuit';
+}
+
+function addSourcingBrand() {
+    var nameEl = document.getElementById('sourcing-brand-name');
+    var catEl = document.getElementById('sourcing-brand-cat');
+    var noteEl = document.getElementById('sourcing-brand-note');
+    var name = nameEl ? nameEl.value.trim() : '';
+    if (!name) { if (nameEl) nameEl.focus(); return; }
+    sourcingBrands.push({
+        id: Date.now(),
+        name: name,
+        category: catEl ? catEl.value.trim() : '',
+        note: noteEl ? noteEl.value.trim() : '',
+        lastChecked: null
+    });
+    saveSourcingBrands();
+    if (nameEl) nameEl.value = '';
+    if (catEl) catEl.value = '';
+    if (noteEl) noteEl.value = '';
+    renderSourcingBrands();
+    updateSourcingStats();
+}
+
+function deleteSourcingBrand(id) {
+    sourcingBrands = sourcingBrands.filter(function(b) { return b.id !== id; });
+    saveSourcingBrands();
+    renderSourcingBrands();
+    updateSourcingStats();
+}
+
+function checkSourcingBrand(id) {
+    var brand = sourcingBrands.find(function(b) { return b.id === id; });
+    if (!brand) return;
+    var query = encodeURIComponent(brand.name + ' promo');
+    window.open('https://www.google.fr/search?tbm=shop&q=' + query, '_blank');
+    brand.lastChecked = new Date().toISOString();
+    saveSourcingBrands();
+    renderSourcingBrands();
+    updateSourcingStats();
+}
+
+function renderSourcingBrands() {
+    var container = document.getElementById('sourcing-brand-list');
+    var empty = document.getElementById('sourcing-brand-empty');
+    if (!container) return;
+    if (sourcingBrands.length === 0) {
+        container.innerHTML = '';
+        if (empty) empty.classList.remove('hidden');
+        return;
+    }
+    if (empty) empty.classList.add('hidden');
+    var today = sourcingTodayKey();
+    container.innerHTML = sourcingBrands.map(function(b) {
+        var checkedToday = b.lastChecked && b.lastChecked.startsWith(today);
+        var timeStr = '';
+        if (b.lastChecked) {
+            var d = new Date(b.lastChecked);
+            timeStr = String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+        }
+        var bgRow = checkedToday ? 'bg-emerald-50 border-emerald-200' : 'bg-gray-50 border-gray-200';
+        var checkBadge = checkedToday
+            ? '<span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-medium">✓ ' + timeStr + '</span>'
+            : '<span class="text-xs text-gray-400">Jamais checké</span>';
+        var catBadge = b.category ? '<span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">' + escapeHTML(b.category) + '</span>' : '';
+        return '<div class="flex items-center gap-2 border rounded-lg px-3 py-2 ' + bgRow + '">' +
+            '<div class="flex-1 min-w-0">' +
+                '<div class="flex items-center gap-2 flex-wrap">' +
+                    '<span class="font-semibold text-gray-800 text-sm">' + escapeHTML(b.name) + '</span>' +
+                    catBadge +
+                    checkBadge +
+                '</div>' +
+                (b.note ? '<div class="text-xs text-gray-400 mt-0.5 truncate">' + escapeHTML(b.note) + '</div>' : '') +
+            '</div>' +
+            '<button onclick="checkSourcingBrand(' + b.id + ')" title="Ouvrir Google Shopping" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-medium whitespace-nowrap">' +
+                '<i class="fas fa-magnifying-glass mr-1"></i>Chercher' +
+            '</button>' +
+            '<button onclick="deleteSourcingBrand(' + b.id + ')" title="Supprimer" class="text-gray-300 hover:text-red-400 text-lg leading-none px-1">&times;</button>' +
+        '</div>';
+    }).join('');
+}
+
+async function analyzeSourcingDeal() {
+    var linkEl = document.getElementById('sourcing-deal-link');
+    var priceEl = document.getElementById('sourcing-deal-price');
+    var asinEl = document.getElementById('sourcing-deal-asin');
+    var btn = document.getElementById('sourcing-analyze-btn');
+    var resultEl = document.getElementById('sourcing-result');
+    var resultContent = document.getElementById('sourcing-result-content');
+
+    var link = linkEl ? linkEl.value.trim() : '';
+    var price = priceEl ? parseFloat(priceEl.value) : 0;
+    var asin = asinEl ? asinEl.value.trim().toUpperCase() : '';
+
+    if (!asin || asin.length < 9) { alert('ASIN invalide (10 caractères, ex: B09XL29252)'); return; }
+    if (!price || price <= 0) { alert('Saisis un prix d\'achat'); return; }
+    if (sourcingTokens !== null && sourcingTokens < 2) {
+        alert('Tokens insuffisants (' + sourcingTokens + ' restants). Attends quelques minutes.'); return;
+    }
+
+    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Analyse en cours...'; }
+    if (resultEl) resultEl.classList.add('hidden');
+
+    var settings = loadOASettings();
+    if (!settings.keepaApiKey) {
+        alert('Clé API Keepa non configurée dans les Paramètres OA');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-chart-line mr-2"></i>Analyser (1 token)'; }
+        return;
+    }
+
+    var domain = KEEPA_DOMAINS[dealSellMarket] || 4;
+    var url = 'https://api.keepa.com/product?key=' + settings.keepaApiKey + '&domain=' + domain + '&asin=' + asin + '&stats=180&fbafees=1';
+
+    try {
+        var resp = await fetch(url);
+        var data = await resp.json();
+        if (data.tokensLeft !== undefined) {
+            sourcingTokens = data.tokensLeft;
+            updateSourcingTokenBar();
+        }
+
+        if (!data.products || data.products.length === 0) {
+            if (resultContent) resultContent.innerHTML = '<p class="text-red-500 text-sm">Produit introuvable sur Keepa pour cet ASIN.</p>';
+            if (resultEl) resultEl.classList.remove('hidden');
+            return;
+        }
+
+        var kd = parseKeepaProduct(data.products[0]);
+        if (!kd) {
+            if (resultContent) resultContent.innerHTML = '<p class="text-red-500 text-sm">Impossible de parser les données Keepa.</p>';
+            if (resultEl) resultEl.classList.remove('hidden');
+            return;
+        }
+
+        var deal = { price: price, link: link };
+        var profitResult = calculateDealProfit(deal, kd);
+        var profitable = profitResult.profit > 0 && profitResult.roi >= 20;
+        var amazonSells = kd.amazonSells;
+        var title = kd.title || asin;
+
+        // Construire l'affichage résultat
+        var profitColor = profitable ? 'text-green-600' : 'text-red-500';
+        var roiColor = profitResult.roi >= 20 ? 'text-green-600' : 'text-orange-500';
+        var amazonBadge = amazonSells
+            ? '<span class="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-medium">🛑 Amazon vendeur</span>'
+            : '<span class="bg-green-100 text-green-600 text-xs px-2 py-0.5 rounded-full font-medium">✓ Amazon absent</span>';
+        var profitBadge = profitable
+            ? '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-bold">✅ RENTABLE</span>'
+            : '<span class="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-bold">📉 NON RENTABLE</span>';
+
+        var checklistBtn = profitable ? '<button onclick="sourcingToChecklist(\'' + escapeHTML(link) + '\',\'' + escapeHTML(asin) + '\',\'' + price + '\')" class="mt-3 w-full bg-indigo-500 hover:bg-indigo-600 text-white text-sm py-2 rounded-lg font-medium"><i class="fas fa-clipboard-check mr-2"></i>→ Checklist</button>' : '';
+
+        if (resultContent) resultContent.innerHTML =
+            '<div class="text-sm text-gray-600 mb-3 font-medium truncate" title="' + escapeHTML(title) + '">' + escapeHTML(title.substring(0, 80)) + '</div>' +
+            '<div class="grid grid-cols-2 gap-3 mb-3">' +
+                '<div class="bg-gray-50 rounded-lg p-2 text-center"><div class="text-xs text-gray-400">Prix achat</div><div class="font-bold text-gray-800">' + price.toFixed(2) + '€</div></div>' +
+                '<div class="bg-gray-50 rounded-lg p-2 text-center"><div class="text-xs text-gray-400">Prix Amazon</div><div class="font-bold text-blue-700">' + (kd.price ? kd.price.toFixed(2) + '€' : '—') + '</div></div>' +
+                '<div class="bg-gray-50 rounded-lg p-2 text-center"><div class="text-xs text-gray-400">Profit</div><div class="font-bold ' + profitColor + '">' + (profitResult.profit > 0 ? '+' : '') + profitResult.profit.toFixed(2) + '€</div></div>' +
+                '<div class="bg-gray-50 rounded-lg p-2 text-center"><div class="text-xs text-gray-400">ROI</div><div class="font-bold ' + roiColor + '">' + profitResult.roi.toFixed(0) + '%</div></div>' +
+                '<div class="bg-gray-50 rounded-lg p-2 text-center"><div class="text-xs text-gray-400">BSR</div><div class="font-bold text-gray-700">' + (kd.bsr ? Number(kd.bsr).toLocaleString() : '—') + '</div></div>' +
+                '<div class="bg-gray-50 rounded-lg p-2 text-center"><div class="text-xs text-gray-400">Vendeurs FBA</div><div class="font-bold text-gray-700">' + (kd.fbaSellers !== null ? kd.fbaSellers : '—') + '</div></div>' +
+            '</div>' +
+            '<div class="flex gap-2 flex-wrap">' + profitBadge + amazonBadge + '</div>' +
+            checklistBtn;
+
+        if (resultEl) resultEl.classList.remove('hidden');
+
+        // Ajouter à l'historique
+        sourcingHistory.unshift({
+            ts: new Date().toISOString(),
+            link: link,
+            price: price,
+            asin: asin,
+            title: title,
+            amazonPrice: kd.price || null,
+            profit: profitResult.profit,
+            roi: profitResult.roi,
+            profitable: profitable,
+            amazonSells: amazonSells
+        });
+        saveSourcingHistory();
+        renderSourcingHistory();
+        updateSourcingStats();
+
+        // Vider le formulaire
+        if (asinEl) asinEl.value = '';
+        if (priceEl) priceEl.value = '';
+        if (linkEl) linkEl.value = '';
+
+    } catch (e) {
+        if (resultContent) resultContent.innerHTML = '<p class="text-red-500 text-sm">Erreur: ' + escapeHTML(e.message) + '</p>';
+        if (resultEl) resultEl.classList.remove('hidden');
+    }
+
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-chart-line mr-2"></i>Analyser (1 token)'; }
+}
+
+function sourcingToChecklist(link, asin, price) {
+    // Pré-remplir et ouvrir la checklist
+    var linkInput = document.getElementById('checklist-link-input');
+    if (linkInput) linkInput.value = link;
+    showSection('oa-checklist');
+}
+
+function renderSourcingHistory() {
+    var container = document.getElementById('sourcing-history');
+    var empty = document.getElementById('sourcing-history-empty');
+    if (!container) return;
+    if (sourcingHistory.length === 0) {
+        container.innerHTML = '';
+        if (empty) empty.classList.remove('hidden');
+        return;
+    }
+    if (empty) empty.classList.add('hidden');
+    container.innerHTML = sourcingHistory.map(function(h) {
+        var time = new Date(h.ts);
+        var timeStr = String(time.getHours()).padStart(2,'0') + ':' + String(time.getMinutes()).padStart(2,'0');
+        var profitColor = h.profitable ? 'text-green-600' : 'text-red-500';
+        var bg = h.profitable ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200';
+        var asinLink = '<a href="https://www.amazon.fr/dp/' + h.asin + '" target="_blank" class="text-blue-500 hover:underline font-mono text-xs">' + h.asin + '</a>';
+        return '<div class="border rounded-lg px-3 py-2 ' + bg + '">' +
+            '<div class="flex items-center justify-between gap-2">' +
+                '<span class="text-xs text-gray-400">' + timeStr + '</span>' +
+                asinLink +
+                '<span class="text-xs text-gray-600">' + h.price.toFixed(2) + '€ → ' + (h.amazonPrice ? h.amazonPrice.toFixed(2) + '€' : '—') + '</span>' +
+                '<span class="font-bold text-sm ' + profitColor + '">' + (h.profit > 0 ? '+' : '') + h.profit.toFixed(2) + '€</span>' +
+                '<span class="text-xs text-gray-500">' + h.roi.toFixed(0) + '%</span>' +
+            '</div>' +
+            '<div class="text-xs text-gray-500 mt-0.5 truncate">' + escapeHTML((h.title || '').substring(0, 70)) + '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function clearSourcingHistory() {
+    if (!confirm('Vider l\'historique du jour ?')) return;
+    sourcingHistory = [];
+    saveSourcingHistory();
+    renderSourcingHistory();
+    updateSourcingStats();
+}
+
+function updateSourcingStats() {
+    var today = sourcingTodayKey();
+    var total = sourcingBrands.length;
+    var checked = sourcingBrands.filter(function(b) { return b.lastChecked && b.lastChecked.startsWith(today); }).length;
+    var analyzed = sourcingHistory.length;
+    var profitable = sourcingHistory.filter(function(h) { return h.profitable; }).length;
+
+    var statChecked = document.getElementById('sourcing-stat-checked');
+    var statAnalyzed = document.getElementById('sourcing-stat-analyzed');
+    var statProfit = document.getElementById('sourcing-stat-profitable');
+    if (statChecked) statChecked.textContent = checked + '/' + total;
+    if (statAnalyzed) statAnalyzed.textContent = analyzed;
+    if (statProfit) statProfit.textContent = profitable;
+}
+
+async function sourcingRefreshTokens() {
+    var settings = loadOASettings();
+    if (!settings.keepaApiKey) return;
+    try {
+        var resp = await fetch('https://api.keepa.com/token?key=' + settings.keepaApiKey);
+        var data = await resp.json();
+        if (data.tokensLeft !== undefined) {
+            sourcingTokens = data.tokensLeft;
+            sourcingTokensTs = Date.now();
+            updateSourcingTokenBar();
+        }
+    } catch (e) {}
+}
+
+function updateSourcingTokenBar() {
+    var valEl = document.getElementById('sourcing-tokens-val');
+    var nextEl = document.getElementById('sourcing-tokens-next');
+    if (!valEl) return;
+    if (sourcingTokens === null) { valEl.textContent = '—'; return; }
+    var color = sourcingTokens >= 10 ? 'text-green-600' : sourcingTokens >= 3 ? 'text-orange-500' : 'text-red-500';
+    valEl.className = 'font-bold ' + color;
+    valEl.textContent = sourcingTokens + ' restants';
+    if (nextEl && sourcingTokensTs) {
+        var elapsed = Math.floor((Date.now() - sourcingTokensTs) / 1000);
+        var toRegen = Math.max(0, 60 - elapsed);
+        nextEl.textContent = '(+1 dans ~' + toRegen + 's)';
+    }
+}
+
+// ============================================================
 // Lancer l'initialisation quand le DOM est pret
 // Note: switchMode() et initMode() sont dans app.js
 if (document.readyState === 'loading') {

@@ -659,6 +659,9 @@ function showSection(sectionName) {
     if (sectionName === 'oa-parametres' && typeof initOASettings === 'function') {
         initOASettings();
     }
+    if (sectionName === 'oa-sourcing' && typeof initSourcing === 'function') {
+        initSourcing();
+    }
 }
 
 // ===========================

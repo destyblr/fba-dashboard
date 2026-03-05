@@ -295,6 +295,10 @@
                         <i class="fas fa-tags mr-3"></i>
                         Deal Scanner
                     </div>
+                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-sourcing')">
+                        <i class="fas fa-crosshairs mr-3"></i>
+                        Sourcing Manuel
+                    </div>
                     <div class="pt-3 pb-1 px-3">
                         <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Workflow</span>
                     </div>
@@ -3144,6 +3148,106 @@
             </section>
 
             <!-- Section OA Checklist -->
+            <!-- Section Sourcing Manuel -->
+            <section id="section-oa-sourcing" class="content-section hidden">
+                <div class="mb-6 flex items-start justify-between flex-wrap gap-4">
+                    <div>
+                        <h2 class="text-3xl font-bold text-gray-800">
+                            <i class="fas fa-crosshairs text-emerald-600 mr-2"></i>Sourcing Manuel
+                        </h2>
+                        <p class="text-gray-500">Cherche des promos sur tes marques validees</p>
+                    </div>
+                    <!-- Token counter -->
+                    <div id="sourcing-token-bar" class="bg-gray-100 rounded-xl px-4 py-2 text-sm flex items-center gap-3">
+                        <span class="text-gray-500">Tokens Keepa :</span>
+                        <span id="sourcing-tokens-val" class="font-bold text-gray-700">—</span>
+                        <span id="sourcing-tokens-next" class="text-gray-400 text-xs"></span>
+                        <button onclick="sourcingRefreshTokens()" class="text-xs text-blue-500 hover:underline ml-1">Actualiser</button>
+                    </div>
+                </div>
+
+                <!-- Stats du jour -->
+                <div class="bg-white rounded-xl shadow-sm p-4 mb-6 flex flex-wrap gap-6 items-center">
+                    <div class="text-center">
+                        <div id="sourcing-stat-checked" class="text-2xl font-bold text-emerald-600">0/0</div>
+                        <div class="text-xs text-gray-400">Marques checkées</div>
+                    </div>
+                    <div class="text-center">
+                        <div id="sourcing-stat-analyzed" class="text-2xl font-bold text-blue-600">0</div>
+                        <div class="text-xs text-gray-400">Deals analysés</div>
+                    </div>
+                    <div class="text-center">
+                        <div id="sourcing-stat-profitable" class="text-2xl font-bold text-green-600">0</div>
+                        <div class="text-xs text-gray-400">Rentables aujourd'hui</div>
+                    </div>
+                    <div class="ml-auto text-xs text-gray-400" id="sourcing-reset-info"></div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                    <!-- COLONNE GAUCHE : Liste marques -->
+                    <div>
+                        <div class="bg-white rounded-xl shadow-sm p-5 mb-4">
+                            <h3 class="font-bold text-gray-700 mb-4"><i class="fas fa-list text-emerald-500 mr-2"></i>Ma liste de marques</h3>
+                            <!-- Formulaire ajout marque -->
+                            <div class="flex gap-2 mb-4 flex-wrap">
+                                <input id="sourcing-brand-name" type="text" placeholder="Nom de la marque *" class="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-[120px]" onkeydown="if(event.key==='Enter')addSourcingBrand()">
+                                <input id="sourcing-brand-cat" type="text" placeholder="Catégorie" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-32">
+                                <input id="sourcing-brand-note" type="text" placeholder="Note" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-28">
+                                <button onclick="addSourcingBrand()" class="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium">+ Ajouter</button>
+                            </div>
+                            <!-- Liste -->
+                            <div id="sourcing-brand-list" class="space-y-2 max-h-[500px] overflow-y-auto"></div>
+                            <div id="sourcing-brand-empty" class="text-center text-gray-400 text-sm py-6 hidden">Aucune marque — ajoute ta première marque ci-dessus</div>
+                        </div>
+                    </div>
+
+                    <!-- COLONNE DROITE : Analyse + Historique -->
+                    <div class="space-y-4">
+
+                        <!-- Formulaire analyse deal -->
+                        <div class="bg-white rounded-xl shadow-sm p-5">
+                            <h3 class="font-bold text-gray-700 mb-4"><i class="fas fa-magnifying-glass-dollar text-blue-500 mr-2"></i>Analyser un deal</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="text-xs text-gray-500 block mb-1">Lien du deal (Boulanger, Fnac...)</label>
+                                    <input id="sourcing-deal-link" type="url" placeholder="https://..." class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full">
+                                </div>
+                                <div class="flex gap-3">
+                                    <div class="flex-1">
+                                        <label class="text-xs text-gray-500 block mb-1">Prix d'achat (€)</label>
+                                        <input id="sourcing-deal-price" type="number" step="0.01" min="0" placeholder="29.99" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full">
+                                    </div>
+                                    <div class="flex-1">
+                                        <label class="text-xs text-gray-500 block mb-1">ASIN Amazon</label>
+                                        <input id="sourcing-deal-asin" type="text" placeholder="B09XL29252" maxlength="10" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full font-mono" onkeydown="if(event.key==='Enter')analyzeSourcingDeal()">
+                                    </div>
+                                </div>
+                                <button id="sourcing-analyze-btn" onclick="analyzeSourcingDeal()" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-lg text-sm">
+                                    <i class="fas fa-chart-line mr-2"></i>Analyser (1 token)
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Résultat analyse -->
+                        <div id="sourcing-result" class="hidden bg-white rounded-xl shadow-sm p-5">
+                            <h3 class="font-bold text-gray-700 mb-3"><i class="fas fa-chart-bar text-purple-500 mr-2"></i>Résultat</h3>
+                            <div id="sourcing-result-content"></div>
+                        </div>
+
+                        <!-- Historique du jour -->
+                        <div class="bg-white rounded-xl shadow-sm p-5">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="font-bold text-gray-700"><i class="fas fa-clock-rotate-left text-orange-500 mr-2"></i>Analysés aujourd'hui</h3>
+                                <button onclick="clearSourcingHistory()" class="text-xs text-red-400 hover:text-red-600">Vider</button>
+                            </div>
+                            <div id="sourcing-history" class="space-y-2 max-h-[400px] overflow-y-auto"></div>
+                            <div id="sourcing-history-empty" class="text-center text-gray-400 text-sm py-4">Aucun deal analysé aujourd'hui</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <section id="section-oa-checklist" class="content-section hidden">
                 <div class="mb-6">
                     <h2 class="text-3xl font-bold text-gray-800">
