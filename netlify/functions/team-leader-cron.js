@@ -18,6 +18,14 @@ async function sendTelegram(msg) {
     }).catch(() => {});
 }
 
+const DEFAULT_RETAILERS = [
+    { id: 'easypara',     name: 'Easypara',      url: 'https://www.easypara.fr',      type: 'prestashop', category: 'beaute',       days: [1,3,5],   maxProducts: 200, active: true },
+    { id: '1001hobbies',  name: '1001Hobbies',   url: 'https://www.1001hobbies.fr',   type: 'prestashop', category: 'jouets',       days: [0,2,4,6], maxProducts: 200, active: true },
+    { id: 'bureauvallee', name: 'Bureau Vallée', url: 'https://www.bureauvallee.fr',  type: 'generic',    category: 'informatique', days: [1,4],     maxProducts: 150, active: true },
+    { id: 'joueclub',     name: 'Joué Club',     url: 'https://www.joueclub.fr',      type: 'prestashop', category: 'jouets',       days: [2,5],     maxProducts: 200, active: true },
+];
+
+const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
 exports.handler = async () => {
     const catalogStore  = getStore('oa-catalog');
@@ -31,126 +39,153 @@ exports.handler = async () => {
         readBlob(activityStore, 'log',          []),
     ]);
 
-    const now        = Date.now();
+    const now = Date.now();
 
-    // ── 2. Analyser les performances Agent Catalog ─────────────────────────
-    const catalogRuns = activityLog.filter(e => e.agent === 'catalog');
-    const dealRuns    = activityLog.filter(e => e.agent === 'sourcing');
+    // ── 2. Initialiser les retailers si vide (premier lancement) ──────────
+    let updatedRetailers = retailers.length ? [...retailers] : [...DEFAULT_RETAILERS];
+    const isFirstRun     = retailers.length === 0;
+    if (isFirstRun) {
+        await writeBlob(catalogStore, 'retailers', updatedRetailers);
+        console.log('[Team Leader] Premier run — retailers initialisés avec les defaults');
+    }
 
-    const totalScraped   = catalogRuns.reduce((s, r) => s + (r.stats?.scraped   || 0), 0);
-    const totalMatched   = catalogRuns.reduce((s, r) => s + (r.stats?.matched   || 0), 0);
-    const totalProfitable= catalogRuns.reduce((s, r) => s + (r.stats?.profitable|| 0), 0);
-    const matchRate      = totalScraped > 0 ? Math.round(totalMatched / totalScraped * 100) : 0;
-
-    // ── 3. Analyser les deals RSS (Agent Deal FR) ──────────────────────────
-    const last30days = dealHistory.filter(d => (now - d.ts) < 30 * 86400000);
-    const profitable = last30days.filter(d => d.netProfit >= 5 && d.roi >= 30);
-
-    const retailerProfit = {};
-    profitable.forEach(d => {
-        const r = d.retailer || d.source || 'Inconnu';
-        if (!retailerProfit[r]) retailerProfit[r] = { count: 0, totalProfit: 0 };
-        retailerProfit[r].count++;
-        retailerProfit[r].totalProfit += d.netProfit || 0;
+    // ── 3. Analyser les performances par retailer ─────────────────────────
+    const profitByRetailer = {};
+    const matchByRetailer  = {};
+    catalogProducts.forEach(p => {
+        if (!p.retailer) return;
+        if (!matchByRetailer[p.retailer]) matchByRetailer[p.retailer] = { total: 0, matched: 0, profitable: 0 };
+        matchByRetailer[p.retailer].total++;
+        if (p.asin) matchByRetailer[p.retailer].matched++;
+        if (p.netProfit >= 5 && p.roi >= 30) matchByRetailer[p.retailer].profitable++;
     });
-    const topRetailer = Object.entries(retailerProfit)
-        .sort((a, b) => b[1].totalProfit - a[1].totalProfit)[0];
+    dealHistory.filter(d => (now - d.ts) < 30 * 86400000).forEach(d => {
+        const r = d.retailer || 'Inconnu';
+        if (!profitByRetailer[r]) profitByRetailer[r] = { count: 0, total: 0 };
+        profitByRetailer[r].count++;
+        profitByRetailer[r].total += d.netProfit || 0;
+    });
 
-    // ── 4. Plan de scan hebdomadaire ───────────────────────────────────────
-    // Distribuer les retailers sur la semaine pour éviter de tout scraper le même jour
-    const activeRetailers = retailers.filter(r => r.active !== false);
+    // ── 4. Ajuster le plan de scan selon les performances ─────────────────
+    // Retailers les plus rentables → plus de jours de scan
+    // Retailers sans résultats après 2 semaines → réduire
+    updatedRetailers = updatedRetailers.map(r => {
+        const perf    = matchByRetailer[r.name] || { total: 0, matched: 0, profitable: 0 };
+        const profit  = profitByRetailer[r.name] || { count: 0, total: 0 };
+        const matchRate = perf.total > 0 ? perf.matched / perf.total : 0;
+
+        // Pas encore de données → garder config actuelle
+        if (perf.total === 0) return r;
+
+        // Très rentable → scan tous les jours
+        if (profit.count >= 3 || perf.profitable >= 5) {
+            return { ...r, days: [0,1,2,3,4,5,6], maxProducts: 300 };
+        }
+        // Bon match rate → scan 4 jours
+        if (matchRate >= 0.3 || perf.profitable >= 1) {
+            return { ...r, days: [1,3,5,0], maxProducts: 200 };
+        }
+        // Mauvais match rate (< 10%) → réduire à 2 jours
+        if (matchRate < 0.10 && perf.total >= 50) {
+            return { ...r, days: [1,4], maxProducts: 100 };
+        }
+        return r;
+    });
+
+    await writeBlob(catalogStore, 'retailers', updatedRetailers);
+
+    // ── 5. Plan hebdo pour affichage ──────────────────────────────────────
+    const activeRetailers = updatedRetailers.filter(r => r.active !== false);
     const weekPlan = {};
-    const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     for (let d = 0; d < 7; d++) {
         weekPlan[DAY_NAMES[d]] = activeRetailers
-            .filter(r => (r.days || [0,1,2,3,4,5,6]).includes(d))
+            .filter(r => (r.days || []).includes(d))
             .map(r => r.name);
     }
-
-    // Persister le plan pour les agents
     await writeBlob(catalogStore, 'week-plan', { ts: now, plan: weekPlan, updatedBy: 'team-leader' });
 
-    // ── 5. Recommandations ────────────────────────────────────────────────
+    // ── 6. Stats globales ─────────────────────────────────────────────────
+    const catalogRuns  = activityLog.filter(e => e.agent === 'catalog');
+    const totalScraped = catalogRuns.reduce((s, r) => s + (r.stats?.scraped || 0), 0);
+    const totalMatched = catalogRuns.reduce((s, r) => s + (r.stats?.matched || 0), 0);
+    const matchRate    = totalScraped > 0 ? Math.round(totalMatched / totalScraped * 100) : 0;
+
+    const last30days   = dealHistory.filter(d => (now - d.ts) < 30 * 86400000);
+    const profitable   = last30days.filter(d => d.netProfit >= 5 && d.roi >= 30);
+    const topRetailer  = Object.entries(profitByRetailer).sort((a, b) => b[1].total - a[1].total)[0];
+
+    // ── 7. Recommandations ────────────────────────────────────────────────
     const recommendations = [];
 
-    // Taux de match faible
-    if (matchRate < 20 && totalScraped > 50) {
-        recommendations.push(
-            `📉 Taux de match Amazon faible (${matchRate}%). ` +
-            `Vérifier que les produits des retailers ont des EAN. Essayer des retailers avec des marques plus connues.`
-        );
+    if (isFirstRun) {
+        recommendations.push(`🚀 Premier lancement — ${updatedRetailers.length} retailers configurés automatiquement. L'Agent Catalog va commencer à scraper à la prochaine heure.`);
     }
 
-    // Catalogue vide
-    if (catalogProducts.length < 10) {
-        recommendations.push(
-            `📭 Catalogue faible (${catalogProducts.length} produits). ` +
-            `Ajouter des retailers dans l'onglet Retailers pour alimenter le catalogue.`
-        );
+    const profitableInCatalog = catalogProducts.filter(p => p.netProfit >= 5 && p.roi >= 30).length;
+    if (catalogProducts.length === 0) {
+        recommendations.push(`📭 Catalogue vide — Agent Catalog n'a pas encore tourné. Prochain run à la prochaine heure.`);
     } else {
-        const profitableInCatalog = catalogProducts.filter(p => p.netProfit >= 5 && p.roi >= 30).length;
-        recommendations.push(
-            `✅ Catalogue actif : ${catalogProducts.length} produits · ${profitableInCatalog} rentables.`
-        );
+        recommendations.push(`✅ Catalogue : ${catalogProducts.length} produits · ${profitableInCatalog} rentables · match rate ${matchRate}%.`);
     }
 
-    // Deals RSS
     if (profitable.length > 0) {
-        recommendations.push(
-            `⚡ ${profitable.length} deal(s) RSS rentable(s) ce mois.` +
-            (topRetailer ? ` Top source : ${topRetailer[0]} (${topRetailer[1].count} deals, +${topRetailer[1].totalProfit.toFixed(0)}€).` : '')
-        );
+        recommendations.push(`⚡ ${profitable.length} deal(s) RSS rentable(s) ce mois.` +
+            (topRetailer ? ` Top : ${topRetailer[0]} (+${topRetailer[1].total.toFixed(0)}€).` : ''));
     }
 
-    // Retailers non configurés
-    if (!activeRetailers.length) {
-        recommendations.push(`⚠️ Aucun retailer configuré. Allez dans l'onglet Retailers pour ajouter vos sources.`);
-    } else {
-        recommendations.push(`🏪 ${activeRetailers.length} retailer(s) actif(s) · Plan hebdo défini.`);
+    // Retailers ajustés
+    const boosted  = updatedRetailers.filter(r => (r.days || []).length === 7);
+    const reduced  = updatedRetailers.filter(r => (r.days || []).length <= 2 && (matchByRetailer[r.name]?.total || 0) >= 50);
+    if (boosted.length)  recommendations.push(`📈 Retailers boostés (scan quotidien) : ${boosted.map(r => r.name).join(', ')}.`);
+    if (reduced.length)  recommendations.push(`📉 Retailers réduits (faible match) : ${reduced.map(r => r.name).join(', ')}.`);
+
+    if (matchRate < 15 && totalScraped > 100) {
+        recommendations.push(`⚠️ Match rate global faible (${matchRate}%). Les produits des retailers ont peu d'EAN. Envisager d'autres sources.`);
     }
 
     if (!recommendations.length) {
-        recommendations.push('✅ Système opérationnel — aucune action requise cette semaine.');
+        recommendations.push('✅ Système opérationnel — aucun ajustement nécessaire cette semaine.');
     }
 
-    // ── 6. Journal d'activité ──────────────────────────────────────────────
+    // ── 8. Journal d'activité ──────────────────────────────────────────────
     const report = {
-        ts:               now,
-        catalogSize:      catalogProducts.length,
-        retailers:        activeRetailers.length,
-        dealsThisMonth:   last30days.length,
-        profitableDeals:  profitable.length,
+        ts:              now,
+        catalogSize:     catalogProducts.length,
+        retailers:       activeRetailers.length,
+        dealsThisMonth:  last30days.length,
+        profitableDeals: profitable.length,
         matchRate,
         weekPlan,
-        recommendations
+        recommendations,
+        adjustments:     { boosted: boosted.map(r => r.name), reduced: reduced.map(r => r.name) }
     };
 
     const activity = await readBlob(activityStore, 'log', []);
     activity.unshift({
         ts:      now,
         agent:   'leader',
-        summary: `Rapport hebdo · ${recommendations.length} reco(s) · ${catalogProducts.length} produits catalogue · ${activeRetailers.length} retailers`,
+        summary: `Rapport hebdo · ${catalogProducts.length} produits · ${activeRetailers.length} retailers · ${profitableInCatalog} rentables`,
         stats:   { catalogSize: catalogProducts.length, dealsAnalyzed: last30days.length, profitable: profitable.length },
         report
     });
     await writeBlob(activityStore, 'log', activity.slice(0, 100));
     await writeBlob(activityStore, 'last-report', report);
 
-    // ── 7. Telegram ────────────────────────────────────────────────────────
+    // ── 9. Telegram ────────────────────────────────────────────────────────
     const planLines = Object.entries(weekPlan)
         .filter(([, rs]) => rs.length > 0)
         .map(([day, rs]) => `  ${day}: ${rs.join(', ')}`)
         .join('\n');
 
     const msg = `🧠 <b>Team Leader — Rapport hebdomadaire</b>\n\n` +
-        `🏪 Catalogue : ${catalogProducts.length} produits · ${activeRetailers.length} retailers\n` +
-        `📊 Match rate : ${matchRate}% · Deals ce mois : ${last30days.length}\n\n` +
-        `<b>Plan de scan cette semaine :</b>\n${planLines || '  Aucun retailer configuré'}\n\n` +
+        `🏪 ${activeRetailers.length} retailers · ${catalogProducts.length} produits catalogue\n` +
+        `📊 Match rate : ${matchRate}% · ${profitable.length} deals rentables ce mois\n\n` +
+        `<b>Plan de scan ajusté :</b>\n${planLines || '  En attente du premier run'}\n\n` +
         `<b>Recommandations :</b>\n` +
         recommendations.map(r => `• ${r}`).join('\n');
 
     await sendTelegram(msg);
 
-    console.log(`[Team Leader] Rapport généré — ${recommendations.length} recommandations`);
+    console.log(`[Team Leader] Rapport généré — ${recommendations.length} recommandations · ${boosted.length} boostés · ${reduced.length} réduits`);
     return { statusCode: 200 };
 };
