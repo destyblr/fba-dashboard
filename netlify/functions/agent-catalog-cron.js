@@ -119,10 +119,20 @@ function isProductUrl(url) {
 
 async function fetchXml(url) {
     try {
-        const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 FBA-Dashboard/1.0' }, timeout: 8000 });
+        const resp = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            },
+            timeout: 10000
+        });
+        console.log(`[Catalog] fetchXml ${url} → ${resp.status}`);
         if (!resp.ok) return null;
         return await resp.text();
-    } catch { return null; }
+    } catch (e) {
+        console.log(`[Catalog] fetchXml ${url} → erreur: ${e.message}`);
+        return null;
+    }
 }
 
 async function fetchSitemapUrls(baseUrl, maxUrls) {
