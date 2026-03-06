@@ -111,35 +111,63 @@ function parseProduct(jsonld, retailerName, retailerUrl) {
     } catch { return null; }
 }
 
-// ─── Scrape sitemap.xml d'un retailer ──────────────────────────────────────
+// ─── Scrape sitemap.xml d'un retailer (gère sitemap index) ─────────────────
+function isProductUrl(url) {
+    return url.match(/\/(p|produit[s]?|product[s]?|catalogue|shop|artikel|item|fiche)\/|\/[^/]+-\d{3,}(\.html?)?$|\/[^/?]{10,}(\.html?)$/i)
+        && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$/i);
+}
+
+async function fetchXml(url) {
+    try {
+        const resp = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 FBA-Dashboard/1.0' }, timeout: 8000 });
+        if (!resp.ok) return null;
+        return await resp.text();
+    } catch { return null; }
+}
+
 async function fetchSitemapUrls(baseUrl, maxUrls) {
-    const sitemapUrls = [
+    const candidates = [
         baseUrl + '/sitemap.xml',
         baseUrl + '/sitemap_products.xml',
         baseUrl + '/sitemap-products.xml',
+        baseUrl + '/fr/sitemap.xml',
     ];
-    for (const sitemapUrl of sitemapUrls) {
-        try {
-            const resp = await fetch(sitemapUrl, {
-                headers: { 'User-Agent': 'Mozilla/5.0 FBA-Dashboard/1.0' },
-                timeout: 8000
+
+    const extractLocs = (xml) => {
+        const locs = [];
+        const re = /<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/g;
+        let m;
+        while ((m = re.exec(xml)) !== null) locs.push(m[1].trim());
+        return locs;
+    };
+
+    for (const sitemapUrl of candidates) {
+        const xml = await fetchXml(sitemapUrl);
+        if (!xml) continue;
+
+        const allLocs = extractLocs(xml);
+        if (!allLocs.length) continue;
+
+        // Sitemap index ? → chercher les sous-sitemaps produits
+        const subSitemaps = allLocs.filter(u => u.match(/sitemap/i) && u.match(/\.xml/i));
+        if (subSitemaps.length > 0) {
+            // Prioriser les sitemaps avec "product" dans le nom
+            const sorted = subSitemaps.sort((a, b) => {
+                const aScore = /product|produit|artikel/i.test(a) ? 1 : 0;
+                const bScore = /product|produit|artikel/i.test(b) ? 1 : 0;
+                return bScore - aScore;
             });
-            if (!resp.ok) continue;
-            const xml = await resp.text();
-            // Cherche les URLs produits dans le sitemap
-            const urlRegex = /<loc>(https?:\/\/[^<]+)<\/loc>/g;
-            const urls = [];
-            let m;
-            while ((m = urlRegex.exec(xml)) !== null) {
-                const url = m[1];
-                // Filtre les URLs produits (contient /p/, /produit/, /product/, ou finit par un slug)
-                if (url.match(/\/(p|produit|product|catalogue|shop)\/|\/[^/]+-\d{5,}/i)) {
-                    urls.push(url);
-                    if (urls.length >= maxUrls) break;
-                }
+            for (const sub of sorted.slice(0, 3)) {
+                const subXml = await fetchXml(sub);
+                if (!subXml) continue;
+                const urls = extractLocs(subXml).filter(isProductUrl);
+                if (urls.length > 0) return urls.slice(0, maxUrls);
             }
-            if (urls.length > 0) return urls;
-        } catch {}
+        }
+
+        // Sitemap direct
+        const urls = allLocs.filter(isProductUrl);
+        if (urls.length > 0) return urls.slice(0, maxUrls);
     }
     return [];
 }
