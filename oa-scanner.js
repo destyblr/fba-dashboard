@@ -1920,7 +1920,7 @@ function goToNextProduct() {
         startChecklist(oaCurrentCheckIndex + 1);
     } else {
         showOANotification('Dernier produit atteint !', 'info');
-        showSection('oa-scanner');
+        showSection('oa-catalogue');
     }
 }
 
@@ -5819,8 +5819,8 @@ function renderPortfolioColumns(portfolio, queue, blacklist) {
     renderBlobList('portfolio-list', 'portfolio-empty', 'portfolio-count', portfolio);
     renderBlobList('queue-list',     'queue-empty',     'queue-count',     queue);
     renderBlobList('blacklist-list', 'blacklist-empty', 'blacklist-count', blacklist);
-    var el = document.getElementById('journal-portfolio-size');
-    if (el) el.textContent = portfolio.length + ' marques validées';
+    var el = document.getElementById('journal-catalog-size');
+    if (el) el.textContent = portfolio.length + ' produits';
 }
 
 function renderBlobList(listId, emptyId, countId, items) {
@@ -5855,11 +5855,16 @@ async function loadJournal() {
     var logEl = document.getElementById('journal-log');
     if (logEl) logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Chargement…</div>';
     try {
-        var resp = await fetch('/.netlify/functions/portfolio-read?include=activity');
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
-        var data = await resp.json();
+        var [actResp, catResp] = await Promise.all([
+            fetch('/.netlify/functions/portfolio-read?include=activity'),
+            fetch('/.netlify/functions/catalog-read')
+        ]);
+        var data    = actResp.ok  ? await actResp.json()  : {};
+        var catData = catResp.ok  ? await catResp.json()  : {};
         renderJournal(data.activity || []);
-        renderPortfolioColumns(data.portfolio || [], data.queue || [], data.blacklist || []);
+        // Mise à jour de la card catalogue dans le journal
+        var catEl = document.getElementById('journal-catalog-size');
+        if (catEl) catEl.textContent = (catData.stats?.total || 0) + ' produits';
     } catch (e) {
         if (logEl) logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activité — les agents n\'ont pas encore tourné.</div>';
     }
@@ -5872,10 +5877,12 @@ function renderJournal(events) {
         logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activité enregistrée.</div>';
         return;
     }
-    var agentIcons = { prospection: '🔍', sourcing: '⚡', leader: '🧠', decision: '💰' };
-    ['prospection', 'sourcing', 'leader'].forEach(function(agent) {
+    var agentIcons = { catalog: '🏪', sourcing: '⚡', leader: '🧠', decision: '💰' };
+    var agentIdMap = { catalog: 'catalog', sourcing: 'deals', leader: 'leader' };
+    ['catalog', 'sourcing', 'leader'].forEach(function(agent) {
         var last = events.find(function(e) { return e.agent === agent; });
-        var el = document.getElementById('journal-last-' + agent);
+        var elId = 'journal-last-' + (agentIdMap[agent] || agent);
+        var el = document.getElementById(elId);
         if (el && last) el.textContent = 'Dernier run : ' + timeAgo(last.ts);
     });
     logEl.innerHTML = events.map(function(e) {
@@ -5898,7 +5905,7 @@ function renderJournal(events) {
 }
 
 function renderJournalStats(stats, agent) {
-    if (agent === 'prospection') {
+    if (agent === 'catalog') {
         return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
             '<span class="text-green-600">✅ ' + (stats.eligible || 0) + ' éligibles</span>' +
             '<span class="text-orange-500">⏳ ' + (stats.pending || 0) + ' en attente</span>' +
@@ -6074,6 +6081,323 @@ function addProspectionToPortfolio(index) {
             btn.disabled = true;
         }
     }
+}
+
+// ============================================================
+// ── CATALOGUE (Agent Catalog) ────────────────────────────────
+// ============================================================
+
+var catalogData        = [];
+var catalogFiltered    = [];
+var catalogCurrentPage = 0;
+var catalogFilterMode  = 'all';
+var catalogSortKey     = 'profit';
+
+var PRESET_RETAILERS = [
+    { id: 'easypara',     name: 'Easypara',      url: 'https://www.easypara.fr',       type: 'prestashop', category: 'beaute',       days: [0,1,2,3,4,5,6], maxProducts: 200 },
+    { id: '1001hobbies',  name: '1001Hobbies',   url: 'https://www.1001hobbies.fr',    type: 'prestashop', category: 'jouets',       days: [0,1,2,3,4,5,6], maxProducts: 200 },
+    { id: 'bureauvallee', name: 'Bureau Vallée', url: 'https://www.bureauvallee.fr',  type: 'generic',    category: 'informatique', days: [1,3,5],         maxProducts: 150 },
+    { id: 'joueclub',     name: 'Joué Club',     url: 'https://www.joueclub.fr',       type: 'prestashop', category: 'jouets',       days: [0,2,4,6],       maxProducts: 200 },
+];
+
+function loadCatalog() {
+    var retailer  = (document.getElementById('catalog-retailer-filter') || {}).value || 'all';
+    var category  = (document.getElementById('catalog-category-filter') || {}).value || 'all';
+    var minProfit = (document.getElementById('catalog-min-profit') || {}).value || '5';
+    var minRoi    = (document.getElementById('catalog-min-roi')    || {}).value || '30';
+
+    var url = '/.netlify/functions/catalog-read?retailer=' + retailer +
+        '&category=' + category +
+        '&minProfit=' + minProfit +
+        '&minRoi='    + minRoi +
+        '&page='      + catalogCurrentPage;
+
+    fetch(url)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            catalogData     = data.products || [];
+            catalogFiltered = catalogData;
+
+            // Stats
+            var s = data.stats || {};
+            var setEl = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+            setEl('catalog-stat-products',  s.total || 0);
+            setEl('catalog-stat-matched',   s.matched || 0);
+            setEl('catalog-stat-profitable',s.profitable || 0);
+            setEl('catalog-stat-eligible',  s.eligible || 0);
+
+            // Last run
+            if (data.lastRun) {
+                var ago = timeAgo(data.lastRun.ts);
+                setEl('catalog-last-run', ago);
+                setEl('catalog-next-run', '');
+            }
+
+            // Retailer filter options
+            var sel = document.getElementById('catalog-retailer-filter');
+            if (sel && data.retailers) {
+                var current = sel.value;
+                sel.innerHTML = '<option value="all">Tous les retailers</option>' +
+                    data.retailers.map(function(r) {
+                        return '<option value="' + r + '"' + (r === current ? ' selected' : '') + '>' + r + '</option>';
+                    }).join('');
+            }
+
+            renderCatalogTable();
+            updateCatalogFilters();
+        })
+        .catch(function() {
+            renderCatalogEmpty('Erreur de chargement — vérifiez la connexion');
+        });
+}
+
+function filterCatalog() {
+    catalogCurrentPage = 0;
+    loadCatalog();
+}
+
+function setCatalogFilter(mode) {
+    catalogFilterMode  = mode;
+    catalogCurrentPage = 0;
+    ['all', 'profitable', 'eligible'].forEach(function(m) {
+        var btn = document.getElementById('catalog-filter-' + m);
+        if (btn) {
+            btn.className = m === mode
+                ? 'px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold'
+                : 'px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold';
+        }
+    });
+    renderCatalogTable();
+}
+
+function sortCatalog(key) {
+    catalogSortKey = key;
+    renderCatalogTable();
+}
+
+function catalogPage(dir) {
+    catalogCurrentPage = Math.max(0, catalogCurrentPage + dir);
+    loadCatalog();
+}
+
+function updateCatalogFilters() {
+    var all        = catalogData.length;
+    var profitable = catalogData.filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; }).length;
+    var eligible   = catalogData.filter(function(p) { return p.spApi === 'eligible'; }).length;
+    var setBtn = function(id, label, count) {
+        var btn = document.getElementById(id);
+        if (btn) btn.textContent = label + ' (' + count + ')';
+    };
+    setBtn('catalog-filter-all',        'Tous',           all);
+    setBtn('catalog-filter-profitable', 'Rentables',      profitable);
+    setBtn('catalog-filter-eligible',   'Eligibles SP-API', eligible);
+}
+
+function renderCatalogEmpty(msg) {
+    var tbody = document.getElementById('catalog-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
+}
+
+function renderCatalogTable() {
+    var tbody = document.getElementById('catalog-tbody');
+    if (!tbody) return;
+
+    var data = catalogData;
+
+    // Filtre mode
+    if (catalogFilterMode === 'profitable') {
+        data = data.filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; });
+    } else if (catalogFilterMode === 'eligible') {
+        data = data.filter(function(p) { return p.spApi === 'eligible'; });
+    }
+
+    // Tri
+    data = data.slice().sort(function(a, b) {
+        if (catalogSortKey === 'profit') return (b.netProfit || -99) - (a.netProfit || -99);
+        if (catalogSortKey === 'roi')    return (b.roi       || -99) - (a.roi       || -99);
+        return 0;
+    });
+
+    if (!data.length) {
+        renderCatalogEmpty('Aucun produit correspondant aux filtres');
+        return;
+    }
+
+    tbody.innerHTML = data.map(function(p) {
+        var profitClass = p.netProfit >= 5 && p.roi >= 30 ? 'text-green-600 font-bold' : (p.netProfit > 0 ? 'text-gray-600' : 'text-red-500');
+        var spBadge = p.spApi === 'eligible'
+            ? '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">OK</span>'
+            : '<span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">En attente</span>';
+        var img = p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded mr-2 flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
+
+        return '<tr class="border-b border-gray-50 hover:bg-gray-50 transition' + (p.netProfit >= 5 && p.roi >= 30 ? ' bg-green-50/30' : '') + '">' +
+            '<td class="p-3 max-w-xs">' +
+                '<div class="flex items-center gap-2">' + img +
+                '<div class="min-w-0"><div class="text-sm font-medium text-gray-800 truncate" title="' + (p.title || '') + '">' + (p.title || '').slice(0, 50) + '</div>' +
+                (p.ean ? '<div class="text-xs text-gray-400 font-mono">EAN: ' + p.ean + '</div>' : '') +
+                '</div></div>' +
+            '</td>' +
+            '<td class="p-3 text-sm text-gray-600">' + (p.retailer || '—') + '</td>' +
+            '<td class="p-3 text-sm text-right font-semibold">' + (p.price ? p.price.toFixed(2) + '€' : '—') + '</td>' +
+            '<td class="p-3 text-sm text-right">' + (p.amazonPrice ? p.amazonPrice.toFixed(2) + '€' : '<span class="text-gray-400">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.netProfit !== undefined ? p.netProfit.toFixed(2) + '€' : '<span class="text-gray-400">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.roi !== undefined ? p.roi.toFixed(1) + '%' : '<span class="text-gray-400">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-center text-gray-500">' + (p.bsr ? Number(p.bsr).toLocaleString('fr') : '—') + '</td>' +
+            '<td class="p-3 text-center">' + (p.asin ? spBadge : '<span class="text-gray-300 text-xs">—</span>') + '</td>' +
+            '<td class="p-3 text-center">' +
+                '<div class="flex gap-1 justify-center">' +
+                (p.link ? '<a href="' + p.link + '" target="_blank" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">Voir</a>' : '') +
+                (p.asin ? '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs">AMZ</a>' : '') +
+                (p.netProfit >= 5 ? '<button onclick="catalogToChecklist(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')" class="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs">Checklist</button>' : '') +
+                '</div>' +
+            '</td>' +
+        '</tr>';
+    }).join('');
+}
+
+function catalogToChecklist(product) {
+    showOANotification('Ouverture de la checklist pour ' + (product.title || '').slice(0, 30) + '…', 'info');
+    showSection('oa-checklist');
+}
+
+// ─── Retailers ───────────────────────────────────────────────────────────────
+
+function loadRetailers() {
+    // Afficher les presets
+    renderPresetRetailers();
+
+    // Charger depuis Netlify
+    fetch('/.netlify/functions/retailers-save')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderRetailersList(data.retailers || []); })
+        .catch(function() { renderRetailersList([]); });
+}
+
+function renderPresetRetailers() {
+    var grid = document.getElementById('preset-retailers-grid');
+    if (!grid) return;
+    grid.innerHTML = PRESET_RETAILERS.map(function(r) {
+        return '<button onclick="addPresetRetailer(' + JSON.stringify(r).replace(/"/g, '&quot;') + ')" ' +
+            'class="p-3 bg-white rounded-xl border border-blue-200 hover:border-blue-400 text-left transition shadow-sm">' +
+            '<div class="font-semibold text-gray-800 text-sm">' + r.name + '</div>' +
+            '<div class="text-xs text-gray-400 mt-0.5">' + r.category + ' · ' + r.type + '</div>' +
+            '</button>';
+    }).join('');
+}
+
+function addPresetRetailer(preset) {
+    fetch('/.netlify/functions/retailers-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', retailer: { ...preset, active: true } })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        renderRetailersList(data.retailers || []);
+        showOANotification(preset.name + ' ajouté !', 'success');
+    })
+    .catch(function() { showOANotification('Erreur lors de l\'ajout', 'error'); });
+}
+
+function saveRetailer() {
+    var name = (document.getElementById('retailer-name') || {}).value || '';
+    var url  = (document.getElementById('retailer-url')  || {}).value || '';
+    if (!name || !url) { showOANotification('Nom et URL requis', 'error'); return; }
+
+    var days = [];
+    document.querySelectorAll('.retailer-day-cb:checked').forEach(function(cb) { days.push(parseInt(cb.value)); });
+
+    var retailer = {
+        id:          name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        name:        name,
+        url:         url,
+        type:        (document.getElementById('retailer-type')         || {}).value || 'generic',
+        category:    (document.getElementById('retailer-category')     || {}).value || 'mixed',
+        days:        days.length ? days : [0,1,2,3,4,5,6],
+        maxProducts: parseInt((document.getElementById('retailer-max-products') || {}).value || '200'),
+        active:      true
+    };
+
+    fetch('/.netlify/functions/retailers-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'save', retailer: retailer })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        renderRetailersList(data.retailers || []);
+        showOANotification(name + ' enregistré !', 'success');
+        // Reset form
+        ['retailer-name','retailer-url'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    })
+    .catch(function() { showOANotification('Erreur lors de l\'enregistrement', 'error'); });
+}
+
+function testRetailer() {
+    var url = (document.getElementById('retailer-url') || {}).value || '';
+    if (!url) { showOANotification('Entrez une URL d\'abord', 'error'); return; }
+    var el = document.getElementById('retailer-test-result');
+    if (el) el.innerHTML = '<i class="fas fa-spinner fa-spin mr-1 text-blue-500"></i>Test en cours…';
+    // Test simple: vérifier si le site répond
+    fetch(url, { method: 'HEAD', mode: 'no-cors' })
+        .then(function() {
+            if (el) el.innerHTML = '<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Site accessible</span>';
+        })
+        .catch(function() {
+            if (el) el.innerHTML = '<span class="text-orange-500"><i class="fas fa-exclamation-triangle mr-1"></i>Vérification impossible depuis le navigateur (CORS) — le scraping Netlify fonctionnera quand même</span>';
+        });
+}
+
+function deleteRetailer(id) {
+    if (!confirm('Supprimer ce retailer ?')) return;
+    fetch('/.netlify/functions/retailers-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'delete', id: id })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { renderRetailersList(data.retailers || []); })
+    .catch(function() { showOANotification('Erreur lors de la suppression', 'error'); });
+}
+
+function toggleRetailer(id) {
+    fetch('/.netlify/functions/retailers-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'toggle', id: id })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) { renderRetailersList(data.retailers || []); })
+    .catch(function() {});
+}
+
+function renderRetailersList(retailers) {
+    var el = document.getElementById('retailers-list');
+    var countEl = document.getElementById('retailers-count');
+    if (countEl) countEl.textContent = retailers.length + ' configuré(s)';
+    if (!el) return;
+    if (!retailers.length) {
+        el.innerHTML = '<div class="p-8 text-center text-gray-400 text-sm"><i class="fas fa-shop text-4xl mb-3 block text-gray-300"></i><p>Aucun retailer configuré</p></div>';
+        return;
+    }
+    var DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    el.innerHTML = retailers.map(function(r) {
+        var days = (r.days || []).map(function(d) { return DAY_NAMES[d]; }).join(', ');
+        return '<div class="flex items-center gap-4 p-4 hover:bg-gray-50 transition">' +
+            '<div class="flex-1 min-w-0">' +
+                '<div class="flex items-center gap-2">' +
+                    '<span class="font-semibold text-gray-800">' + r.name + '</span>' +
+                    '<span class="text-xs px-2 py-0.5 rounded-full ' + (r.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (r.active ? 'Actif' : 'Inactif') + '</span>' +
+                    '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">' + (r.category || '') + '</span>' +
+                '</div>' +
+                '<div class="text-xs text-gray-400 mt-0.5">' + r.url + ' · ' + r.type + ' · ' + (days || 'tous les jours') + ' · max ' + (r.maxProducts || 200) + ' produits</div>' +
+            '</div>' +
+            '<div class="flex gap-2 flex-shrink-0">' +
+                '<button onclick="toggleRetailer(\'' + r.id + '\')" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs">' + (r.active ? 'Désactiver' : 'Activer') + '</button>' +
+                '<button onclick="deleteRetailer(\'' + r.id + '\')" class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-500 rounded text-xs">Supprimer</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
 }
 
 // ============================================================

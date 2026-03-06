@@ -659,8 +659,11 @@ function showSection(sectionName) {
     if (sectionName === 'oa-parametres' && typeof initOASettings === 'function') {
         initOASettings();
     }
-    if (sectionName === 'oa-sourcing' && typeof initSourcing === 'function') {
-        initSourcing();
+    if (sectionName === 'oa-catalogue' && typeof loadCatalog === 'function') {
+        loadCatalog();
+    }
+    if (sectionName === 'oa-retailers' && typeof loadRetailers === 'function') {
+        loadRetailers();
     }
     if (sectionName === 'oa-journal' && typeof loadJournal === 'function') {
         loadJournal();
@@ -695,9 +698,10 @@ function switchMode(mode) {
         footerOA.classList.remove('hidden');
         if (oaDashboard) oaDashboard.classList.remove('hidden');
 
-        // Afficher la premiere section OA (Portefeuille)
-        const oaScanner = document.getElementById('section-oa-sourcing');
+        // Afficher la premiere section OA (Catalogue)
+        const oaScanner = document.getElementById('section-oa-catalogue');
         if (oaScanner) oaScanner.classList.remove('hidden');
+        if (typeof loadCatalog === 'function') loadCatalog();
 
         // Activer le premier nav item OA
         const firstOANav = navOA.querySelector('.nav-item');

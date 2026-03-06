@@ -18,121 +18,110 @@ async function sendTelegram(msg) {
     }).catch(() => {});
 }
 
-const PRESET_NAMES = {
-    1:'Jouets premium', 2:'Électronique accessible', 3:'Sports & Loisirs',
-    4:'Beauté & Santé', 5:'Bébé & Enfant', 6:'Cuisine & Maison',
-    7:'Informatique', 8:'Animalerie', 9:'Bricolage & Outils', 10:'FR→DE'
-};
 
 exports.handler = async () => {
-    const portfolioStore = getStore('oa-portfolio');
-    const activityStore  = getStore('oa-activity');
+    const catalogStore  = getStore('oa-catalog');
+    const activityStore = getStore('oa-activity');
 
-    // ── 1. Lire toutes les données ────────────────────────────────────────
-    const [portfolio, queue, blacklist, settings, dealHistory, activityLog] = await Promise.all([
-        readBlob(portfolioStore, 'portfolio',    []),
-        readBlob(portfolioStore, 'queue',        []),
-        readBlob(portfolioStore, 'blacklist',    []),
-        readBlob(portfolioStore, 'settings',     { activePreset: 1, page: 0 }),
-        readBlob(portfolioStore, 'deal-history', []),
-        readBlob(activityStore,  'log',          []),
+    // ── 1. Lire toutes les données ─────────────────────────────────────────
+    const [catalogProducts, retailers, dealHistory, activityLog] = await Promise.all([
+        readBlob(catalogStore,  'products',     []),
+        readBlob(catalogStore,  'retailers',    []),
+        readBlob(catalogStore,  'deal-history', []),
+        readBlob(activityStore, 'log',          []),
     ]);
 
-    // ── 2. Analyser les performances par preset ────────────────────────────
-    const prospectionRuns = activityLog.filter(e => e.agent === 'prospection');
-    const sourcingRuns    = activityLog.filter(e => e.agent === 'sourcing');
+    const now        = Date.now();
 
-    // Stats par preset
-    const presetStats = {};
-    prospectionRuns.forEach(run => {
-        const id = parseInt((run.preset || '').match(/^#(\d+)/)?.[1]) || 0;
-        if (!id) return;
-        if (!presetStats[id]) presetStats[id] = { eligible: 0, gated: 0, pending: 0, runs: 0 };
-        presetStats[id].eligible += run.stats?.eligible || 0;
-        presetStats[id].gated    += run.stats?.gated    || 0;
-        presetStats[id].pending  += run.stats?.pending  || 0;
-        presetStats[id].runs++;
-    });
+    // ── 2. Analyser les performances Agent Catalog ─────────────────────────
+    const catalogRuns = activityLog.filter(e => e.agent === 'catalog');
+    const dealRuns    = activityLog.filter(e => e.agent === 'sourcing');
 
-    // Preset le plus performant (ratio eligible/total)
-    let bestPreset = settings.activePreset;
-    let bestRatio  = -1;
-    Object.entries(presetStats).forEach(([id, s]) => {
-        const total = s.eligible + s.gated + s.pending;
-        const ratio = total > 0 ? s.eligible / total : 0;
-        if (ratio > bestRatio) { bestRatio = ratio; bestPreset = parseInt(id); }
-    });
+    const totalScraped   = catalogRuns.reduce((s, r) => s + (r.stats?.scraped   || 0), 0);
+    const totalMatched   = catalogRuns.reduce((s, r) => s + (r.stats?.matched   || 0), 0);
+    const totalProfitable= catalogRuns.reduce((s, r) => s + (r.stats?.profitable|| 0), 0);
+    const matchRate      = totalScraped > 0 ? Math.round(totalMatched / totalScraped * 100) : 0;
 
-    // ── 3. Analyser les deals ──────────────────────────────────────────────
-    const now         = Date.now();
-    const last30days  = dealHistory.filter(d => (now - d.ts) < 30 * 86400000);
-    const profitable  = last30days.filter(d => d.netProfit >= 5 && d.roi >= 35);
+    // ── 3. Analyser les deals RSS (Agent Deal FR) ──────────────────────────
+    const last30days = dealHistory.filter(d => (now - d.ts) < 30 * 86400000);
+    const profitable = last30days.filter(d => d.netProfit >= 5 && d.roi >= 30);
 
-    // Marques les plus rentables
-    const brandProfit = {};
+    const retailerProfit = {};
     profitable.forEach(d => {
-        if (!brandProfit[d.brand]) brandProfit[d.brand] = { count: 0, totalProfit: 0 };
-        brandProfit[d.brand].count++;
-        brandProfit[d.brand].totalProfit += d.netProfit;
+        const r = d.retailer || d.source || 'Inconnu';
+        if (!retailerProfit[r]) retailerProfit[r] = { count: 0, totalProfit: 0 };
+        retailerProfit[r].count++;
+        retailerProfit[r].totalProfit += d.netProfit || 0;
     });
-    const topBrands = Object.entries(brandProfit)
-        .sort((a, b) => b[1].totalProfit - a[1].totalProfit)
-        .slice(0, 3);
+    const topRetailer = Object.entries(retailerProfit)
+        .sort((a, b) => b[1].totalProfit - a[1].totalProfit)[0];
 
-    // ── 4. Générer les recommandations ────────────────────────────────────
+    // ── 4. Plan de scan hebdomadaire ───────────────────────────────────────
+    // Distribuer les retailers sur la semaine pour éviter de tout scraper le même jour
+    const activeRetailers = retailers.filter(r => r.active !== false);
+    const weekPlan = {};
+    const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+    for (let d = 0; d < 7; d++) {
+        weekPlan[DAY_NAMES[d]] = activeRetailers
+            .filter(r => (r.days || [0,1,2,3,4,5,6]).includes(d))
+            .map(r => r.name);
+    }
+
+    // Persister le plan pour les agents
+    await writeBlob(catalogStore, 'week-plan', { ts: now, plan: weekPlan, updatedBy: 'team-leader' });
+
+    // ── 5. Recommandations ────────────────────────────────────────────────
     const recommendations = [];
 
-    // Recommandation preset
-    if (bestPreset !== settings.activePreset && presetStats[bestPreset]?.runs >= 2) {
+    // Taux de match faible
+    if (matchRate < 20 && totalScraped > 50) {
         recommendations.push(
-            `🔄 Changer de preset : #${bestPreset} "${PRESET_NAMES[bestPreset]}" génère ` +
-            `${Math.round(bestRatio * 100)}% d'éligibles vs preset actuel #${settings.activePreset}`
-        );
-        // Appliquer automatiquement la recommandation
-        settings.activePreset = bestPreset;
-        settings.page = 0;
-        await writeBlob(portfolioStore, 'settings', settings);
-    }
-
-    // Portefeuille trop petit
-    if (portfolio.length < 5 && queue.length > 0) {
-        recommendations.push(
-            `⚠️ Portefeuille faible (${portfolio.length} marques). ` +
-            `${queue.length} en attente SP-API — brancher SP-API Production pour les valider.`
+            `📉 Taux de match Amazon faible (${matchRate}%). ` +
+            `Vérifier que les produits des retailers ont des EAN. Essayer des retailers avec des marques plus connues.`
         );
     }
 
-    // Beaucoup de gated → changer catégorie
-    const totalGated    = Object.values(presetStats).reduce((s, p) => s + p.gated, 0);
-    const totalEligible = Object.values(presetStats).reduce((s, p) => s + p.eligible, 0);
-    if (totalGated > totalEligible * 2 && totalGated > 10) {
+    // Catalogue vide
+    if (catalogProducts.length < 10) {
         recommendations.push(
-            `📛 Taux de gating élevé (${totalGated} gated vs ${totalEligible} éligibles). ` +
-            `Essayer Cuisine & Maison ou Animalerie (moins de marques protégées).`
+            `📭 Catalogue faible (${catalogProducts.length} produits). ` +
+            `Ajouter des retailers dans l'onglet Retailers pour alimenter le catalogue.`
+        );
+    } else {
+        const profitableInCatalog = catalogProducts.filter(p => p.netProfit >= 5 && p.roi >= 30).length;
+        recommendations.push(
+            `✅ Catalogue actif : ${catalogProducts.length} produits · ${profitableInCatalog} rentables.`
         );
     }
 
-    // Bonne performance
+    // Deals RSS
     if (profitable.length > 0) {
         recommendations.push(
-            `✅ ${profitable.length} deal(s) rentable(s) ce mois. ` +
-            (topBrands.length ? `Top marque : ${topBrands[0][0]} (${topBrands[0][1].count} deals, +${topBrands[0][1].totalProfit.toFixed(0)}€).` : '')
+            `⚡ ${profitable.length} deal(s) RSS rentable(s) ce mois.` +
+            (topRetailer ? ` Top source : ${topRetailer[0]} (${topRetailer[1].count} deals, +${topRetailer[1].totalProfit.toFixed(0)}€).` : '')
         );
+    }
+
+    // Retailers non configurés
+    if (!activeRetailers.length) {
+        recommendations.push(`⚠️ Aucun retailer configuré. Allez dans l'onglet Retailers pour ajouter vos sources.`);
+    } else {
+        recommendations.push(`🏪 ${activeRetailers.length} retailer(s) actif(s) · Plan hebdo défini.`);
     }
 
     if (!recommendations.length) {
         recommendations.push('✅ Système opérationnel — aucune action requise cette semaine.');
     }
 
-    // ── 5. Journal d'activité ─────────────────────────────────────────────
+    // ── 6. Journal d'activité ──────────────────────────────────────────────
     const report = {
-        ts:              now,
-        portfolioSize:   portfolio.length,
-        queueSize:       queue.length,
-        blacklistSize:   blacklist.length,
-        dealsThisMonth:  last30days.length,
-        profitableDeals: profitable.length,
-        activePreset:    settings.activePreset,
+        ts:               now,
+        catalogSize:      catalogProducts.length,
+        retailers:        activeRetailers.length,
+        dealsThisMonth:   last30days.length,
+        profitableDeals:  profitable.length,
+        matchRate,
+        weekPlan,
         recommendations
     };
 
@@ -140,18 +129,23 @@ exports.handler = async () => {
     activity.unshift({
         ts:      now,
         agent:   'leader',
-        summary: `Rapport mensuel · ${recommendations.length} recommandation(s) · preset actif: #${settings.activePreset}`,
-        stats:   { portfolioSize: portfolio.length, dealsAnalyzed: last30days.length, profitable: profitable.length },
+        summary: `Rapport hebdo · ${recommendations.length} reco(s) · ${catalogProducts.length} produits catalogue · ${activeRetailers.length} retailers`,
+        stats:   { catalogSize: catalogProducts.length, dealsAnalyzed: last30days.length, profitable: profitable.length },
         report
     });
     await writeBlob(activityStore, 'log', activity.slice(0, 100));
     await writeBlob(activityStore, 'last-report', report);
 
-    // ── 6. Telegram ───────────────────────────────────────────────────────
+    // ── 7. Telegram ────────────────────────────────────────────────────────
+    const planLines = Object.entries(weekPlan)
+        .filter(([, rs]) => rs.length > 0)
+        .map(([day, rs]) => `  ${day}: ${rs.join(', ')}`)
+        .join('\n');
+
     const msg = `🧠 <b>Team Leader — Rapport hebdomadaire</b>\n\n` +
-        `📂 Portefeuille : ${portfolio.length} validées · ${queue.length} en attente · ${blacklist.length} gated\n` +
-        `📊 Deals ce mois : ${last30days.length} analysés · ${profitable.length} rentables\n` +
-        `🎯 Preset actif : #${settings.activePreset} ${PRESET_NAMES[settings.activePreset]}\n\n` +
+        `🏪 Catalogue : ${catalogProducts.length} produits · ${activeRetailers.length} retailers\n` +
+        `📊 Match rate : ${matchRate}% · Deals ce mois : ${last30days.length}\n\n` +
+        `<b>Plan de scan cette semaine :</b>\n${planLines || '  Aucun retailer configuré'}\n\n` +
         `<b>Recommandations :</b>\n` +
         recommendations.map(r => `• ${r}`).join('\n');
 

@@ -127,20 +127,27 @@ exports.handler = async () => {
     const KEEPA_KEY = process.env.KEEPA_API_KEY;
     if (!KEEPA_KEY) { console.error('[Sourcing] KEEPA_API_KEY manquant'); return { statusCode: 500 }; }
 
-    const portfolioStore = getStore('oa-portfolio');
+    const catalogStore   = getStore('oa-catalog');
     const cacheStore     = getStore('oa-keepa-cache');
     const activityStore  = getStore('oa-activity');
 
-    // ── 1. Lire le portefeuille ────────────────────────────────────────────
-    const portfolio  = await readBlob(portfolioStore, 'portfolio', []);
-    const dealHistory = await readBlob(portfolioStore, 'deal-history', []);
-    const seenDeals  = new Set(dealHistory.map(d => d.asin + '_' + d.dealLink));
+    // ── 1. Lire le catalogue (produits avec marques connues) ───────────────
+    const catalog     = await readBlob(catalogStore,   'products',    []);
+    const dealHistory = await readBlob(catalogStore,   'deal-history',[]);
+    const seenDeals   = new Set(dealHistory.map(d => d.asin + '_' + d.dealLink));
+
+    // Extraire les marques et ASINs connus du catalogue
+    const portfolio = catalog.filter(p => p.brand || p.asin).map(p => ({
+        brand: p.brand || p.retailer,
+        name:  p.brand || p.title,
+        asin:  p.asin
+    }));
 
     if (!portfolio.length) {
-        console.log('[Sourcing] Portefeuille vide — en attente Agent Prospection');
+        console.log('[Deal FR] Catalogue vide — Agent Catalog doit tourner d\'abord');
         return { statusCode: 200 };
     }
-    console.log(`[Sourcing] ${portfolio.length} marques dans le portefeuille`);
+    console.log(`[Deal FR] ${portfolio.length} produits dans le catalogue`);
 
     // ── 2. Fetch RSS ───────────────────────────────────────────────────────
     const allDeals = [];
@@ -221,7 +228,7 @@ exports.handler = async () => {
 
     // ── 6. Sauvegarder historique deals ───────────────────────────────────
     const updatedHistory = [...newHistory, ...dealHistory].slice(0, 500);
-    await writeBlob(portfolioStore, 'deal-history', updatedHistory);
+    await writeBlob(catalogStore, 'deal-history', updatedHistory);
 
     // ── 7. Telegram pour chaque deal rentable ──────────────────────────────
     for (const d of profitableDeals) {
@@ -250,12 +257,12 @@ exports.handler = async () => {
     // ── 9. Telegram résumé (si 0 deals rentables, 1 message court) ────────
     if (!profitableDeals.length) {
         await sendTelegram(
-            `⚡ <b>Agent Sourcing</b> — ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n` +
+            `⚡ <b>Agent Deal FR</b> — ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n` +
             `📭 ${matched.length} deals matchés · 0 rentable\n` +
-            `📂 Portefeuille : ${portfolio.length} marques`
+            `🏪 Catalogue : ${portfolio.length} produits`
         );
     }
 
-    console.log(`[Sourcing] Terminé — ${profitableDeals.length} rentables sur ${toAnalyze.length} analysés`);
+    console.log(`[Deal FR] Terminé — ${profitableDeals.length} rentables sur ${toAnalyze.length} analysés`);
     return { statusCode: 200 };
 };
