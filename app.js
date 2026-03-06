@@ -662,6 +662,9 @@ function showSection(sectionName) {
     if (sectionName === 'oa-sourcing' && typeof initSourcing === 'function') {
         initSourcing();
     }
+    if (sectionName === 'oa-journal' && typeof loadJournal === 'function') {
+        loadJournal();
+    }
 }
 
 // ===========================

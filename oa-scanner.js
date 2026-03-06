@@ -5465,9 +5465,11 @@ function initSourcing() {
     renderSourcingHistory();
     updateSourcingStats();
     sourcingRefreshTokens();
-    // Afficher info reset
     var resetEl = document.getElementById('sourcing-reset-info');
     if (resetEl) resetEl.textContent = 'Les checks se remettent à zéro chaque jour à minuit';
+    // Charger portefeuille Blobs + presets
+    renderPresetGrid();
+    loadPortfolio();
 }
 
 function addSourcingBrand() {
@@ -5753,7 +5755,178 @@ function updateSourcingTokenBar() {
 }
 
 // ============================================================
-// AGENT PROSPECTION
+// PORTEFEUILLE — presets + lecture Netlify Blobs
+// ============================================================
+
+var PROSPECTION_PRESETS = {
+    1:  { name: 'Jouets premium',           icon: '🧸', desc: 'BSR 1k-30k · 20-60€' },
+    2:  { name: 'Électronique accessible',  icon: '📱', desc: 'BSR 5k-80k · 30-100€' },
+    3:  { name: 'Sports & Loisirs',         icon: '⚽', desc: 'BSR 1k-50k · 15-80€' },
+    4:  { name: 'Beauté & Santé',           icon: '💄', desc: 'BSR 1k-30k · 10-50€' },
+    5:  { name: 'Bébé & Enfant',            icon: '🍼', desc: 'BSR 500-20k · 15-60€' },
+    6:  { name: 'Cuisine & Maison',         icon: '🍳', desc: 'BSR 2k-60k · 20-100€' },
+    7:  { name: 'Informatique accessoires', icon: '💻', desc: 'BSR 3k-70k · 25-120€' },
+    8:  { name: 'Animalerie',               icon: '🐾', desc: 'BSR 1k-40k · 10-50€' },
+    9:  { name: 'Bricolage & Outils',       icon: '🔧', desc: 'BSR 2k-60k · 30-150€' },
+    10: { name: 'Opportunité FR→DE',        icon: '🎯', desc: 'BSR 500-50k · 20-80€' }
+};
+
+var activePreset = 1;
+
+function renderPresetGrid() {
+    var grid = document.getElementById('preset-grid');
+    if (!grid) return;
+    grid.innerHTML = Object.entries(PROSPECTION_PRESETS).map(function(entry) {
+        var id = entry[0]; var p = entry[1];
+        var isActive = parseInt(id) === activePreset;
+        return '<button onclick="selectPreset(' + id + ')" class="p-2 rounded-lg border-2 text-left transition text-xs ' +
+            (isActive ? 'border-purple-500 bg-purple-50' : 'border-gray-200 hover:border-purple-300') + '">' +
+            '<div class="text-base mb-0.5">' + p.icon + ' <span class="font-semibold">#' + id + '</span></div>' +
+            '<div class="font-medium text-gray-700 truncate">' + p.name + '</div>' +
+            '<div class="text-gray-400">' + p.desc + '</div>' +
+            '</button>';
+    }).join('');
+    var statusEl = document.getElementById('preset-status');
+    if (statusEl) statusEl.textContent = 'Preset actif : #' + activePreset + ' — ' + PROSPECTION_PRESETS[activePreset].name + ' · Appliqué au prochain run hebdomadaire.';
+}
+
+async function selectPreset(id) {
+    activePreset = parseInt(id);
+    renderPresetGrid();
+    try {
+        await fetch('/.netlify/functions/portfolio-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ activePreset: activePreset })
+        });
+    } catch (e) {}
+}
+
+async function loadPortfolio() {
+    try {
+        var resp = await fetch('/.netlify/functions/portfolio-read');
+        if (!resp.ok) return;
+        var data = await resp.json();
+        renderPortfolioColumns(data.portfolio || [], data.queue || [], data.blacklist || []);
+        if (data.settings && data.settings.activePreset) {
+            activePreset = data.settings.activePreset;
+            renderPresetGrid();
+        }
+    } catch (e) { console.warn('[Portfolio]', e.message); }
+}
+
+function renderPortfolioColumns(portfolio, queue, blacklist) {
+    renderBlobList('portfolio-list', 'portfolio-empty', 'portfolio-count', portfolio);
+    renderBlobList('queue-list',     'queue-empty',     'queue-count',     queue);
+    renderBlobList('blacklist-list', 'blacklist-empty', 'blacklist-count', blacklist);
+    var el = document.getElementById('journal-portfolio-size');
+    if (el) el.textContent = portfolio.length + ' marques validées';
+}
+
+function renderBlobList(listId, emptyId, countId, items) {
+    var listEl  = document.getElementById(listId);
+    var emptyEl = document.getElementById(emptyId);
+    var countEl = document.getElementById(countId);
+    if (!listEl) return;
+    if (countEl) countEl.textContent = items.length;
+    if (!items.length) {
+        listEl.innerHTML = '';
+        if (emptyEl) emptyEl.classList.remove('hidden');
+        return;
+    }
+    if (emptyEl) emptyEl.classList.add('hidden');
+    listEl.innerHTML = items.map(function(p) {
+        var link = p.link || ('https://www.amazon.de/dp/' + p.asin);
+        return '<div class="flex items-center gap-2 p-1.5 bg-gray-50 rounded">' +
+            '<div class="flex-1 min-w-0">' +
+                '<div class="font-medium text-gray-800 truncate">' + (p.brand || p.title || p.asin) + '</div>' +
+                '<div class="text-gray-400">' + (p.category || '') + (p.bsr ? ' · BSR ' + Number(p.bsr).toLocaleString() : '') + (p.price ? ' · ' + p.price + '€' : '') + '</div>' +
+            '</div>' +
+            '<a href="' + link + '" target="_blank" class="text-gray-400 hover:text-orange-500 flex-shrink-0"><i class="fas fa-external-link-alt"></i></a>' +
+            '</div>';
+    }).join('');
+}
+
+// ============================================================
+// JOURNAL DES AGENTS
+// ============================================================
+
+async function loadJournal() {
+    var logEl = document.getElementById('journal-log');
+    if (logEl) logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Chargement…</div>';
+    try {
+        var resp = await fetch('/.netlify/functions/portfolio-read?include=activity');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var data = await resp.json();
+        renderJournal(data.activity || []);
+        renderPortfolioColumns(data.portfolio || [], data.queue || [], data.blacklist || []);
+    } catch (e) {
+        if (logEl) logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activité — les agents n\'ont pas encore tourné.</div>';
+    }
+}
+
+function renderJournal(events) {
+    var logEl = document.getElementById('journal-log');
+    if (!logEl) return;
+    if (!events.length) {
+        logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activité enregistrée.</div>';
+        return;
+    }
+    var agentIcons = { prospection: '🔍', sourcing: '⚡', leader: '🧠', decision: '💰' };
+    ['prospection', 'sourcing', 'leader'].forEach(function(agent) {
+        var last = events.find(function(e) { return e.agent === agent; });
+        var el = document.getElementById('journal-last-' + agent);
+        if (el && last) el.textContent = 'Dernier run : ' + timeAgo(last.ts);
+    });
+    logEl.innerHTML = events.map(function(e) {
+        var icon = agentIcons[e.agent] || '🤖';
+        var date = new Date(e.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        return '<div class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">' +
+            '<div class="text-xl flex-shrink-0 mt-0.5">' + icon + '</div>' +
+            '<div class="flex-1 min-w-0">' +
+                '<div class="flex items-center gap-2 flex-wrap">' +
+                    '<span class="font-semibold text-gray-800 capitalize">Agent ' + e.agent + '</span>' +
+                    (e.preset ? '<span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded">' + e.preset + '</span>' : '') +
+                    '<span class="text-xs text-gray-400 ml-auto">' + date + ' · ' + timeAgo(e.ts) + '</span>' +
+                '</div>' +
+                '<div class="text-sm text-gray-600 mt-0.5">' + (e.summary || '') + '</div>' +
+                (e.stats ? renderJournalStats(e.stats, e.agent) : '') +
+                (e.tokensLeft !== undefined ? '<div class="text-xs text-gray-400 mt-1">Tokens Keepa restants : ' + e.tokensLeft + '</div>' : '') +
+            '</div>' +
+            '</div>';
+    }).join('');
+}
+
+function renderJournalStats(stats, agent) {
+    if (agent === 'prospection') {
+        return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
+            '<span class="text-green-600">✅ ' + (stats.eligible || 0) + ' éligibles</span>' +
+            '<span class="text-orange-500">⏳ ' + (stats.pending || 0) + ' en attente</span>' +
+            '<span class="text-red-500">❌ ' + (stats.gated || 0) + ' gated</span>' +
+            '</div>';
+    }
+    if (agent === 'sourcing') {
+        return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
+            '<span class="text-blue-600">📦 ' + (stats.deals || 0) + ' deals analysés</span>' +
+            '<span class="text-green-600">💰 ' + (stats.profitable || 0) + ' rentables</span>' +
+            '</div>';
+    }
+    return '';
+}
+
+function timeAgo(ts) {
+    var diff = Date.now() - ts;
+    var m = Math.floor(diff / 60000);
+    var h = Math.floor(diff / 3600000);
+    var d = Math.floor(diff / 86400000);
+    if (m < 2)  return 'à l\'instant';
+    if (m < 60) return 'il y a ' + m + 'min';
+    if (h < 24) return 'il y a ' + h + 'h';
+    return 'il y a ' + d + 'j';
+}
+
+// ============================================================
+// AGENT PROSPECTION (déclencheur manuel depuis le dashboard)
 // ============================================================
 
 var prospectionResults = [];
