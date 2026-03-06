@@ -1,5 +1,8 @@
 const fetch = require('node-fetch');
-const { getStore } = require('@netlify/blobs');
+const { getStore: _getStore } = require('@netlify/blobs');
+function getStore(name) {
+    return _getStore({ name, siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_AUTH_TOKEN });
+}
 
 // ─── RSS sources (Pepper network) ─────────────────────────────────────────
 const RSS_SOURCES = [
