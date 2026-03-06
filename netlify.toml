@@ -8,9 +8,17 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Agent Prospection — tous les lundis à 8h (UTC)
+# Agent Prospection — tous les lundis à 8h UTC
 [functions."agent-prospection-cron"]
   schedule = "0 8 * * 1"
+
+# Agent Sourcing — toutes les heures
+[functions."agent-sourcing-cron"]
+  schedule = "0 * * * *"
+
+# Team Leader — tous les lundis à 9h UTC (après Agent Prospection)
+[functions."team-leader-cron"]
+  schedule = "0 9 * * 1"
 
 # Redirections pour SPA (Single Page App)
 [[redirects]]
