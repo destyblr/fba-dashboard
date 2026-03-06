@@ -5753,6 +5753,157 @@ function updateSourcingTokenBar() {
 }
 
 // ============================================================
+// AGENT PROSPECTION
+// ============================================================
+
+var prospectionResults = [];
+var prospectionRunning = false;
+
+async function runAgentProspection() {
+    if (prospectionRunning) return;
+
+    var domain   = document.getElementById('prospection-domain')?.value || '3';
+    var category = document.getElementById('prospection-category')?.value || 'all';
+    var minPrice = Math.round(parseFloat(document.getElementById('prospection-min-price')?.value || 15) * 100);
+    var maxPrice = Math.round(parseFloat(document.getElementById('prospection-max-price')?.value || 150) * 100);
+    var maxBsr   = parseInt(document.getElementById('prospection-max-bsr')?.value || 100000);
+
+    prospectionRunning = true;
+    updateProspectionBtn();
+
+    var statusEl = document.getElementById('prospection-status');
+    if (statusEl) { statusEl.textContent = 'Recherche en cours… (Keepa Finder + product lookup)'; statusEl.classList.remove('hidden'); }
+
+    var resultsEl = document.getElementById('prospection-results');
+    if (resultsEl) resultsEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-6"><i class="fas fa-spinner fa-spin text-2xl mb-2 block text-purple-400"></i>Requête Keepa en cours…</div>';
+
+    try {
+        var url = '/.netlify/functions/agent-prospection' +
+            '?domain=' + domain +
+            '&category=' + category +
+            '&minPrice=' + minPrice +
+            '&maxPrice=' + maxPrice +
+            '&maxBsr=' + maxBsr;
+
+        var resp = await fetch(url);
+        var data = await resp.json();
+
+        if (data.error) throw new Error(data.error);
+
+        prospectionResults = data.products || [];
+
+        // Mettre à jour le compteur de tokens
+        if (typeof data.tokensLeft === 'number') {
+            sourcingTokens = data.tokensLeft;
+            sourcingTokensTs = Date.now();
+            updateSourcingTokenBar();
+        }
+
+        if (statusEl) {
+            statusEl.textContent = prospectionResults.length + ' opportunités trouvées (sur ' + (data.total || '?') + ' produits scannés) · ' + (data.tokensLeft || '?') + ' tokens restants';
+        }
+
+        renderProspectionResults();
+
+    } catch (err) {
+        if (resultsEl) resultsEl.innerHTML = '<div class="text-red-500 text-sm p-4 bg-red-50 rounded-lg"><i class="fas fa-exclamation-triangle mr-2"></i>Erreur : ' + err.message + '</div>';
+        if (statusEl) { statusEl.textContent = ''; statusEl.classList.add('hidden'); }
+    }
+
+    prospectionRunning = false;
+    updateProspectionBtn();
+}
+
+function updateProspectionBtn() {
+    var btn = document.getElementById('prospection-btn');
+    if (!btn) return;
+    if (prospectionRunning) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Recherche…';
+    } else {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-robot mr-2"></i>Lancer la prospection';
+    }
+}
+
+function renderProspectionResults() {
+    var el = document.getElementById('prospection-results');
+    if (!el) return;
+
+    if (!prospectionResults.length) {
+        el.innerHTML = '<div class="text-center text-gray-400 text-sm py-6">Aucun produit trouvé avec ces critères — essaie une autre catégorie ou des filtres plus larges.</div>';
+        return;
+    }
+
+    el.innerHTML = prospectionResults.map(function(p, i) {
+        var img = p.image
+            ? '<img src="' + p.image + '" alt="" class="w-12 h-12 object-contain rounded flex-shrink-0" onerror="this.style.display=\'none\'">'
+            : '<div class="w-12 h-12 bg-gray-100 rounded flex items-center justify-center flex-shrink-0"><i class="fas fa-box text-gray-300"></i></div>';
+
+        var meta = [];
+        if (p.price)    meta.push('<span class="font-bold text-green-700">' + p.price + '€</span>');
+        if (p.bsr)      meta.push('<span class="text-gray-500">BSR ' + p.bsr.toLocaleString() + '</span>');
+        if (p.fbaCount !== undefined) meta.push('<span class="text-orange-600">' + p.fbaCount + ' FBA</span>');
+        meta.push('<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-xs">Pas d\'Amazon</span>');
+
+        return '<div class="flex items-center gap-3 p-3 bg-gray-50 hover:bg-white rounded-lg border border-transparent hover:border-gray-200 transition">' +
+            img +
+            '<div class="flex-1 min-w-0">' +
+                '<div class="text-sm font-medium text-gray-800 truncate" title="' + p.title.replace(/"/g, '&quot;') + '">' + p.title + '</div>' +
+                '<div class="text-xs text-gray-400 truncate">' + (p.brand || '') + (p.category ? ' · ' + p.category : '') + '</div>' +
+                '<div class="flex gap-2 mt-1 flex-wrap items-center text-xs">' + meta.join('') + '</div>' +
+            '</div>' +
+            '<div class="flex gap-1.5 flex-shrink-0">' +
+                '<a href="' + p.link + '" target="_blank" class="bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1.5 rounded" title="Voir sur Amazon (SellerAmp vérifie l\'éligibilité)">' +
+                    '<i class="fas fa-external-link-alt"></i>' +
+                '</a>' +
+                '<button onclick="addProspectionToPortfolio(' + i + ')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-2 py-1.5 rounded" title="Ajouter au portefeuille">' +
+                    '<i class="fas fa-plus"></i>' +
+                '</button>' +
+            '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function addProspectionToPortfolio(index) {
+    var p = prospectionResults[index];
+    if (!p) return;
+
+    // Utiliser la marque, ou les 3 premiers mots du titre si pas de marque
+    var brandName = (p.brand && p.brand.trim()) || p.title.split(' ').slice(0, 3).join(' ');
+
+    // Vérifier doublon
+    if (sourcingBrands.find(function(b) { return b.name.toLowerCase() === brandName.toLowerCase(); })) {
+        alert('"' + brandName + '" est déjà dans le portefeuille.');
+        return;
+    }
+
+    sourcingBrands.push({
+        id: Date.now(),
+        name: brandName,
+        category: p.category || '',
+        note: 'ASIN: ' + p.asin + ' | BSR: ' + (p.bsr ? p.bsr.toLocaleString() : '?') + ' | ' + (p.price || '?') + '€',
+        lastChecked: null
+    });
+
+    saveSourcingBrands();
+    renderSourcingBrands();
+    updateSourcingStats();
+
+    // Feedback visuel sur le bouton +
+    var items = document.querySelectorAll('#prospection-results > div');
+    if (items[index]) {
+        var btn = items[index].querySelector('button');
+        if (btn) {
+            btn.innerHTML = '<i class="fas fa-check"></i>';
+            btn.classList.remove('bg-emerald-500', 'hover:bg-emerald-600');
+            btn.classList.add('bg-gray-400');
+            btn.disabled = true;
+        }
+    }
+}
+
+// ============================================================
 // Lancer l'initialisation quand le DOM est pret
 // Note: switchMode() et initMode() sont dans app.js
 if (document.readyState === 'loading') {

@@ -287,17 +287,18 @@
 
                 <!-- ====== NAV ONLINE ARBITRAGE ====== -->
                 <div class="nav-oa hidden">
-                    <div class="nav-item active p-3 rounded-lg" onclick="showSection('oa-scanner')">
-                        <i class="fas fa-search mr-3"></i>
-                        Scanner
+                    <div class="pt-1 pb-1 px-3">
+                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Agents</span>
+                    </div>
+                    <div class="nav-item active p-3 rounded-lg" onclick="showSection('oa-sourcing')">
+                        <i class="fas fa-briefcase mr-3"></i>
+                        <span>Portefeuille</span>
+                        <span class="block text-xs text-purple-300 ml-6">(Agent Prospection)</span>
                     </div>
                     <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-deal-scanner')">
-                        <i class="fas fa-tags mr-3"></i>
-                        Deal Scanner
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-sourcing')">
-                        <i class="fas fa-crosshairs mr-3"></i>
-                        Sourcing Manuel
+                        <i class="fas fa-bolt mr-3"></i>
+                        <span>Deals</span>
+                        <span class="block text-xs text-purple-300 ml-6">(Agent Sourcing)</span>
                     </div>
                     <div class="pt-3 pb-1 px-3">
                         <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Workflow</span>
@@ -3051,13 +3052,14 @@
                 </div>
             </section>
 
-            <!-- Section OA Deal Scanner -->
+            <!-- Section OA Deals (Agent Sourcing) -->
             <section id="section-oa-deal-scanner" class="content-section hidden">
                 <div class="mb-6">
                     <h2 class="text-3xl font-bold text-gray-800">
-                        <i class="fas fa-tags text-orange-500 mr-2"></i>Deal Scanner
+                        <i class="fas fa-bolt text-orange-500 mr-2"></i>Deals
+                        <span class="text-lg font-normal text-gray-400 ml-2">(Agent Sourcing)</span>
                     </h2>
-                    <p class="text-gray-500">Trouve des deals en promo et calcule la rentabilite FBA</p>
+                    <p class="text-gray-500">Deals en promo filtrés sur ton portefeuille de marques · calcul rentabilité FBA</p>
                 </div>
 
                 <!-- Barre de controles -->
@@ -3153,9 +3155,9 @@
                 <div class="mb-6 flex items-start justify-between flex-wrap gap-4">
                     <div>
                         <h2 class="text-3xl font-bold text-gray-800">
-                            <i class="fas fa-crosshairs text-emerald-600 mr-2"></i>Sourcing Manuel
+                            <i class="fas fa-briefcase text-emerald-600 mr-2"></i>Portefeuille de marques
                         </h2>
-                        <p class="text-gray-500">Cherche des promos sur tes marques validees</p>
+                        <p class="text-gray-500">Agent Prospection + marques validées + analyse de deals</p>
                     </div>
                     <!-- Token counter -->
                     <div id="sourcing-token-bar" class="bg-gray-100 rounded-xl px-4 py-2 text-sm flex items-center gap-3">
@@ -3181,6 +3183,63 @@
                         <div class="text-xs text-gray-400">Rentables aujourd'hui</div>
                     </div>
                     <div class="ml-auto text-xs text-gray-400" id="sourcing-reset-info"></div>
+                </div>
+
+                <!-- ── Agent Prospection ── -->
+                <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="font-bold text-gray-700"><i class="fas fa-robot text-purple-500 mr-2"></i>Agent Prospection</h3>
+                        <span class="text-xs text-gray-400">Keepa Finder → produits sans Amazon vendeur</span>
+                    </div>
+                    <!-- Filtres -->
+                    <div class="flex flex-wrap gap-3 mb-4 items-end">
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">Marketplace</label>
+                            <select id="prospection-domain" class="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                <option value="3">Amazon.de</option>
+                                <option value="4">Amazon.fr</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">Catégorie</label>
+                            <select id="prospection-category" class="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                <option value="all">Toutes</option>
+                                <option value="toys">Jouets</option>
+                                <option value="electronics">Électronique</option>
+                                <option value="sports">Sports & Loisirs</option>
+                                <option value="kitchen">Cuisine & Maison</option>
+                                <option value="computers">Informatique</option>
+                                <option value="beauty">Beauté</option>
+                                <option value="baby">Bébé</option>
+                                <option value="tools">Bricolage</option>
+                                <option value="pet">Animalerie</option>
+                                <option value="garden">Jardin</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">Prix min (€)</label>
+                            <input id="prospection-min-price" type="number" value="15" min="1" max="500" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">Prix max (€)</label>
+                            <input id="prospection-max-price" type="number" value="150" min="1" max="1000" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20">
+                        </div>
+                        <div>
+                            <label class="text-xs text-gray-500 block mb-1">BSR max</label>
+                            <input id="prospection-max-bsr" type="number" value="100000" step="10000" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-28">
+                        </div>
+                        <button id="prospection-btn" onclick="runAgentProspection()" class="bg-purple-600 hover:bg-purple-700 text-white font-medium px-5 py-2 rounded-lg text-sm">
+                            <i class="fas fa-robot mr-2"></i>Lancer la prospection
+                        </button>
+                    </div>
+                    <!-- Résultats -->
+                    <div id="prospection-status" class="text-xs text-gray-400 mb-2 hidden"></div>
+                    <div id="prospection-results" class="space-y-2 max-h-[420px] overflow-y-auto">
+                        <div class="text-center text-gray-400 text-sm py-6">
+                            <i class="fas fa-robot text-3xl mb-2 block text-gray-300"></i>
+                            Lance la prospection pour trouver des opportunités
+                        </div>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">

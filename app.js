@@ -692,8 +692,8 @@ function switchMode(mode) {
         footerOA.classList.remove('hidden');
         if (oaDashboard) oaDashboard.classList.remove('hidden');
 
-        // Afficher la premiere section OA
-        const oaScanner = document.getElementById('section-oa-scanner');
+        // Afficher la premiere section OA (Portefeuille)
+        const oaScanner = document.getElementById('section-oa-sourcing');
         if (oaScanner) oaScanner.classList.remove('hidden');
 
         // Activer le premier nav item OA
