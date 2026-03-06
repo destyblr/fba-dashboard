@@ -6093,12 +6093,6 @@ var catalogCurrentPage = 0;
 var catalogFilterMode  = 'all';
 var catalogSortKey     = 'profit';
 
-var PRESET_RETAILERS = [
-    { id: 'easypara',     name: 'Easypara',      url: 'https://www.easypara.fr',       type: 'prestashop', category: 'beaute',       days: [0,1,2,3,4,5,6], maxProducts: 200 },
-    { id: '1001hobbies',  name: '1001Hobbies',   url: 'https://www.1001hobbies.fr',    type: 'prestashop', category: 'jouets',       days: [0,1,2,3,4,5,6], maxProducts: 200 },
-    { id: 'bureauvallee', name: 'Bureau Vallée', url: 'https://www.bureauvallee.fr',  type: 'generic',    category: 'informatique', days: [1,3,5],         maxProducts: 150 },
-    { id: 'joueclub',     name: 'Joué Club',     url: 'https://www.joueclub.fr',       type: 'prestashop', category: 'jouets',       days: [0,2,4,6],       maxProducts: 200 },
-];
 
 function loadCatalog() {
     var retailer  = (document.getElementById('catalog-retailer-filter') || {}).value || 'all';
@@ -6263,101 +6257,10 @@ function catalogToChecklist(product) {
 // ─── Retailers ───────────────────────────────────────────────────────────────
 
 function loadRetailers() {
-    // Afficher les presets
-    renderPresetRetailers();
-
-    // Charger depuis Netlify
     fetch('/.netlify/functions/retailers-save')
         .then(function(r) { return r.json(); })
         .then(function(data) { renderRetailersList(data.retailers || []); })
         .catch(function() { renderRetailersList([]); });
-}
-
-function renderPresetRetailers() {
-    var grid = document.getElementById('preset-retailers-grid');
-    if (!grid) return;
-    grid.innerHTML = PRESET_RETAILERS.map(function(r) {
-        return '<button onclick="addPresetRetailer(' + JSON.stringify(r).replace(/"/g, '&quot;') + ')" ' +
-            'class="p-3 bg-white rounded-xl border border-blue-200 hover:border-blue-400 text-left transition shadow-sm">' +
-            '<div class="font-semibold text-gray-800 text-sm">' + r.name + '</div>' +
-            '<div class="text-xs text-gray-400 mt-0.5">' + r.category + ' · ' + r.type + '</div>' +
-            '</button>';
-    }).join('');
-}
-
-function addPresetRetailer(preset) {
-    fetch('/.netlify/functions/retailers-save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save', retailer: { ...preset, active: true } })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        renderRetailersList(data.retailers || []);
-        showOANotification(preset.name + ' ajouté !', 'success');
-    })
-    .catch(function() { showOANotification('Erreur lors de l\'ajout', 'error'); });
-}
-
-function saveRetailer() {
-    var name = (document.getElementById('retailer-name') || {}).value || '';
-    var url  = (document.getElementById('retailer-url')  || {}).value || '';
-    if (!name || !url) { showOANotification('Nom et URL requis', 'error'); return; }
-
-    var days = [];
-    document.querySelectorAll('.retailer-day-cb:checked').forEach(function(cb) { days.push(parseInt(cb.value)); });
-
-    var retailer = {
-        id:          name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        name:        name,
-        url:         url,
-        type:        (document.getElementById('retailer-type')         || {}).value || 'generic',
-        category:    (document.getElementById('retailer-category')     || {}).value || 'mixed',
-        days:        days.length ? days : [0,1,2,3,4,5,6],
-        maxProducts: parseInt((document.getElementById('retailer-max-products') || {}).value || '200'),
-        active:      true
-    };
-
-    fetch('/.netlify/functions/retailers-save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'save', retailer: retailer })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) {
-        renderRetailersList(data.retailers || []);
-        showOANotification(name + ' enregistré !', 'success');
-        // Reset form
-        ['retailer-name','retailer-url'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
-    })
-    .catch(function() { showOANotification('Erreur lors de l\'enregistrement', 'error'); });
-}
-
-function testRetailer() {
-    var url = (document.getElementById('retailer-url') || {}).value || '';
-    if (!url) { showOANotification('Entrez une URL d\'abord', 'error'); return; }
-    var el = document.getElementById('retailer-test-result');
-    if (el) el.innerHTML = '<i class="fas fa-spinner fa-spin mr-1 text-blue-500"></i>Test en cours…';
-    // Test simple: vérifier si le site répond
-    fetch(url, { method: 'HEAD', mode: 'no-cors' })
-        .then(function() {
-            if (el) el.innerHTML = '<span class="text-green-600"><i class="fas fa-check-circle mr-1"></i>Site accessible</span>';
-        })
-        .catch(function() {
-            if (el) el.innerHTML = '<span class="text-orange-500"><i class="fas fa-exclamation-triangle mr-1"></i>Vérification impossible depuis le navigateur (CORS) — le scraping Netlify fonctionnera quand même</span>';
-        });
-}
-
-function deleteRetailer(id) {
-    if (!confirm('Supprimer ce retailer ?')) return;
-    fetch('/.netlify/functions/retailers-save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'delete', id: id })
-    })
-    .then(function(r) { return r.json(); })
-    .then(function(data) { renderRetailersList(data.retailers || []); })
-    .catch(function() { showOANotification('Erreur lors de la suppression', 'error'); });
 }
 
 function toggleRetailer(id) {
@@ -6374,28 +6277,32 @@ function toggleRetailer(id) {
 function renderRetailersList(retailers) {
     var el = document.getElementById('retailers-list');
     var countEl = document.getElementById('retailers-count');
-    if (countEl) countEl.textContent = retailers.length + ' configuré(s)';
+    var active = retailers.filter(function(r) { return r.active !== false; }).length;
+    if (countEl) countEl.textContent = active + ' actifs sur ' + retailers.length;
     if (!el) return;
     if (!retailers.length) {
-        el.innerHTML = '<div class="p-8 text-center text-gray-400 text-sm"><i class="fas fa-shop text-4xl mb-3 block text-gray-300"></i><p>Aucun retailer configuré</p></div>';
+        el.innerHTML = '<div class="p-8 text-center text-gray-400 text-sm"><i class="fas fa-spinner fa-spin text-2xl mb-3 block text-gray-300"></i><p>En attente du premier run du Team Leader…</p></div>';
         return;
     }
     var DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     el.innerHTML = retailers.map(function(r) {
-        var days = (r.days || []).map(function(d) { return DAY_NAMES[d]; }).join(', ');
+        var days = (r.days || []).sort(function(a,b){return a-b;}).map(function(d) { return DAY_NAMES[d]; }).join(' · ');
         return '<div class="flex items-center gap-4 p-4 hover:bg-gray-50 transition">' +
             '<div class="flex-1 min-w-0">' +
-                '<div class="flex items-center gap-2">' +
+                '<div class="flex items-center gap-2 flex-wrap">' +
                     '<span class="font-semibold text-gray-800">' + r.name + '</span>' +
-                    '<span class="text-xs px-2 py-0.5 rounded-full ' + (r.active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (r.active ? 'Actif' : 'Inactif') + '</span>' +
-                    '<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">' + (r.category || '') + '</span>' +
+                    '<span class="text-xs px-2 py-0.5 rounded-full ' + (r.active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (r.active !== false ? 'Actif' : 'Inactif') + '</span>' +
+                    '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">' + (r.category || '') + '</span>' +
                 '</div>' +
-                '<div class="text-xs text-gray-400 mt-0.5">' + r.url + ' · ' + r.type + ' · ' + (days || 'tous les jours') + ' · max ' + (r.maxProducts || 200) + ' produits</div>' +
+                '<div class="text-xs text-gray-400 mt-1">' +
+                    '<span class="mr-3"><i class="fas fa-calendar-alt mr-1"></i>' + (days || 'tous les jours') + '</span>' +
+                    '<span class="mr-3"><i class="fas fa-box mr-1"></i>max ' + (r.maxProducts || 200) + '</span>' +
+                    '<span class="text-gray-300">' + r.url + '</span>' +
+                '</div>' +
             '</div>' +
-            '<div class="flex gap-2 flex-shrink-0">' +
-                '<button onclick="toggleRetailer(\'' + r.id + '\')" class="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs">' + (r.active ? 'Désactiver' : 'Activer') + '</button>' +
-                '<button onclick="deleteRetailer(\'' + r.id + '\')" class="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-500 rounded text-xs">Supprimer</button>' +
-            '</div>' +
+            '<button onclick="toggleRetailer(\'' + r.id + '\')" class="flex-shrink-0 px-3 py-1 ' + (r.active !== false ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-green-100 hover:bg-green-200 text-green-700') + ' rounded text-xs">' +
+                (r.active !== false ? 'Désactiver' : 'Réactiver') +
+            '</button>' +
         '</div>';
     }).join('');
 }
