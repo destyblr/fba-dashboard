@@ -76,7 +76,21 @@ exports.handler = async (event) => {
     // ── Callback query (bouton YES/NO appuyé) ────────────────────────────
     const cq = body.callback_query;
     if (cq) {
-        const [answer, decisionId] = (cq.data || '').split('__');
+        const parts       = (cq.data || '').split('__');
+        const answer      = parts[0];
+        const decisionId  = parts[1];
+
+        // ── Réappro inventaire (reorder_yes / reorder_no) ──────────────
+        if (answer === 'reorder_yes') {
+            await answerCallback(cq.id, '✅ Réappro noté !');
+            await sendTelegram(`🔄 <b>Réappro confirmé</b>\n\nPense à commander le produit et à l'ajouter dans l'inventaire une fois reçu.`);
+            return { statusCode: 200 };
+        }
+        if (answer === 'reorder_no') {
+            await answerCallback(cq.id, '❌ Réappro ignoré');
+            return { statusCode: 200 };
+        }
+
         const activityStore = getStore('oa-activity');
         const pending       = await readBlob(activityStore, 'pending-decisions', []);
         const decision      = pending.find(d => d.id === decisionId);
@@ -96,7 +110,7 @@ exports.handler = async (event) => {
             await sendTelegram(`🧠 <b>Team Leader — Décision approuvée</b>\n\n${result}`);
         } else {
             await answerCallback(cq.id, 'Refusé ❌');
-            await sendTelegram(`🧠 <b>Team Leader — Décision refusée</b>\n\nOK, je cherche une alternative pour : <i>${decision.label}</i>`);
+            await sendTelegram(`🧠 <b>Team Leader — Décision refusée</b>\n\nOK, noté pour : <i>${decision.label}</i>`);
         }
 
         return { statusCode: 200 };
