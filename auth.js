@@ -24,8 +24,19 @@ function initAuthUI() {
         return;
     }
 
+    // Timeout de secours : si Firebase ne répond pas dans 6s → login
+    var authResolved = false;
+    var authTimeout = setTimeout(function() {
+        if (!authResolved) {
+            console.warn('Firebase auth timeout — affichage login');
+            showLoginScreen();
+        }
+    }, 6000);
+
     // Ecouter les changements de connexion
     onAuthStateChange((user) => {
+        authResolved = true;
+        clearTimeout(authTimeout);
         if (user) {
             currentUserEmail = user.email;
             showApp();
