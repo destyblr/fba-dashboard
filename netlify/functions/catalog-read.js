@@ -12,26 +12,50 @@ async function readBlob(store, key, fallback) {
 
 exports.handler = async (event) => {
     try {
-        const params      = event.queryStringParameters || {};
-        const retailer    = params.retailer    || 'all';
-        const category    = params.category    || 'all';
-        const minProfit   = parseFloat(params.minProfit || '0');
-        const minRoi      = parseFloat(params.minRoi    || '0');
-        const page        = parseInt(params.page         || '0');
-        const pageSize    = 50;
+        const params    = event.queryStringParameters || {};
+        const mode      = params.mode      || 'enriched'; // 'enriched' | 'raw' | 'stats'
+        const retailer  = params.retailer  || 'all';
+        const category  = params.category  || 'all';
+        const minProfit = parseFloat(params.minProfit || '0');
+        const minRoi    = parseFloat(params.minRoi    || '0');
+        const page      = parseInt(params.page        || '0');
+        const pageSize  = 50;
 
         const catalogStore  = getStore('oa-catalog');
         const activityStore = getStore('oa-activity');
 
-        const [products, retailers, lastRun, activity] = await Promise.all([
-            readBlob(catalogStore,  'products',  []),
-            readBlob(catalogStore,  'retailers', []),
-            readBlob(catalogStore,  'last-run',  null),
-            readBlob(activityStore, 'log',       []),
+        const [rawProducts, enrichedProducts, retailers, lastRun, activity] = await Promise.all([
+            readBlob(catalogStore,  'raw-products',      []),
+            readBlob(catalogStore,  'enriched-products', []),
+            readBlob(catalogStore,  'retailers',         []),
+            readBlob(catalogStore,  'catalog-last-run',  null),
+            readBlob(activityStore, 'log',               []),
         ]);
 
+        // Stats pipeline
+        const stats = {
+            rawTotal:       rawProducts.length,
+            withEan:        rawProducts.filter(p => p.ean).length,
+            enrichedTotal:  enrichedProducts.length,
+            profitable:     enrichedProducts.filter(p => p.netProfit >= 5 && p.roi >= 30).length,
+            // Compat ancien format
+            total:          enrichedProducts.length,
+            matched:        enrichedProducts.filter(p => p.asin).length,
+        };
+
+        if (mode === 'stats') {
+            return {
+                statusCode: 200,
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+                body: JSON.stringify({ stats, lastRun })
+            };
+        }
+
+        // Source selon le mode
+        const source = mode === 'raw' ? rawProducts : enrichedProducts;
+
         // Filtrer
-        let filtered = products.filter(p => {
+        let filtered = source.filter(p => {
             if (retailer !== 'all' && p.retailer !== retailer) return false;
             if (category !== 'all' && p.category !== category) return false;
             if (minProfit > 0 && (!p.netProfit || p.netProfit < minProfit)) return false;
@@ -39,20 +63,10 @@ exports.handler = async (event) => {
             return true;
         });
 
-        // Stats
-        const stats = {
-            total:      products.length,
-            matched:    products.filter(p => p.asin).length,
-            profitable: products.filter(p => p.netProfit >= 5 && p.roi >= 30).length,
-            eligible:   products.filter(p => p.spApi === 'eligible').length,
-        };
+        const total     = filtered.length;
+        const paginated = filtered.slice(page * pageSize, (page + 1) * pageSize);
 
-        // Pagination
-        const total      = filtered.length;
-        const paginated  = filtered.slice(page * pageSize, (page + 1) * pageSize);
-
-        // Retailer list pour filtre
-        const retailerNames = [...new Set(products.map(p => p.retailer).filter(Boolean))];
+        const retailerNames = [...new Set(source.map(p => p.retailer).filter(Boolean))];
 
         return {
             statusCode: 200,
@@ -63,10 +77,10 @@ exports.handler = async (event) => {
                 page,
                 pageSize,
                 stats,
-                retailers: retailerNames,
+                retailers:      retailerNames,
                 retailerConfig: retailers,
                 lastRun,
-                lastActivity: activity.filter(e => e.agent === 'catalog').slice(0, 5)
+                lastActivity:   activity.filter(e => ['catalog', 'enricher'].includes(e.agent)).slice(0, 5)
             })
         };
     } catch (err) {

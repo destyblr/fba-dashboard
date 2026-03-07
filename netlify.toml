@@ -8,9 +8,13 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
-# Agent Catalog — toutes les heures (scrape retailers + Keepa EAN + profit)
+# Agent Catalog — toutes les heures (scrape retailers → raw-products)
 [functions."agent-catalog-cron"]
   schedule = "0 * * * *"
+
+# Agent Enricher — toutes les heures, 20min apres le catalog (Keepa EAN → enriched-products)
+[functions."agent-enricher-cron"]
+  schedule = "20 * * * *"
 
 # Agent Deal FR — toutes les heures (Dealabs/MyDealz RSS)
 [functions."agent-sourcing-cron"]

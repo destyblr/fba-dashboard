@@ -5870,6 +5870,73 @@ async function loadJournal() {
     }
 }
 
+async function loadFlux() {
+    var fluxLog = document.getElementById('flux-log');
+    if (fluxLog) fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Chargement…</div>';
+    try {
+        var [actResp, catResp] = await Promise.all([
+            fetch('/.netlify/functions/portfolio-read?include=activity'),
+            fetch('/.netlify/functions/catalog-read?mode=stats')
+        ]);
+        var actData = actResp.ok ? await actResp.json() : {};
+        var catData = catResp.ok ? await catResp.json() : {};
+
+        // Stats pipeline
+        var stats = catData.stats || {};
+        var rawEl = document.getElementById('flux-raw-count');
+        var eanEl = document.getElementById('flux-ean-count');
+        var enrEl = document.getElementById('flux-enriched-count');
+        if (rawEl) rawEl.textContent = stats.rawTotal || 0;
+        if (eanEl) eanEl.textContent = stats.withEan || 0;
+        if (enrEl) enrEl.textContent = stats.enrichedTotal || stats.total || 0;
+
+        // Dernier run agents
+        var activity = actData.activity || [];
+        var agentMap = { catalog: 'catalog', enricher: 'enricher', leader: 'leader' };
+        Object.entries(agentMap).forEach(function([agent, key]) {
+            var last = activity.find(function(e) { return e.agent === agent; });
+            var lastEl = document.getElementById('flux-' + key + '-last');
+            var statEl = document.getElementById('flux-' + key + '-status');
+            if (lastEl) lastEl.textContent = last ? 'Dernier run : ' + timeAgo(last.ts) : 'Jamais execute';
+            if (statEl) {
+                statEl.textContent = last ? 'OK' : 'En attente';
+                statEl.className = 'text-xs px-2 py-0.5 rounded-full ' + (last ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400');
+            }
+            if (agent === 'catalog') {
+                var retailerEl = document.getElementById('flux-catalog-retailer');
+                if (retailerEl) retailerEl.textContent = last && last.retailer ? 'Retailer : ' + last.retailer : 'Retailer : —';
+            }
+            if (agent === 'enricher') {
+                var qEl = document.getElementById('flux-enricher-queue');
+                if (qEl) qEl.textContent = last && last.stats ? 'File Keepa : ' + (last.stats.enriched || 0) + ' enrichis ce run' : 'File Keepa : —';
+            }
+        });
+
+        // Log recent
+        if (fluxLog) {
+            if (!activity.length) {
+                fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activite — les agents n\'ont pas encore tourne.</div>';
+            } else {
+                var agentIcons = { catalog: '🏪', enricher: '💎', leader: '🧠', sourcing: '⚡', decision: '💰' };
+                fluxLog.innerHTML = activity.slice(0, 30).map(function(e) {
+                    var icon = agentIcons[e.agent] || '🤖';
+                    var date = new Date(e.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                    return '<div class="flex items-start gap-3 p-3 hover:bg-gray-50 text-sm">' +
+                        '<span class="text-lg">' + icon + '</span>' +
+                        '<div class="flex-1 min-w-0">' +
+                            '<span class="font-semibold capitalize text-gray-700">Agent ' + e.agent + '</span>' +
+                            (e.retailer ? ' — <span class="text-gray-500">' + e.retailer + '</span>' : '') +
+                            '<span class="text-xs text-gray-400 ml-2">' + date + '</span>' +
+                            '<div class="text-xs text-gray-500 mt-0.5">' + (e.summary || '') + '</div>' +
+                        '</div></div>';
+                }).join('');
+            }
+        }
+    } catch (e) {
+        if (fluxLog) fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Erreur de chargement.</div>';
+    }
+}
+
 function renderJournal(events) {
     var logEl = document.getElementById('journal-log');
     if (!logEl) return;

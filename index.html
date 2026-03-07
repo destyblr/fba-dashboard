@@ -17,60 +17,88 @@
     <!-- Google Sheets Sync (remplace Firebase) -->
 
     <style>
-        /* Styles personnalisés */
-        .sidebar {
-            min-height: 100vh;
+        /* ===== HEADER NAV ===== */
+        #app-header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
+        .nav-btn {
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: rgba(255,255,255,0.8);
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .nav-btn:hover {
+            background: rgba(255,255,255,0.15);
+            color: white;
+        }
+        .nav-btn.active {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            padding: 8px 14px;
+            text-align: left;
+            font-size: 0.875rem;
+            color: #374151;
+            cursor: pointer;
+            transition: background 0.15s;
+            white-space: nowrap;
+        }
+        .dropdown-item:hover {
+            background: #f3f4f6;
+        }
+        .mode-btn {
+            padding: 4px 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: rgba(255,255,255,0.7);
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+
+        /* ===== CARDS & MISC ===== */
         .card {
             transition: transform 0.2s, box-shadow 0.2s;
         }
-
         .card:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         }
-
         .stat-card {
             background: white;
             border-radius: 12px;
             padding: 1.5rem;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
         }
-
         .progress-bar {
             height: 8px;
             border-radius: 4px;
             background: #e5e7eb;
             overflow: hidden;
         }
-
         .progress-fill {
             height: 100%;
             background: linear-gradient(90deg, #10b981, #059669);
             transition: width 0.5s ease;
         }
-
         input[type="number"]:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .nav-item {
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-
-        .nav-item:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateX(5px);
-        }
-
-        .nav-item.active {
-            background: rgba(255, 255, 255, 0.2);
-            border-left: 4px solid white;
         }
         .oa-period-btn {
             color: #9ca3af;
@@ -198,155 +226,127 @@
          APPLICATION PRINCIPALE
          =========================== -->
     <div id="app-container" class="">
-    <div class="flex">
-        <!-- Menu Latéral -->
-        <aside class="sidebar w-64 p-6 text-white shadow-2xl">
-            <!-- Info utilisateur connecte -->
-            <div id="user-info" class="mb-4 p-3 bg-white/10 rounded-lg hidden">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                        <span id="online-status"><i class="fas fa-wifi text-green-400"></i></span>
-                        <span class="text-xs truncate" id="user-email">user@email.com</span>
-                    </div>
-                    <button onclick="handleLogout()" class="text-white/70 hover:text-white" title="Deconnexion">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
-                </div>
-            </div>
+    <div class="flex flex-col min-h-screen">
 
-            <div class="mb-4">
-                <h1 class="text-2xl font-bold flex items-center gap-2">
-                    <i class="fas fa-chart-line"></i>
-                    FBA Dashboard
-                </h1>
-                <p class="text-sm text-purple-200 mt-1">Pilotage Business</p>
-            </div>
+        <!-- ===== HEADER NAV ===== -->
+        <header id="app-header" class="text-white shadow-lg">
+            <div class="flex items-center h-14 px-5 gap-4">
 
-            <!-- Selecteur de mode -->
-            <div class="mb-6">
-                <select id="mode-selector" onchange="switchMode(this.value)"
-                    class="w-full px-3 py-2 rounded-lg bg-white/20 text-white border border-white/30 text-sm font-semibold cursor-pointer focus:outline-none focus:ring-2 focus:ring-white/50">
-                    <option value="pl" class="text-gray-800">Private Label</option>
-                    <option value="oa" class="text-gray-800">Online Arbitrage</option>
-                </select>
-            </div>
-
-            <nav class="space-y-1">
-                <!-- ====== NAV PRIVATE LABEL ====== -->
-                <div class="nav-pl">
-                    <div class="nav-item active p-3 rounded-lg" onclick="showSection('dashboard')">
-                        <i class="fas fa-home mr-3"></i>
-                        Tableau de bord
-                    </div>
-                    <div class="pt-3 pb-1 px-3">
-                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Suivi</span>
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('suivi-hebdo')">
-                        <i class="fas fa-calendar-week mr-3"></i>
-                        Hebdomadaire
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('graphiques')">
-                        <i class="fas fa-chart-line mr-3"></i>
-                        Graphiques
-                    </div>
-                    <div class="pt-3 pb-1 px-3">
-                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Produits</span>
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('produits')">
-                        <i class="fas fa-box mr-3"></i>
-                        Mes Produits
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('stock')">
-                        <i class="fas fa-warehouse mr-3"></i>
-                        Stock
-                        <span id="stock-alert-badge" class="hidden ml-2 px-2 py-0.5 bg-red-500 text-white text-xs rounded-full">!</span>
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('sourcing')">
-                        <i class="fas fa-search-dollar mr-3"></i>
-                        Sourcing
-                    </div>
-                    <div class="pt-3 pb-1 px-3">
-                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Finances</span>
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('fiscalite')">
-                        <i class="fas fa-file-invoice-dollar mr-3"></i>
-                        Fiscalite
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('commissions')">
-                        <i class="fas fa-percent mr-3"></i>
-                        Commissions
-                    </div>
-                    <div class="pt-3 pb-1 px-3">
-                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Config</span>
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('parametres')">
-                        <i class="fas fa-cog mr-3"></i>
-                        Parametres
-                    </div>
+                <!-- Logo -->
+                <div class="flex items-center gap-2 font-bold text-base shrink-0 mr-2">
+                    <i class="fas fa-chart-line text-purple-200"></i>
+                    <span class="hidden sm:inline">FBA Dashboard</span>
                 </div>
 
                 <!-- ====== NAV ONLINE ARBITRAGE ====== -->
-                <div class="nav-oa hidden">
-                    <div class="pt-1 pb-1 px-3">
-                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Agents</span>
+                <nav class="nav-oa hidden flex items-center gap-0.5 flex-1 overflow-x-auto">
+                    <button class="nav-btn" data-section="oa-catalogue" onclick="showSection('oa-catalogue')">
+                        <i class="fas fa-store mr-1"></i>Catalogue
+                    </button>
+                    <button class="nav-btn" data-section="oa-deals" onclick="showSection('oa-deals')">
+                        <i class="fas fa-bolt mr-1"></i>Deals
+                    </button>
+                    <button class="nav-btn" data-section="oa-checklist" onclick="showSection('oa-checklist')">
+                        <i class="fas fa-clipboard-check mr-1"></i>Checklist
+                    </button>
+                    <button class="nav-btn" data-section="oa-inventaire" onclick="showSection('oa-inventaire')">
+                        <i class="fas fa-boxes-stacked mr-1"></i>Inventaire
+                    </button>
+                    <!-- Systeme dropdown -->
+                    <div class="relative" id="menu-systeme">
+                        <button class="nav-btn flex items-center gap-1" onclick="toggleDropdown('dropdown-systeme')">
+                            <i class="fas fa-cogs mr-1"></i>Systeme
+                            <i class="fas fa-chevron-down text-xs opacity-70"></i>
+                        </button>
+                        <div id="dropdown-systeme" class="hidden absolute top-full left-0 mt-1 bg-white text-gray-700 shadow-xl rounded-lg py-1 z-50">
+                            <button class="dropdown-item" data-section="oa-journal" onclick="showSection('oa-journal');closeDropdowns()">
+                                <i class="fas fa-robot mr-2 text-purple-500 w-4"></i>Agents &amp; Journal
+                            </button>
+                            <button class="dropdown-item" data-section="oa-flux" onclick="showSection('oa-flux');closeDropdowns()">
+                                <i class="fas fa-stream mr-2 text-blue-500 w-4"></i>Flux
+                            </button>
+                            <button class="dropdown-item" data-section="oa-retailers" onclick="showSection('oa-retailers');closeDropdowns()">
+                                <i class="fas fa-shop mr-2 text-green-500 w-4"></i>Retailers
+                            </button>
+                            <hr class="my-1 border-gray-100">
+                            <button class="dropdown-item" data-section="oa-parametres" onclick="showSection('oa-parametres');closeDropdowns()">
+                                <i class="fas fa-sliders mr-2 text-gray-400 w-4"></i>Parametres
+                            </button>
+                        </div>
                     </div>
-                    <div class="nav-item active p-3 rounded-lg" onclick="showSection('oa-catalogue')">
-                        <i class="fas fa-store mr-3"></i>
-                        <span>Catalogue</span>
-                        <span class="block text-xs text-purple-300 ml-6">(Agent Catalog)</span>
+                </nav>
+
+                <!-- ====== NAV PRIVATE LABEL ====== -->
+                <nav class="nav-pl flex items-center gap-0.5 flex-1 overflow-x-auto">
+                    <button class="nav-btn" data-section="dashboard" onclick="showSection('dashboard')">
+                        <i class="fas fa-home mr-1"></i>Accueil
+                    </button>
+                    <button class="nav-btn" data-section="suivi-hebdo" onclick="showSection('suivi-hebdo')">
+                        <i class="fas fa-calendar-week mr-1"></i>Hebdomadaire
+                    </button>
+                    <button class="nav-btn" data-section="graphiques" onclick="showSection('graphiques')">
+                        <i class="fas fa-chart-line mr-1"></i>Graphiques
+                    </button>
+                    <!-- Produits dropdown -->
+                    <div class="relative" id="menu-produits">
+                        <button class="nav-btn flex items-center gap-1" onclick="toggleDropdown('dropdown-produits')">
+                            <i class="fas fa-box mr-1"></i>Produits
+                            <i class="fas fa-chevron-down text-xs opacity-70"></i>
+                        </button>
+                        <div id="dropdown-produits" class="hidden absolute top-full left-0 mt-1 bg-white text-gray-700 shadow-xl rounded-lg py-1 z-50">
+                            <button class="dropdown-item" data-section="produits" onclick="showSection('produits');closeDropdowns()">
+                                <i class="fas fa-box mr-2 text-indigo-500 w-4"></i>Mes Produits
+                            </button>
+                            <button class="dropdown-item" data-section="stock" onclick="showSection('stock');closeDropdowns()">
+                                <i class="fas fa-warehouse mr-2 text-amber-500 w-4"></i>Stock
+                                <span id="stock-alert-badge" class="hidden ml-1 px-1.5 py-0.5 bg-red-500 text-white text-xs rounded-full">!</span>
+                            </button>
+                            <button class="dropdown-item" data-section="sourcing" onclick="showSection('sourcing');closeDropdowns()">
+                                <i class="fas fa-search-dollar mr-2 text-green-500 w-4"></i>Sourcing
+                            </button>
+                        </div>
                     </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-deals')">
-                        <i class="fas fa-bolt mr-3"></i>
-                        <span>Deals</span>
-                        <span class="block text-xs text-purple-300 ml-6">(Agent Deal FR)</span>
+                    <!-- Finances dropdown -->
+                    <div class="relative" id="menu-finances">
+                        <button class="nav-btn flex items-center gap-1" onclick="toggleDropdown('dropdown-finances')">
+                            <i class="fas fa-euro-sign mr-1"></i>Finances
+                            <i class="fas fa-chevron-down text-xs opacity-70"></i>
+                        </button>
+                        <div id="dropdown-finances" class="hidden absolute top-full left-0 mt-1 bg-white text-gray-700 shadow-xl rounded-lg py-1 z-50">
+                            <button class="dropdown-item" data-section="fiscalite" onclick="showSection('fiscalite');closeDropdowns()">
+                                <i class="fas fa-file-invoice-dollar mr-2 text-red-500 w-4"></i>Fiscalite
+                            </button>
+                            <button class="dropdown-item" data-section="commissions" onclick="showSection('commissions');closeDropdowns()">
+                                <i class="fas fa-percent mr-2 text-orange-500 w-4"></i>Commissions
+                            </button>
+                        </div>
                     </div>
-                    <div class="pt-3 pb-1 px-3">
-                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Workflow</span>
+                    <button class="nav-btn" data-section="parametres" onclick="showSection('parametres')">
+                        <i class="fas fa-cog mr-1"></i>Parametres
+                    </button>
+                </nav>
+
+                <!-- Right: mode switcher + user -->
+                <div class="flex items-center gap-2 ml-auto shrink-0">
+                    <!-- Mode switcher -->
+                    <div class="flex rounded-lg border border-white/30 overflow-hidden">
+                        <button id="mode-btn-oa" onclick="switchMode('oa')" class="mode-btn">OA</button>
+                        <button id="mode-btn-pl" onclick="switchMode('pl')" class="mode-btn">PL</button>
                     </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-checklist')">
-                        <i class="fas fa-clipboard-check mr-3"></i>
-                        Checklist
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-inventaire')">
-                        <i class="fas fa-boxes-stacked mr-3"></i>
-                        Inventaire
-                    </div>
-                    <div class="pt-3 pb-1 px-3">
-                        <span class="text-xs text-purple-300 uppercase tracking-wider font-semibold">Config</span>
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-retailers')">
-                        <i class="fas fa-shop mr-3"></i>
-                        Retailers
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-journal')">
-                        <i class="fas fa-list-check mr-3"></i>
-                        Journal
-                    </div>
-                    <div class="nav-item p-3 rounded-lg" onclick="showSection('oa-parametres')">
-                        <i class="fas fa-sliders mr-3"></i>
-                        Parametres OA
+                    <!-- User info -->
+                    <div id="user-info" class="hidden items-center gap-1 text-white/80">
+                        <span id="online-status"><i class="fas fa-wifi text-green-400 text-xs"></i></span>
+                        <span class="text-xs truncate max-w-28 hidden md:inline" id="user-email">user@email.com</span>
+                        <button onclick="handleLogout()" class="text-white/60 hover:text-white ml-1" title="Deconnexion">
+                            <i class="fas fa-sign-out-alt text-sm"></i>
+                        </button>
                     </div>
                 </div>
-            </nav>
-
-            <!-- Sidebar footer - PL -->
-            <div id="sidebar-footer-pl" class="mt-12 p-4 bg-white/10 rounded-lg">
-                <div class="text-xs text-purple-200 mb-1">Capital de Depart</div>
-                <div class="text-2xl font-bold" id="sidebar-capital">3 000 &euro;</div>
-                <div class="text-xs text-purple-200 mt-2">Gain Total</div>
-                <div class="text-xl font-bold text-green-300" id="sidebar-gain">0 &euro;</div>
             </div>
-            <!-- Sidebar footer - OA -->
-            <div id="sidebar-footer-oa" class="mt-12 p-4 bg-white/10 rounded-lg hidden">
-                <div class="text-xs text-purple-200 mb-1">Capital OA</div>
-                <div class="text-2xl font-bold" id="sidebar-oa-capital">755 &euro;</div>
-                <div class="text-xs text-purple-200 mt-2">Profit OA</div>
-                <div class="text-xl font-bold text-green-300" id="sidebar-oa-profit">0 &euro;</div>
-            </div>
-        </aside>
+        </header>
 
         <!-- Contenu Principal -->
-        <main class="flex-1 p-8">
+        <main class="flex-1 p-6 md:p-8">
 
             <!-- Section Dashboard -->
             <section id="section-dashboard" class="content-section">
@@ -3347,6 +3347,73 @@
                         <button onclick="loadJournal()" class="text-xs text-blue-500 hover:underline"><i class="fas fa-sync-alt mr-1"></i>Actualiser</button>
                     </div>
                     <div id="journal-log" class="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+                        <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ===== FLUX — monitoring pipeline ===== -->
+            <section id="section-oa-flux" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-stream text-blue-600 mr-2"></i>Flux
+                    </h2>
+                    <p class="text-gray-500">Etat du pipeline de donnees : scraping → EAN → enrichissement Keepa</p>
+                </div>
+
+                <!-- Stats pipeline -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-orange-400">
+                        <div class="text-3xl font-bold text-orange-500" id="flux-raw-count">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Produits bruts</div>
+                        <div class="text-xs text-gray-400 mt-1">Scrapes depuis les retailers</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-blue-400">
+                        <div class="text-3xl font-bold text-blue-500" id="flux-ean-count">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Avec EAN</div>
+                        <div class="text-xs text-gray-400 mt-1">Prets pour enrichissement Keepa</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-green-400">
+                        <div class="text-3xl font-bold text-green-500" id="flux-enriched-count">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Enrichis</div>
+                        <div class="text-xs text-gray-400 mt-1">Avec donnees Amazon (Keepa)</div>
+                    </div>
+                </div>
+
+                <!-- Dernier run de chaque agent -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Catalog</span>
+                            <span id="flux-catalog-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="flux-catalog-last">Dernier run : —</div>
+                        <div class="text-xs text-gray-500 mt-1" id="flux-catalog-retailer">Retailer : —</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-gem mr-2 text-blue-500"></i>Agent Enricher</span>
+                            <span id="flux-enricher-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="flux-enricher-last">Dernier run : —</div>
+                        <div class="text-xs text-gray-500 mt-1" id="flux-enricher-queue">File Keepa : —</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-brain mr-2 text-purple-500"></i>Team Leader</span>
+                            <span id="flux-leader-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="flux-leader-last">Dernier run : —</div>
+                    </div>
+                </div>
+
+                <!-- Log recent -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                        <h3 class="font-bold text-gray-700"><i class="fas fa-list text-blue-400 mr-2"></i>Log recent</h3>
+                        <button onclick="loadFlux()" class="text-xs text-blue-500 hover:underline"><i class="fas fa-sync-alt mr-1"></i>Actualiser</button>
+                    </div>
+                    <div id="flux-log" class="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                         <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
                     </div>
                 </div>

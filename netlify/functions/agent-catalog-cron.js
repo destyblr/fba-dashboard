@@ -194,182 +194,86 @@ async function scrapeProductPage(url) {
     } catch { return null; }
 }
 
-// ─── Keepa lookup par EAN ─────────────────────────────────────────────────
-async function keepaEANLookup(ean, keepaKey, cacheStore) {
-    const cacheKey = 'ean_' + ean;
-    try {
-        const cached = await cacheStore.get(cacheKey, { type: 'json' });
-        if (cached && (Date.now() - cached.ts) < 86400000) return cached.data;
-    } catch {}
-
-    try {
-        const url = `https://api.keepa.com/product?key=${keepaKey}&domain=3&ean=${ean}&stats=1&history=0`;
-        const resp = await fetch(url, { timeout: 10000 });
-        const data = await resp.json();
-        const p = (data.products || [])[0];
-        if (!p) return null;
-
-        const current  = (p.stats || {}).current || [];
-        const newPrice = current[1] ?? -1;
-        const bsr      = current[3] ?? -1;
-        const result   = {
-            asin:     p.asin || '',
-            title:    p.title || '',
-            brand:    p.brand || '',
-            category: p.categoryTree?.slice(-1)[0]?.name || '',
-            price:    newPrice > 0 ? +(newPrice / 100).toFixed(2) : null,
-            bsr:      bsr > 0 ? bsr : null,
-            sellers:  p.stats?.buyBoxSellerId ? 1 : 0,
-            link:     `https://www.amazon.de/dp/${p.asin}`
-        };
-        await cacheStore.setJSON(cacheKey, { ts: Date.now(), data: result });
-        return result;
-    } catch { return null; }
-}
-
-// ─── Calcul profit FBA ────────────────────────────────────────────────────
-function calcProfit(buyPrice, sellPrice, category) {
-    if (!buyPrice || !sellPrice || sellPrice <= 0) return null;
-    const commissionRate = (category || '').toLowerCase().includes('electronics') ? 0.08 : 0.15;
-    const commission     = sellPrice * commissionRate;
-    const fbaFees        = sellPrice < 10 ? 2.50 : sellPrice < 30 ? 3.50 : 4.80;
-    const inbound        = 0.30;
-    const prep           = 0.50;
-    const totalCosts     = buyPrice + commission + fbaFees + inbound + prep;
-    const grossProfit    = sellPrice - totalCosts;
-    const netProfit      = grossProfit > 0 ? grossProfit * 0.878 : grossProfit; // URSSAF 12.2% micro BIC
-    const roi            = buyPrice > 0 ? (netProfit / buyPrice) * 100 : 0;
-    return { netProfit: +netProfit.toFixed(2), roi: +roi.toFixed(1) };
-}
-
 // ─── Handler principal ────────────────────────────────────────────────────
 exports.handler = async () => {
-    const KEEPA_KEY = process.env.KEEPA_API_KEY;
-    if (!KEEPA_KEY) { console.error('[Catalog] KEEPA_API_KEY manquant'); return { statusCode: 500 }; }
-
     const catalogStore  = getStore('oa-catalog');
-    const cacheStore    = getStore('oa-keepa-cache');
     const activityStore = getStore('oa-activity');
 
-    // ── 1. Charger la liste des retailers ──────────────────────────────────
+    // ── 1. Charger la liste des retailers + rotation (1 retailer par run) ──
     const retailers = await readBlob(catalogStore, 'retailers', DEFAULT_RETAILERS);
-    const today     = new Date().getDay(); // 0=dim, 1=lun, ...
+    const today     = new Date().getDay();
 
-    const activeToday = retailers.filter(r => r.active && (r.days || [0,1,2,3,4,5,6]).includes(today));
+    const activeToday = retailers.filter(r => r.active !== false && (r.days || [0,1,2,3,4,5,6]).includes(today));
     if (!activeToday.length) {
         console.log('[Catalog] Aucun retailer actif aujourd\'hui');
         return { statusCode: 200 };
     }
-    console.log(`[Catalog] ${activeToday.length} retailer(s) actif(s) aujourd'hui`);
 
-    // ── 2. Charger le catalogue existant + historique ───────────────────────
-    const existingCatalog = await readBlob(catalogStore, 'products', []);
-    const seenEANs        = new Set(existingCatalog.map(p => p.ean).filter(Boolean));
+    // Rotation : 1 retailer par run via curseur persisté
+    const cursor  = (await readBlob(catalogStore, 'catalog-cursor', 0)) % activeToday.length;
+    const retailerToProcess = activeToday[cursor];
+    await writeBlob(catalogStore, 'catalog-cursor', cursor + 1);
+    console.log(`[Catalog] Run ${cursor + 1}/${activeToday.length} → ${retailerToProcess.name}`);
 
-    const allNewProducts  = [];
-    const profitableItems = [];
-    let totalScraped = 0, totalMatched = 0;
+    // ── 2. Charger les produits bruts existants ────────────────────────────
+    const rawProducts = await readBlob(catalogStore, 'raw-products', []);
+    const seenEANs    = new Set(rawProducts.map(p => p.ean).filter(Boolean));
 
-    // ── 3. Scraper chaque retailer ─────────────────────────────────────────
-    for (const retailer of activeToday) {
-        console.log(`[Catalog] Scraping ${retailer.name}...`);
-        const maxP = retailer.maxProducts || 200;
+    const newProducts = [];
+    let totalScraped = 0, totalWithEan = 0;
 
-        // Fetch URLs depuis sitemap
-        const urls = await fetchSitemapUrls(retailer.url, maxP);
-        if (!urls.length) {
-            console.warn(`[Catalog] ${retailer.name}: pas d'URLs dans le sitemap`);
-            continue;
-        }
-        console.log(`[Catalog] ${retailer.name}: ${urls.length} URLs`);
+    // ── 3. Scraper le retailer du run ─────────────────────────────────────
+    console.log(`[Catalog] Scraping ${retailerToProcess.name}...`);
+    const maxP = retailerToProcess.maxProducts || 200;
 
-        // Scraper les pages en batch (max 20 par retailer pour limiter les tokens)
-        const batch = urls.slice(0, 20);
+    const urls = await fetchSitemapUrls(retailerToProcess.url, maxP);
+    if (!urls.length) {
+        console.warn(`[Catalog] ${retailerToProcess.name}: pas d'URLs dans le sitemap`);
+    } else {
+        console.log(`[Catalog] ${retailerToProcess.name}: ${urls.length} URLs`);
+
+        // Scraper les pages en batch (max 15 via ScraperAPI pour tenir dans les 60s)
+        const batch = urls.slice(0, 15);
         for (const url of batch) {
             const jsonlds = await scrapeProductPage(url);
             if (!jsonlds) continue;
 
             for (const jld of jsonlds) {
-                const product = parseProduct(jld, retailer.name, retailer.url);
+                const product = parseProduct(jld, retailerToProcess.name, retailerToProcess.url);
                 if (!product) continue;
                 totalScraped++;
 
-                // Skip si déjà dans le catalogue
+                // Déduplications par EAN
                 if (product.ean && seenEANs.has(product.ean)) continue;
-                if (product.ean) seenEANs.add(product.ean);
-
-                // Keepa lookup si EAN disponible
                 if (product.ean) {
-                    const keepaData = await keepaEANLookup(product.ean, KEEPA_KEY, cacheStore);
-                    if (keepaData && keepaData.price) {
-                        const profit = calcProfit(product.price, keepaData.price, keepaData.category);
-                        if (profit) {
-                            totalMatched++;
-                            const entry = {
-                                ...product,
-                                asin:       keepaData.asin,
-                                amazonTitle:keepaData.title,
-                                amazonPrice:keepaData.price,
-                                bsr:        keepaData.bsr,
-                                netProfit:  profit.netProfit,
-                                roi:        profit.roi,
-                                spApi:      'pending', // SP-API Production en attente
-                                ts:         Date.now()
-                            };
-                            allNewProducts.push(entry);
-                            if (profit.netProfit >= 5 && profit.roi >= 30) {
-                                profitableItems.push(entry);
-                            }
-                        }
-                    } else {
-                        // Pas de prix Keepa → stocker sans profit
-                        allNewProducts.push({ ...product, ts: Date.now() });
-                    }
-                } else {
-                    // Pas d'EAN → stocker sans match Amazon
-                    allNewProducts.push({ ...product, ts: Date.now() });
+                    seenEANs.add(product.ean);
+                    totalWithEan++;
                 }
+
+                newProducts.push({ ...product, scrapedAt: Date.now() });
             }
         }
     }
 
-    // ── 4. Sauvegarder le catalogue mis à jour ─────────────────────────────
-    const updatedCatalog = [...allNewProducts, ...existingCatalog].slice(0, 2000);
-    await writeBlob(catalogStore, 'products', updatedCatalog);
-    await writeBlob(catalogStore, 'last-run', { ts: Date.now(), scraped: totalScraped, matched: totalMatched, profitable: profitableItems.length });
+    // ── 4. Sauvegarder les produits bruts ─────────────────────────────────
+    const updatedRaw = [...newProducts, ...rawProducts].slice(0, 5000);
+    await writeBlob(catalogStore, 'raw-products', updatedRaw);
+    await writeBlob(catalogStore, 'catalog-last-run', {
+        ts: Date.now(), retailer: retailerToProcess.name,
+        scraped: totalScraped, withEan: totalWithEan
+    });
 
-    // ── 5. Telegram pour deals rentables ──────────────────────────────────
-    for (const item of profitableItems.slice(0, 5)) {
-        const msg = `🏪 <b>Agent Catalog — Produit rentable</b>\n\n` +
-            `📦 <b>${(item.title || '').slice(0, 60)}</b>\n` +
-            `🏷️ Retailer : ${item.retailer}\n` +
-            `💰 ${item.price}€ → Amazon.de : ${item.amazonPrice}€\n` +
-            `📈 Profit net : <b>${item.netProfit}€</b> | ROI : <b>${item.roi}%</b>\n` +
-            (item.bsr ? `📊 BSR : ${Number(item.bsr).toLocaleString('fr')}\n` : '') +
-            `🔗 <a href="${item.link}">Voir chez ${item.retailer}</a>` +
-            (item.asin ? ` | <a href="https://www.amazon.de/dp/${item.asin}">Amazon.de</a>` : '');
-        await sendTelegram(msg);
-    }
-
-    // ── 6. Journal d'activité ──────────────────────────────────────────────
+    // ── 5. Journal d'activité ──────────────────────────────────────────────
     const activity = await readBlob(activityStore, 'log', []);
     activity.unshift({
         ts:      Date.now(),
         agent:   'catalog',
-        summary: `${totalScraped} produits scrapés · ${totalMatched} matchés Amazon · ${profitableItems.length} rentables`,
-        stats:   { scraped: totalScraped, matched: totalMatched, profitable: profitableItems.length, eligible: 0, pending: totalMatched }
+        retailer: retailerToProcess.name,
+        summary: `${totalScraped} produits scrapés · ${totalWithEan} avec EAN`,
+        stats:   { scraped: totalScraped, withEan: totalWithEan }
     });
     await writeBlob(activityStore, 'log', activity.slice(0, 100));
 
-    // ── 7. Résumé Telegram ────────────────────────────────────────────────
-    if (!profitableItems.length) {
-        await sendTelegram(
-            `🏪 <b>Agent Catalog</b> — ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}\n` +
-            `📊 ${totalScraped} scrapés · ${totalMatched} matchés · 0 rentable\n` +
-            `🏪 ${activeToday.length} retailer(s) scannés`
-        );
-    }
-
-    console.log(`[Catalog] Terminé — ${totalScraped} scrapés, ${totalMatched} matchés, ${profitableItems.length} rentables`);
+    console.log(`[Catalog] Terminé — ${totalScraped} scrapés, ${totalWithEan} avec EAN`);
     return { statusCode: 200 };
 };

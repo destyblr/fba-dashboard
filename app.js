@@ -623,21 +623,20 @@ function showSection(sectionName) {
     const sections = document.querySelectorAll('.content-section');
     sections.forEach(section => section.classList.add('hidden'));
 
-    // Afficher la section demandée
+    // Afficher la section demandee
     const targetSection = document.getElementById(`section-${sectionName}`);
     if (targetSection) {
         targetSection.classList.remove('hidden');
     }
 
-    // Mettre à jour la navigation active
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => item.classList.remove('active'));
-    if (event && event.target) {
-        const navItem = event.target.closest('.nav-item');
-        if (navItem) navItem.classList.add('active');
-    }
+    // Mettre a jour la navigation active (header buttons)
+    document.querySelectorAll('.nav-btn[data-section], .dropdown-item[data-section]').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    const activeBtn = document.querySelector(`[data-section="${sectionName}"]`);
+    if (activeBtn) activeBtn.classList.add('active');
 
-    // Si on affiche les graphiques, les rafraîchir
+    // Si on affiche les graphiques, les rafraichir
     if (sectionName === 'graphiques') {
         updateCharts();
     }
@@ -668,7 +667,33 @@ function showSection(sectionName) {
     if (sectionName === 'oa-journal' && typeof loadJournal === 'function') {
         loadJournal();
     }
+    if (sectionName === 'oa-flux' && typeof loadFlux === 'function') {
+        loadFlux();
+    }
 }
+
+// ===========================
+// DROPDOWN HELPERS
+// ===========================
+
+function toggleDropdown(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const isOpen = !el.classList.contains('hidden');
+    closeDropdowns();
+    if (!isOpen) el.classList.remove('hidden');
+}
+
+function closeDropdowns() {
+    document.querySelectorAll('[id^="dropdown-"]').forEach(d => d.classList.add('hidden'));
+}
+
+// Fermer dropdowns si clic en dehors
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('[id^="menu-"]')) {
+        closeDropdowns();
+    }
+});
 
 // ===========================
 // SWITCH MODE PL / OA
@@ -677,16 +702,15 @@ function showSection(sectionName) {
 function switchMode(mode) {
     const navPL = document.querySelector('.nav-pl');
     const navOA = document.querySelector('.nav-oa');
-    const footerPL = document.getElementById('sidebar-footer-pl');
-    const footerOA = document.getElementById('sidebar-footer-oa');
 
     // Masquer toutes les sections
     const sections = document.querySelectorAll('.content-section');
     sections.forEach(section => section.classList.add('hidden'));
 
     // Reset nav active states
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => item.classList.remove('active'));
+    document.querySelectorAll('.nav-btn[data-section], .dropdown-item[data-section]').forEach(btn => {
+        btn.classList.remove('active');
+    });
 
     const oaDashboard = document.getElementById('oa-dashboard-recap');
 
@@ -694,18 +718,16 @@ function switchMode(mode) {
         // Mode Online Arbitrage
         navPL.classList.add('hidden');
         navOA.classList.remove('hidden');
-        footerPL.classList.add('hidden');
-        footerOA.classList.remove('hidden');
         if (oaDashboard) oaDashboard.classList.remove('hidden');
 
         // Afficher la premiere section OA (Catalogue)
-        const oaScanner = document.getElementById('section-oa-catalogue');
-        if (oaScanner) oaScanner.classList.remove('hidden');
+        const oaSection = document.getElementById('section-oa-catalogue');
+        if (oaSection) oaSection.classList.remove('hidden');
         if (typeof loadCatalog === 'function') loadCatalog();
 
-        // Activer le premier nav item OA
-        const firstOANav = navOA.querySelector('.nav-item');
-        if (firstOANav) firstOANav.classList.add('active');
+        // Activer le bouton nav OA
+        const firstOABtn = navOA.querySelector('.nav-btn[data-section]');
+        if (firstOABtn) firstOABtn.classList.add('active');
 
         // Initialiser les parametres OA
         if (typeof initOASettings === 'function') initOASettings();
@@ -715,25 +737,23 @@ function switchMode(mode) {
         // Mode Private Label
         navPL.classList.remove('hidden');
         navOA.classList.add('hidden');
-        footerPL.classList.remove('hidden');
-        footerOA.classList.add('hidden');
         if (oaDashboard) oaDashboard.classList.add('hidden');
 
         // Afficher le dashboard PL
         const dashboard = document.getElementById('section-dashboard');
         if (dashboard) dashboard.classList.remove('hidden');
 
-        // Activer le premier nav item PL
-        const firstPLNav = navPL.querySelector('.nav-item');
-        if (firstPLNav) firstPLNav.classList.add('active');
+        // Activer le bouton nav PL
+        const firstPLBtn = navPL.querySelector('.nav-btn[data-section]');
+        if (firstPLBtn) firstPLBtn.classList.add('active');
     }
+
+    // Mettre a jour les boutons mode
+    document.getElementById('mode-btn-oa').classList.toggle('active', mode === 'oa');
+    document.getElementById('mode-btn-pl').classList.toggle('active', mode === 'pl');
 
     // Sauvegarder le mode
     localStorage.setItem('oaMode', mode);
-
-    // Mettre a jour le selecteur
-    const selector = document.getElementById('mode-selector');
-    if (selector) selector.value = mode;
 
     console.log('[Mode] Switched to:', mode);
 }
