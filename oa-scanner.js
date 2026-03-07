@@ -6135,14 +6135,14 @@ function renderJournal(events) {
         logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activité enregistrée.</div>';
         return;
     }
-    var agentIcons = { catalog: '🏪', sourcing: '⚡', leader: '🧠', decision: '💰', inventory: '📦' };
-    var agentIdMap = { catalog: 'catalog', sourcing: 'deals', leader: 'leader', inventory: 'inventory' };
+    var agentIcons = { catalog: '🏪', enricher: '💎', sourcing: '⚡', leader: '🧠', decision: '💰', inventory: '📦' };
+    var agentIdMap = { catalog: 'catalog', enricher: 'enricher', sourcing: 'deals', leader: 'leader', inventory: 'inventory' };
     var statusColors = {
         recent: 'bg-green-100 text-green-700',
         active: 'bg-blue-100 text-blue-700',
         old:    'bg-gray-100 text-gray-500'
     };
-    ['catalog', 'sourcing', 'leader', 'inventory'].forEach(function(agent) {
+    ['catalog', 'enricher', 'sourcing', 'leader', 'inventory'].forEach(function(agent) {
         var last = events.find(function(e) { return e.agent === agent; });
         var mapId = agentIdMap[agent] || agent;
         var lastEl   = document.getElementById('journal-last-'   + mapId);
@@ -6206,6 +6206,13 @@ function renderJournalStats(stats, agent) {
             '<span class="text-green-600">✅ ' + (stats.eligible || 0) + ' éligibles</span>' +
             '<span class="text-orange-500">⏳ ' + (stats.pending || 0) + ' en attente</span>' +
             '<span class="text-red-500">❌ ' + (stats.gated || 0) + ' gated</span>' +
+            '</div>';
+    }
+    if (agent === 'enricher') {
+        return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
+            '<span class="text-sky-600">🔍 ' + (stats.looked || 0) + ' lookups Keepa</span>' +
+            '<span class="text-green-600">✅ ' + (stats.enriched || 0) + ' enrichis</span>' +
+            (stats.tokensUsed ? '<span class="text-gray-400">🪙 ' + stats.tokensUsed + ' tokens utilisés</span>' : '') +
             '</div>';
     }
     if (agent === 'sourcing') {
@@ -6879,7 +6886,29 @@ function renderRetailersList(retailers, lastScanMap) {
                 (r.active !== false ? 'Désactiver' : 'Réactiver') +
             '</button>' +
         '</div>';
-    }).join('');
+    }).join('') +
+    '<div class="border-t border-gray-100 p-4">' +
+        '<p class="text-xs text-gray-400 mb-2"><i class="fas fa-plus-circle mr-1 text-purple-400"></i>Demander au Team Leader d\'ajouter un fournisseur :</p>' +
+        '<div class="flex gap-2">' +
+            '<input id="retailer-request-input" type="text" placeholder="Ex: Leclerc, Darty, nom du site…" class="flex-1 text-xs border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:border-purple-300">' +
+            '<button onclick="requestRetailerAdd()" class="px-3 py-1.5 bg-purple-500 text-white text-xs rounded-lg hover:bg-purple-600 flex items-center gap-1">' +
+                '<i class="fas fa-paper-plane text-xs"></i>Envoyer' +
+            '</button>' +
+        '</div>' +
+    '</div>';
+}
+
+function requestRetailerAdd() {
+    var input = document.getElementById('retailer-request-input');
+    if (!input || !input.value.trim()) return;
+    var name = input.value.trim();
+    fetch('/.netlify/functions/activity-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent: 'leader', type: 'request', summary: 'Demande d\'ajout fournisseur : ' + name, ts: Date.now() })
+    }).catch(function() {});
+    input.value = '';
+    showOANotification('Demande envoyée au Team Leader · ' + name, 'success');
 }
 
 // ============================================================
