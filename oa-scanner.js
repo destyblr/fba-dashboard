@@ -6164,10 +6164,10 @@ var catalogSortKey     = 'profit';
 function loadCatalog() {
     var retailer  = (document.getElementById('catalog-retailer-filter') || {}).value || 'all';
     var category  = (document.getElementById('catalog-category-filter') || {}).value || 'all';
-    var minProfit = (document.getElementById('catalog-min-profit') || {}).value || '5';
-    var minRoi    = (document.getElementById('catalog-min-roi')    || {}).value || '30';
+    var minProfit = (document.getElementById('catalog-min-profit') || {}).value || '0';
+    var minRoi    = (document.getElementById('catalog-min-roi')    || {}).value || '0';
 
-    var url = '/.netlify/functions/catalog-read?retailer=' + retailer +
+    var url = '/.netlify/functions/catalog-read?mode=enriched&retailer=' + retailer +
         '&category=' + category +
         '&minProfit=' + minProfit +
         '&minRoi='    + minRoi +
@@ -6179,19 +6179,17 @@ function loadCatalog() {
             catalogData     = data.products || [];
             catalogFiltered = catalogData;
 
-            // Stats
+            // Stats pipeline
             var s = data.stats || {};
             var setEl = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
-            setEl('catalog-stat-products',  s.total || 0);
-            setEl('catalog-stat-matched',   s.matched || 0);
+            setEl('catalog-stat-products',  s.rawTotal || 0);
+            setEl('catalog-stat-matched',   s.withEan  || 0);
+            setEl('catalog-stat-eligible',  s.enrichedTotal || s.total || 0);
             setEl('catalog-stat-profitable',s.profitable || 0);
-            setEl('catalog-stat-eligible',  s.eligible || 0);
 
             // Last run
             if (data.lastRun) {
-                var ago = timeAgo(data.lastRun.ts);
-                setEl('catalog-last-run', ago);
-                setEl('catalog-next-run', '');
+                setEl('catalog-last-run', timeAgo(data.lastRun.ts) + (data.lastRun.retailer ? ' · ' + data.lastRun.retailer : ''));
             }
 
             // Retailer filter options
@@ -6220,7 +6218,7 @@ function filterCatalog() {
 function setCatalogFilter(mode) {
     catalogFilterMode  = mode;
     catalogCurrentPage = 0;
-    ['all', 'profitable', 'eligible'].forEach(function(m) {
+    ['all', 'profitable', 'amazon-absent'].forEach(function(m) {
         var btn = document.getElementById('catalog-filter-' + m);
         if (btn) {
             btn.className = m === mode
@@ -6242,21 +6240,21 @@ function catalogPage(dir) {
 }
 
 function updateCatalogFilters() {
-    var all        = catalogData.length;
-    var profitable = catalogData.filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; }).length;
-    var eligible   = catalogData.filter(function(p) { return p.spApi === 'eligible'; }).length;
+    var all          = catalogData.length;
+    var profitable   = catalogData.filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; }).length;
+    var amazonAbsent = catalogData.filter(function(p) { return p.asin && !p.amazonIsSeller; }).length;
     var setBtn = function(id, label, count) {
         var btn = document.getElementById(id);
         if (btn) btn.textContent = label + ' (' + count + ')';
     };
-    setBtn('catalog-filter-all',        'Tous',           all);
-    setBtn('catalog-filter-profitable', 'Rentables',      profitable);
-    setBtn('catalog-filter-eligible',   'Eligibles SP-API', eligible);
+    setBtn('catalog-filter-all',          'Tous',        all);
+    setBtn('catalog-filter-profitable',   'Rentables',   profitable);
+    setBtn('catalog-filter-amazon-absent','Sans Amazon',  amazonAbsent);
 }
 
 function renderCatalogEmpty(msg) {
     var tbody = document.getElementById('catalog-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
 }
 
 function renderCatalogTable() {
@@ -6268,48 +6266,62 @@ function renderCatalogTable() {
     // Filtre mode
     if (catalogFilterMode === 'profitable') {
         data = data.filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; });
-    } else if (catalogFilterMode === 'eligible') {
-        data = data.filter(function(p) { return p.spApi === 'eligible'; });
+    } else if (catalogFilterMode === 'amazon-absent') {
+        data = data.filter(function(p) { return p.asin && !p.amazonIsSeller; });
     }
 
     // Tri
     data = data.slice().sort(function(a, b) {
-        if (catalogSortKey === 'profit') return (b.netProfit || -99) - (a.netProfit || -99);
-        if (catalogSortKey === 'roi')    return (b.roi       || -99) - (a.roi       || -99);
+        if (catalogSortKey === 'profit') return (b.netProfit    || -99999) - (a.netProfit    || -99999);
+        if (catalogSortKey === 'roi')    return (b.roi          || -99999) - (a.roi          || -99999);
+        if (catalogSortKey === 'bsr')    return (a.bsr          || 9999999) - (b.bsr          || 9999999);
+        if (catalogSortKey === 'sales')  return (b.monthlySold  || -1)     - (a.monthlySold  || -1);
         return 0;
     });
 
     if (!data.length) {
-        renderCatalogEmpty('Aucun produit correspondant aux filtres');
+        renderCatalogEmpty('Aucun produit — les agents tournent toutes les heures, revenez bientôt');
         return;
     }
 
     tbody.innerHTML = data.map(function(p) {
-        var profitClass = p.netProfit >= 5 && p.roi >= 30 ? 'text-green-600 font-bold' : (p.netProfit > 0 ? 'text-gray-600' : 'text-red-500');
-        var spBadge = p.spApi === 'eligible'
-            ? '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full">OK</span>'
-            : '<span class="bg-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">En attente</span>';
+        var profitable  = p.netProfit >= 5 && p.roi >= 30;
+        var profitClass = profitable ? 'text-green-600 font-bold' : (p.netProfit > 0 ? 'text-gray-600' : 'text-red-500');
         var img = p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded mr-2 flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
 
-        return '<tr class="border-b border-gray-50 hover:bg-gray-50 transition' + (p.netProfit >= 5 && p.roi >= 30 ? ' bg-green-50/30' : '') + '">' +
+        // Badge Amazon présent ?
+        var amzBadge;
+        if (!p.asin) {
+            amzBadge = '<span class="text-gray-300 text-xs">—</span>';
+        } else if (p.amazonIsSeller) {
+            amzBadge = '<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-semibold">Oui ⚠</span>';
+        } else {
+            amzBadge = '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">Non ✓</span>';
+        }
+
+        return '<tr class="border-b border-gray-50 hover:bg-gray-50 transition' + (profitable ? ' bg-green-50/40' : '') + '">' +
             '<td class="p-3 max-w-xs">' +
                 '<div class="flex items-center gap-2">' + img +
-                '<div class="min-w-0"><div class="text-sm font-medium text-gray-800 truncate" title="' + (p.title || '') + '">' + (p.title || '').slice(0, 50) + '</div>' +
-                (p.ean ? '<div class="text-xs text-gray-400 font-mono">EAN: ' + p.ean + '</div>' : '') +
+                '<div class="min-w-0">' +
+                    '<div class="text-sm font-medium text-gray-800 truncate" title="' + (p.amazonTitle || p.title || '') + '">' + (p.amazonTitle || p.title || '').slice(0, 48) + '</div>' +
+                    (p.brand ? '<div class="text-xs text-gray-400">' + p.brand + '</div>' : '') +
+                    (p.ean ? '<div class="text-xs text-gray-300 font-mono">EAN ' + p.ean + '</div>' : '') +
                 '</div></div>' +
             '</td>' +
-            '<td class="p-3 text-sm text-gray-600">' + (p.retailer || '—') + '</td>' +
+            '<td class="p-3 text-sm text-gray-600 whitespace-nowrap">' + (p.retailer || '—') + '</td>' +
             '<td class="p-3 text-sm text-right font-semibold">' + (p.price ? p.price.toFixed(2) + '€' : '—') + '</td>' +
-            '<td class="p-3 text-sm text-right">' + (p.amazonPrice ? p.amazonPrice.toFixed(2) + '€' : '<span class="text-gray-400">—</span>') + '</td>' +
-            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.netProfit !== undefined ? p.netProfit.toFixed(2) + '€' : '<span class="text-gray-400">—</span>') + '</td>' +
-            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.roi !== undefined ? p.roi.toFixed(1) + '%' : '<span class="text-gray-400">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-right">' + (p.amazonPrice ? '<span class="font-semibold">' + p.amazonPrice.toFixed(2) + '€</span>' : '<span class="text-gray-300">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.netProfit != null ? p.netProfit.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.roi != null ? p.roi.toFixed(1) + '%' : '<span class="text-gray-300">—</span>') + '</td>' +
             '<td class="p-3 text-sm text-center text-gray-500">' + (p.bsr ? Number(p.bsr).toLocaleString('fr') : '—') + '</td>' +
-            '<td class="p-3 text-center">' + (p.asin ? spBadge : '<span class="text-gray-300 text-xs">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-center">' + (p.monthlySold != null ? '<span class="font-semibold text-blue-600">~' + p.monthlySold + '</span>' : '<span class="text-gray-300">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-center">' + (p.offerCountNew != null ? p.offerCountNew : '<span class="text-gray-300">—</span>') + '</td>' +
+            '<td class="p-3 text-center">' + amzBadge + '</td>' +
             '<td class="p-3 text-center">' +
                 '<div class="flex gap-1 justify-center">' +
                 (p.link ? '<a href="' + p.link + '" target="_blank" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">Voir</a>' : '') +
                 (p.asin ? '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs">AMZ</a>' : '') +
-                (p.netProfit >= 5 ? '<button onclick="catalogToChecklist(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')" class="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs">Checklist</button>' : '') +
+                (profitable ? '<button onclick="catalogToChecklist(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')" class="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs">Checklist</button>' : '') +
                 '</div>' +
             '</td>' +
         '</tr>';
