@@ -317,7 +317,7 @@ function saveOASettings() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ settings })
         }).catch(function() {});
-        showOANotification('Parametres sauvegardes !', 'success');
+        // Pas de toast pour les sauvegardes silencieuses (onchange auto)
 
         // Auto-refresh : recalculer les resultats si on a des donnees
         if (oaScanResults.length > 0) {
@@ -2596,6 +2596,7 @@ function showOANotification(message, type) {
     // Calculer le decalage vertical selon les toasts actifs
     const offset = oaActiveToasts.length * 56; // ~56px par toast (padding + margin)
     toast.className = 'fixed right-4 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300 transform translate-x-full';
+    toast.style.top    = 'auto';
     toast.style.bottom = (16 + offset) + 'px';
     toast.style.zIndex = '9999';
 
