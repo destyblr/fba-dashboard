@@ -311,6 +311,12 @@ function saveOASettings() {
     try {
         localStorage.setItem('oaSettings', JSON.stringify(settings));
         console.log('[OA] Parametres sauvegardes:', settings);
+        // Sync vers Netlify Blobs (persistance multi-navigateur)
+        fetch('/.netlify/functions/user-settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ settings })
+        }).catch(function() {});
         showOANotification('Parametres sauvegardes !', 'success');
 
         // Auto-refresh : recalculer les resultats si on a des donnees
@@ -2590,7 +2596,7 @@ function showOANotification(message, type) {
     // Calculer le decalage vertical selon les toasts actifs
     const offset = oaActiveToasts.length * 56; // ~56px par toast (padding + margin)
     toast.className = 'fixed right-4 z-50 px-4 py-3 rounded-lg shadow-lg text-white text-sm font-medium transition-all duration-300 transform translate-x-full';
-    toast.style.top = (16 + offset) + 'px';
+    toast.style.bottom = (16 + offset) + 'px';
 
     if (type === 'success') {
         toast.classList.add('bg-green-600');

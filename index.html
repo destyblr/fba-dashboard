@@ -3800,7 +3800,7 @@
                     <!-- API Keepa -->
                     <div class="bg-white rounded-xl shadow-sm p-6">
                         <h3 class="font-bold text-gray-800 mb-2"><i class="fas fa-key text-purple-500 mr-2"></i>API Keepa</h3>
-                        <p class="text-xs text-gray-400 mb-4">Necessaire pour le Deal Scanner. Permet de chercher automatiquement les prix Amazon par ASIN ou EAN.</p>
+                        <p class="text-xs text-gray-400 mb-4">Utilisee par l'Agent Enricher pour le lookup multi-marketplace (DE/FR/IT/ES). Cle stockee localement. Les agents serveur utilisent la variable Netlify <code class="bg-gray-100 px-1 rounded">KEEPA_API_KEY</code>.</p>
                         <div class="space-y-4">
                             <div>
                                 <label class="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
@@ -3816,118 +3816,62 @@
                         </div>
                     </div>
 
-                    <!-- Filtres Deal Scanner -->
-                    <div class="col-span-1 md:col-span-2 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-6">
-                        <h3 class="font-bold text-gray-800 mb-4"><i class="fas fa-tags text-orange-500 mr-2"></i>Filtres Deal Scanner</h3>
-                        <p class="text-xs text-gray-500 mb-4">Ces filtres s'appliquent automatiquement quand tu charges des deals. Les deals qui ne passent pas sont masques.</p>
+                    <!-- Telegram (info) -->
+                    <div class="col-span-1 md:col-span-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                        <h3 class="font-bold text-gray-800 mb-1"><i class="fab fa-telegram text-blue-500 mr-2"></i>Telegram — Notifications agents</h3>
+                        <p class="text-xs text-gray-500 mb-4">Les agents envoient automatiquement des alertes via Telegram. La configuration est stockee dans les variables d'environnement Netlify (securisee).</p>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Pre-filtres (avant Keepa) -->
-                            <div>
-                                <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-funnel-dollar text-amber-500 mr-1"></i>Pre-filtres (avant lookup)</h4>
-                                <div class="space-y-3">
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label class="text-xs font-medium text-gray-600 mb-1 block">Prix min (&euro;)</label>
-                                            <input type="number" id="oa-dealMinPrice" step="1" class="w-full px-3 py-2 border-2 border-orange-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
-                                        </div>
-                                        <div>
-                                            <label class="text-xs font-medium text-gray-600 mb-1 block">Prix max (&euro;)</label>
-                                            <input type="number" id="oa-dealMaxPrice" step="1" class="w-full px-3 py-2 border-2 border-orange-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Reduction min (%)</label>
-                                        <input type="number" id="oa-dealMinDiscount" step="5" class="w-full px-3 py-2 border-2 border-orange-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
-                                    </div>
-                                    <div>
-                                        <label class="flex items-center gap-1 text-xs font-medium text-gray-600 mb-1">
-                                            Blacklist mots-cles
-                                            <span class="text-gray-400 cursor-help" title="Mots-cles separes par des virgules. Les deals contenant ces mots seront automatiquement exclus."><i class="fas fa-info-circle"></i></span>
-                                        </label>
-                                        <textarea id="oa-dealBlacklist" rows="3" class="w-full px-3 py-2 border-2 border-orange-200 rounded-lg text-xs font-mono" onchange="saveOASettings()" placeholder="iPhone,Samsung,TV,..."></textarea>
-                                    </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-white rounded-lg p-4 border border-blue-100">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                                    <span class="text-sm font-medium text-gray-700">Bot configure</span>
                                 </div>
+                                <p class="text-xs text-gray-500 mb-1">Variable Netlify : <code class="bg-gray-100 px-1 rounded">TELEGRAM_BOT_TOKEN</code></p>
+                                <p class="text-xs text-gray-400">Token : <span class="font-mono">8568274908:AAH…</span></p>
                             </div>
-
-                            <!-- Post-filtres (apres Keepa) -->
-                            <div>
-                                <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-chart-line text-green-500 mr-1"></i>Post-filtres (apres lookup Keepa)</h4>
-                                <div class="space-y-3">
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label class="text-xs font-medium text-gray-600 mb-1 block">Profit min (&euro;)</label>
-                                            <input type="number" id="oa-dealMinProfit" step="0.5" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
-                                        </div>
-                                        <div>
-                                            <label class="text-xs font-medium text-gray-600 mb-1 block">ROI min (%)</label>
-                                            <input type="number" id="oa-dealMinROI" step="5" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label class="text-xs font-medium text-gray-600 mb-1 block">BSR max</label>
-                                            <input type="number" id="oa-dealMaxBSR" step="10000" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
-                                        </div>
-                                        <div>
-                                            <label class="text-xs font-medium text-gray-600 mb-1 block">Vendeurs FBA max</label>
-                                            <input type="number" id="oa-dealMaxFBASellers" step="1" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
-                                        </div>
-                                    </div>
+                            <div class="bg-white rounded-lg p-4 border border-blue-100">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                                    <span class="text-sm font-medium text-gray-700">Chat ID configure</span>
                                 </div>
+                                <p class="text-xs text-gray-500 mb-1">Variable Netlify : <code class="bg-gray-100 px-1 rounded">TELEGRAM_CHAT_ID</code></p>
+                                <p class="text-xs text-gray-400">ID : <span class="font-mono">2031175626</span></p>
                             </div>
                         </div>
+                        <p class="text-xs text-gray-400 mt-3"><i class="fas fa-lock mr-1"></i>Pour modifier : Netlify &rarr; Site settings &rarr; Environment variables</p>
                     </div>
 
-                    <!-- Notifications Deal Scanner -->
-                    <div class="col-span-1 md:col-span-2 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
-                        <h3 class="font-bold text-gray-800 mb-4"><i class="fas fa-bell text-blue-500 mr-2"></i>Notifications Deal Scanner</h3>
-                        <p class="text-xs text-gray-500 mb-4">Recois une alerte Telegram quand un deal rentable est detecte (via le cron Netlify 24/7).</p>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Telegram -->
+                    <!-- SP-API Amazon -->
+                    <div class="col-span-1 md:col-span-2 bg-gradient-to-r from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-6">
+                        <div class="flex items-start justify-between mb-3">
                             <div>
-                                <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fab fa-telegram text-blue-400 mr-1"></i>Telegram</h4>
-                                <div class="space-y-3">
-                                    <div>
-                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Bot Token</label>
-                                        <input type="password" id="oa-telegramBotToken" placeholder="123456:ABC..." class="w-full px-3 py-2 border-2 border-blue-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Chat ID</label>
-                                        <input type="text" id="oa-telegramChatId" placeholder="123456789" class="w-full px-3 py-2 border-2 border-blue-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
-                                    </div>
-                                </div>
+                                <h3 class="font-bold text-gray-800 mb-1"><i class="fab fa-amazon text-orange-500 mr-2"></i>Connexion Seller Central (SP-API)</h3>
+                                <p class="text-xs text-gray-500">Permet a l'Agent Inventaire de lire ton stock FBA en temps reel et a l'Agent Prospection de verifier l'eligibilite des produits.</p>
                             </div>
-
-                            <!-- EmailJS -->
-                            <div>
-                                <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-envelope text-green-500 mr-1"></i>EmailJS (optionnel)</h4>
-                                <div class="space-y-3">
-                                    <div>
-                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Service ID</label>
-                                        <input type="text" id="oa-emailjsServiceId" placeholder="service_xxx" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Template ID</label>
-                                        <input type="text" id="oa-emailjsTemplateId" placeholder="template_xxx" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
-                                    </div>
-                                    <div>
-                                        <label class="text-xs font-medium text-gray-600 mb-1 block">Public Key</label>
-                                        <input type="text" id="oa-emailjsPublicKey" placeholder="user_xxx" class="w-full px-3 py-2 border-2 border-green-200 rounded-lg font-mono text-xs" onchange="saveOASettings()">
-                                    </div>
-                                </div>
-                            </div>
+                            <span class="ml-4 shrink-0 inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1 rounded-full">
+                                <i class="fas fa-clock"></i> En attente Amazon
+                            </span>
                         </div>
 
-                        <!-- Notification settings -->
-                        <div class="mt-4 pt-4 border-t border-blue-200">
-                            <h4 class="text-sm font-bold text-gray-700 mb-3"><i class="fas fa-bell text-amber-500 mr-1"></i>Alertes</h4>
-                            <div>
-                                <label class="text-xs font-medium text-gray-600 mb-1 block">Profit min pour alerte (&euro;)</label>
-                                <input type="number" id="oa-dealNotifyMinProfit" step="1" class="w-full px-3 py-2 border-2 border-blue-200 rounded-lg text-center text-sm" onchange="saveOASettings()">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 opacity-60 pointer-events-none select-none">
+                            <div class="bg-white rounded-lg p-3 border border-orange-100">
+                                <label class="text-xs font-medium text-gray-600 mb-1 block">Client ID</label>
+                                <input type="text" disabled placeholder="amzn1.application-oa2-client.xxx" class="w-full px-3 py-2 border-2 border-orange-200 rounded-lg font-mono text-xs bg-gray-50">
+                                <p class="text-xs text-gray-400 mt-1">Variable : <code class="bg-gray-100 px-1 rounded">SP_CLIENT_ID</code></p>
+                            </div>
+                            <div class="bg-white rounded-lg p-3 border border-orange-100">
+                                <label class="text-xs font-medium text-gray-600 mb-1 block">Client Secret</label>
+                                <input type="password" disabled placeholder="••••••••••••••••" class="w-full px-3 py-2 border-2 border-orange-200 rounded-lg font-mono text-xs bg-gray-50">
+                                <p class="text-xs text-gray-400 mt-1">Variable : <code class="bg-gray-100 px-1 rounded">SP_CLIENT_SECRET</code></p>
+                            </div>
+                            <div class="bg-white rounded-lg p-3 border border-orange-100">
+                                <label class="text-xs font-medium text-gray-600 mb-1 block">Refresh Token</label>
+                                <input type="password" disabled placeholder="Atzr|IwEB…" class="w-full px-3 py-2 border-2 border-orange-200 rounded-lg font-mono text-xs bg-gray-50">
+                                <p class="text-xs text-gray-400 mt-1">Variable : <code class="bg-gray-100 px-1 rounded">SP_REFRESH_TOKEN</code></p>
                             </div>
                         </div>
+                        <p class="text-xs text-gray-400 mt-3"><i class="fas fa-info-circle mr-1"></i>Une fois approuve par Amazon, ajoute ces 3 variables dans Netlify et les agents basculent automatiquement sur le stock reel.</p>
                     </div>
                 </div>
             </section>
