@@ -6844,12 +6844,26 @@ function nextScanDay(days) {
     return DAY_FULL[next] + (diff === 1 ? ' (demain)' : diff === 7 ? ' (dans 7j)' : ' (dans ' + diff + 'j)');
 }
 
+function nextScanDaysCount(days) {
+    if (!days || !days.length) return 0;
+    var today = new Date().getDay();
+    var sorted = days.slice().sort(function(a,b){return a-b;});
+    var next = sorted.find(function(d){return d > today;});
+    if (next === undefined) next = sorted[0];
+    return (next - today + 7) % 7 || 7;
+}
+
 function renderRetailersList(retailers, lastScanMap) {
     lastScanMap = lastScanMap || {};
     var el = document.getElementById('retailers-list');
     var countEl = document.getElementById('retailers-count');
     var active = retailers.filter(function(r) { return r.active !== false; }).length;
     if (countEl) countEl.textContent = active + ' actifs · ' + retailers.length + ' total';
+    retailers = retailers.slice().sort(function(a, b) {
+        var aActive = a.active !== false, bActive = b.active !== false;
+        if (aActive !== bActive) return aActive ? -1 : 1;
+        return nextScanDaysCount(a.days) - nextScanDaysCount(b.days);
+    });
 
     // Calculer prochaine révision Team Leader (lundi prochain)
     var nextLeaderEl = document.getElementById('retailers-next-leader');
