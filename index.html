@@ -233,6 +233,9 @@
                     <button class="nav-btn" data-section="oa-inventaire" onclick="showSection('oa-inventaire')">
                         <i class="fas fa-boxes-stacked mr-1"></i>Inventaire
                     </button>
+                    <button class="nav-btn" data-section="oa-flux" onclick="showSection('oa-flux')">
+                        <i class="fas fa-stream mr-1"></i>Flux
+                    </button>
                     <!-- Systeme dropdown -->
                     <div class="relative" id="menu-systeme">
                         <button class="nav-btn flex items-center gap-1" onclick="toggleDropdown('dropdown-systeme')">
@@ -242,12 +245,6 @@
                         <div id="dropdown-systeme" class="hidden absolute top-full left-0 mt-1 bg-white text-gray-700 shadow-xl rounded-lg py-1 z-50">
                             <button class="dropdown-item" data-section="oa-journal" onclick="showSection('oa-journal');closeDropdowns()">
                                 <i class="fas fa-robot mr-2 text-purple-500 w-4"></i>Agents &amp; Journal
-                            </button>
-                            <button class="dropdown-item" data-section="oa-flux" onclick="showSection('oa-flux');closeDropdowns()">
-                                <i class="fas fa-stream mr-2 text-blue-500 w-4"></i>Flux
-                            </button>
-                            <button class="dropdown-item" data-section="oa-retailers" onclick="showSection('oa-retailers');closeDropdowns()">
-                                <i class="fas fa-shop mr-2 text-green-500 w-4"></i>Retailers
                             </button>
                             <hr class="my-1 border-gray-100">
                             <button class="dropdown-item" data-section="oa-parametres" onclick="showSection('oa-parametres');closeDropdowns()">
@@ -3393,6 +3390,20 @@
                             <span id="flux-leader-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
                         </div>
                         <div class="text-xs text-gray-400" id="flux-leader-last">Dernier run : —</div>
+                    </div>
+                </div>
+
+                <!-- Sources / Retailers -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+                    <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                        <h3 class="font-bold text-gray-700"><i class="fas fa-shop text-purple-500 mr-2"></i>Sources actives <span class="text-xs font-normal text-gray-400 ml-1" id="retailers-count"></span></h3>
+                        <span class="text-xs text-gray-400"><i class="fas fa-brain mr-1 text-blue-400"></i>Géré par Team Leader · ajustement chaque lundi</span>
+                    </div>
+                    <div id="retailers-list" class="divide-y divide-gray-50">
+                        <div class="p-6 text-center text-gray-400 text-sm">
+                            <i class="fas fa-spinner fa-spin text-2xl mb-3 block text-gray-300"></i>
+                            <p>Chargement…</p>
+                        </div>
                     </div>
                 </div>
 
