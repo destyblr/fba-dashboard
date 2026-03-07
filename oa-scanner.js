@@ -6088,11 +6088,11 @@ async function loadFlux() {
                 fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activite — les agents n\'ont pas encore tourne.</div>';
             } else {
                 var FLUX_STYLE = {
-                    catalog:   { border: 'border-orange-400', bg: 'bg-orange-50',  badge: 'bg-orange-100 text-orange-700',  label: 'Agent Catalog'    },
-                    enricher:  { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-100 text-blue-700',      label: 'Agent Enricher'   },
-                    sourcing:  { border: 'border-amber-400',  bg: 'bg-amber-50',   badge: 'bg-amber-100 text-amber-700',    label: 'Agent Sourcing'   },
-                    leader:    { border: 'border-purple-400', bg: 'bg-purple-50',  badge: 'bg-purple-100 text-purple-700',  label: 'Team Leader'      },
-                    inventory: { border: 'border-indigo-400', bg: 'bg-indigo-50',  badge: 'bg-indigo-100 text-indigo-700',  label: 'Agent Inventaire' },
+                    catalog:   { border: 'border-orange-500', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',       label: 'Agent Catalog'    },
+                    enricher:  { border: 'border-sky-500',    bg: 'bg-sky-50',     badge: 'bg-sky-500 text-white',          label: 'Agent Enricher'   },
+                    sourcing:  { border: 'border-emerald-500',bg: 'bg-emerald-50', badge: 'bg-emerald-500 text-white',      label: 'Agent Sourcing'   },
+                    leader:    { border: 'border-purple-600', bg: 'bg-purple-50',  badge: 'bg-purple-600 text-white',       label: 'Team Leader'      },
+                    inventory: { border: 'border-indigo-500', bg: 'bg-indigo-50',  badge: 'bg-indigo-500 text-white',       label: 'Agent Inventaire' },
                 };
                 var agentIcons2 = { catalog: '🏪', enricher: '💎', leader: '🧠', sourcing: '⚡', inventory: '📦' };
                 fluxLog.innerHTML = activity.slice(0, 30).map(function(e, idx) {
@@ -6159,11 +6159,11 @@ function renderJournal(events) {
         }
     });
     var AGENT_STYLE = {
-        catalog:   { border: 'border-orange-400', bg: 'bg-orange-50',  badge: 'bg-orange-100 text-orange-700',  label: 'Agent Catalog'    },
-        enricher:  { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-100 text-blue-700',      label: 'Agent Enricher'   },
-        sourcing:  { border: 'border-amber-400',  bg: 'bg-amber-50',   badge: 'bg-amber-100 text-amber-700',    label: 'Agent Sourcing'   },
-        leader:    { border: 'border-purple-400', bg: 'bg-purple-50',  badge: 'bg-purple-100 text-purple-700',  label: 'Team Leader'      },
-        inventory: { border: 'border-indigo-400', bg: 'bg-indigo-50',  badge: 'bg-indigo-100 text-indigo-700',  label: 'Agent Inventaire' },
+        catalog:   { border: 'border-orange-500', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',       label: 'Agent Catalog'    },
+        enricher:  { border: 'border-sky-500',    bg: 'bg-sky-50',     badge: 'bg-sky-500 text-white',          label: 'Agent Enricher'   },
+        sourcing:  { border: 'border-emerald-500',bg: 'bg-emerald-50', badge: 'bg-emerald-500 text-white',      label: 'Agent Sourcing'   },
+        leader:    { border: 'border-purple-600', bg: 'bg-purple-50',  badge: 'bg-purple-600 text-white',       label: 'Team Leader'      },
+        inventory: { border: 'border-indigo-500', bg: 'bg-indigo-50',  badge: 'bg-indigo-500 text-white',       label: 'Agent Inventaire' },
     };
     logEl.innerHTML = events.map(function(e, idx) {
         var icon = agentIcons[e.agent] || '🤖';
