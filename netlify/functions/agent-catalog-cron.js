@@ -118,14 +118,12 @@ function isProductUrl(url) {
 }
 
 async function fetchXml(url) {
+    const scraperKey = process.env.SCRAPER_API_KEY;
+    const fetchUrl = scraperKey
+        ? `https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`
+        : url;
     try {
-        const resp = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            },
-            timeout: 10000
-        });
+        const resp = await fetch(fetchUrl, { timeout: 15000 });
         console.log(`[Catalog] fetchXml ${url} → ${resp.status}`);
         if (!resp.ok) return null;
         return await resp.text();
@@ -184,11 +182,12 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
 
 // ─── Scrape une page produit ────────────────────────────────────────────────
 async function scrapeProductPage(url) {
+    const scraperKey = process.env.SCRAPER_API_KEY;
+    const fetchUrl = scraperKey
+        ? `https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`
+        : url;
     try {
-        const resp = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 FBA-Dashboard/1.0' },
-            timeout: 8000
-        });
+        const resp = await fetch(fetchUrl, { timeout: 15000 });
         if (!resp.ok) return null;
         const html = await resp.text();
         return extractJsonLD(html);
