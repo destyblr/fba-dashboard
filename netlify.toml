@@ -8,6 +8,9 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+[[plugins]]
+  package = "@netlify/plugin-functions-install-core"
+
 [functions."agent-instruction"]
   timeout = 30
 
