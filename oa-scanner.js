@@ -6450,17 +6450,29 @@ function applyCatalogPreset(mode, checked) {
 
     if (wrap) wrap.classList.add(mode === 'strict' ? 'bg-indigo-50' : 'bg-amber-50');
 
-    var prefix = mode === 'strict' ? '' : 'souple-';
-    var minProfit  = parseFloat(oaSettings[prefix + 'minProfit'])       || 0;
-    var minROI     = parseFloat(oaSettings[prefix + 'minROI'])          || 0;
-    var maxSellers = parseInt(oaSettings[prefix + 'maxFBASellers'])     || null;
-    var noAmazon   = !oaSettings.amazonSells;
+    var minProfit, minROI, maxSellers;
+    if (mode === 'strict') {
+        minProfit  = parseFloat(oaSettings.minProfit)          || 0;
+        minROI     = parseFloat(oaSettings.minROI)             || 0;
+        maxSellers = parseInt(oaSettings.maxFBASellers)        || null;
+    } else {
+        minProfit  = parseFloat(oaSettings.soupleMinProfit)    || 0;
+        minROI     = parseFloat(oaSettings.soupleMinROI)       || 0;
+        maxSellers = parseInt(oaSettings.soupleMaxFBASellers)  || null;
+    }
+    var noAmazon = !oaSettings.amazonSells;
 
     setVal('catalog-min-profit', minProfit > 0 ? minProfit : '0');
     setVal('catalog-min-roi',    minROI > 0    ? minROI    : '0');
     setVal('catalog-max-sellers', maxSellers   ? maxSellers : '');
     var cbAmz = document.getElementById('catalog-no-amazon');
     if (cbAmz) cbAmz.checked = noAmazon;
+
+    // Ouvrir la ligne avancée si des filtres avancés sont actifs
+    if (maxSellers || noAmazon) {
+        var advRow = document.getElementById('catalog-advanced-row');
+        if (advRow) advRow.classList.remove('hidden');
+    }
 
     filterCatalog();
 }
