@@ -91,16 +91,8 @@ function showSimpleLogin() {
 function showOfflineModeApp() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-container').classList.remove('hidden');
-    // Afficher l'icone utilisateur dans le header
-    var userInfo = document.getElementById('user-info');
-    if (userInfo) {
-        userInfo.classList.remove('hidden');
-        userInfo.style.display = 'flex';
-        var emailSpan = document.getElementById('user-email');
-        if (emailSpan) emailSpan.textContent = 'Admin';
-        var statusSpan = document.getElementById('online-status');
-        if (statusSpan) statusSpan.innerHTML = '<i class="fas fa-lock text-green-300 text-xs"></i>';
-    }
+    // Afficher le bouton utilisateur dans le header
+    setHeaderUser('Admin', 'lock');
     // Charger depuis localStorage comme avant
     loadData();
     loadStockData();
@@ -112,13 +104,17 @@ function showOfflineModeApp() {
 
 // Mettre a jour l'affichage utilisateur
 function updateUserInfo() {
-    const userInfo = document.getElementById('user-info');
-    const userEmail = document.getElementById('user-email');
+    setHeaderUser(currentUserEmail || 'Admin', 'lock');
+}
 
-    if (userInfo && currentUserEmail) {
-        userInfo.classList.remove('hidden');
-        if (userEmail) userEmail.textContent = currentUserEmail;
-    }
+function setHeaderUser(label, icon) {
+    var display = document.getElementById('user-display');
+    var email   = document.getElementById('user-email');
+    var ico     = document.getElementById('user-icon');
+    var short   = label.includes('@') ? label.split('@')[0] : label;
+    if (display) display.textContent = short;
+    if (email)   email.textContent   = label;
+    if (ico)     { ico.className = 'fas fa-' + (icon || 'user') + ' text-xs text-white'; }
 }
 
 // Mettre a jour le statut en ligne
