@@ -8,6 +8,9 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
 
+[functions."agent-instruction"]
+  timeout = 30
+
 # Agent Catalog — toutes les heures (scrape retailers → raw-products)
 [functions."agent-catalog-cron"]
   schedule = "0 * * * *"

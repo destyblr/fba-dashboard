@@ -5968,25 +5968,32 @@ async function sendAgentInstruction(agent) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agent: agent, instruction: text })
         });
-        var data = resp.ok ? await resp.json() : null;
+        var data = await resp.json().catch(function() { return null; });
         if (data && data.ok) {
             var userMsg = text;
             if (textarea) textarea.value = '';
-            if (replyEl && data.reply) {
+            if (replyEl) {
                 replyEl.innerHTML =
-                    '<div class="mb-2 flex items-start gap-2">' +
-                        '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-lg max-w-[80%]">Vous : ' + userMsg + '</span>' +
+                    '<div class="mb-2">' +
+                        '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-lg inline-block">Vous : ' + userMsg + '</span>' +
                     '</div>' +
-                    '<div class="flex items-start gap-2">' +
-                        '<span class="text-xs bg-blue-50 border border-blue-100 text-blue-800 px-2 py-1 rounded-lg max-w-[90%] whitespace-pre-wrap">' + (data.agent || agent) + ' : ' + data.reply + '</span>' +
+                    '<div>' +
+                        '<span class="text-xs bg-blue-50 border border-blue-100 text-blue-800 px-2 py-1 rounded-lg inline-block whitespace-pre-wrap">' + (data.agent || agent) + ' : ' + (data.reply || 'Consigne prise en compte.') + '</span>' +
                     '</div>';
                 replyEl.classList.remove('hidden');
             }
         } else {
-            showOANotification('Erreur lors de l\'envoi', 'error');
+            var errMsg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
+            if (replyEl) {
+                replyEl.innerHTML = '<span class="text-xs text-red-500">Erreur : ' + errMsg + '</span>';
+                replyEl.classList.remove('hidden');
+            }
         }
     } catch (e) {
-        showOANotification('Erreur réseau', 'error');
+        if (replyEl) {
+            replyEl.innerHTML = '<span class="text-xs text-red-500">Erreur réseau : ' + e.message + '</span>';
+            replyEl.classList.remove('hidden');
+        }
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Envoyer'; }
 }
