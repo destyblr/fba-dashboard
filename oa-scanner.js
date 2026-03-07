@@ -5949,19 +5949,59 @@ async function loadJournal() {
     }
 }
 
-function toggleAgentInstruction(agent) {
+function renderAgentHistory(history, replyEl, agentName) {
+    if (!replyEl || !history || !history.length) return;
+    replyEl.innerHTML =
+        history.map(function(msg) {
+            var isUser = msg.role === 'user';
+            return '<div class="mb-1 flex ' + (isUser ? 'justify-end' : 'justify-start') + '">' +
+                '<span class="text-xs px-2 py-1 rounded-lg max-w-[90%] whitespace-pre-wrap ' +
+                    (isUser ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 border border-blue-100 text-blue-800') + '">' +
+                    (isUser ? 'Vous' : agentName) + ' : ' + msg.content +
+                '</span>' +
+            '</div>';
+        }).join('') +
+        '<div class="mt-2 text-right">' +
+            '<button onclick="resetAgentConversation(\'' + (agentName || 'agent') + '\')" class="text-xs text-gray-400 hover:text-red-400">Effacer la conversation</button>' +
+        '</div>';
+    replyEl.classList.remove('hidden');
+    replyEl.scrollTop = replyEl.scrollHeight;
+}
+
+async function toggleAgentInstruction(agent) {
     var el = document.getElementById('agent-instruction-' + agent);
-    if (el) el.classList.toggle('hidden');
+    if (!el) return;
+    var wasHidden = el.classList.contains('hidden');
+    el.classList.toggle('hidden');
+    // Charger l'historique à l'ouverture
+    if (wasHidden) {
+        try {
+            var resp = await fetch('/.netlify/functions/agent-instruction');
+            var data = resp.ok ? await resp.json() : null;
+            if (data && data.instructions) {
+                // Charger conversations depuis le GET (à implémenter si besoin)
+            }
+        } catch (e) {}
+    }
+}
+
+async function resetAgentConversation(agentKey) {
+    await fetch('/.netlify/functions/agent-instruction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent: agentKey, action: 'reset' })
+    }).catch(function() {});
+    var replyEl = document.getElementById('agent-reply-' + agentKey);
+    if (replyEl) { replyEl.innerHTML = ''; replyEl.classList.add('hidden'); }
 }
 
 async function sendAgentInstruction(agent) {
     var textarea = document.getElementById('agent-instruction-text-' + agent);
     var text = textarea ? textarea.value.trim() : '';
     if (!text) return;
-    var btn = textarea.nextElementSibling;
+    var btn = document.getElementById('agent-send-btn-' + agent) || textarea.nextElementSibling;
     var replyEl = document.getElementById('agent-reply-' + agent);
     if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
-    if (replyEl) replyEl.classList.add('hidden');
     try {
         var resp = await fetch('/.netlify/functions/agent-instruction', {
             method: 'POST',
@@ -5970,18 +6010,8 @@ async function sendAgentInstruction(agent) {
         });
         var data = await resp.json().catch(function() { return null; });
         if (data && data.ok) {
-            var userMsg = text;
             if (textarea) textarea.value = '';
-            if (replyEl) {
-                replyEl.innerHTML =
-                    '<div class="mb-2">' +
-                        '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-lg inline-block">Vous : ' + userMsg + '</span>' +
-                    '</div>' +
-                    '<div>' +
-                        '<span class="text-xs bg-blue-50 border border-blue-100 text-blue-800 px-2 py-1 rounded-lg inline-block whitespace-pre-wrap">' + (data.agent || agent) + ' : ' + (data.reply || 'Consigne prise en compte.') + '</span>' +
-                    '</div>';
-                replyEl.classList.remove('hidden');
-            }
+            if (replyEl) renderAgentHistory(data.history || [], replyEl, data.agent || agent);
         } else {
             var errMsg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
             if (replyEl) {

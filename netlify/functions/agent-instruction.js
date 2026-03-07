@@ -66,27 +66,51 @@ exports.handler = async (event) => {
 
     if (event.httpMethod === 'POST') {
         try {
-            const { agent, instruction } = JSON.parse(event.body || '{}');
-            if (!agent || !instruction) return { statusCode: 400, headers, body: JSON.stringify({ error: 'agent et instruction requis' }) };
+            const { agent, instruction, action } = JSON.parse(event.body || '{}');
+            if (!agent) return { statusCode: 400, headers, body: JSON.stringify({ error: 'agent requis' }) };
 
-            // Sauvegarder la consigne pour le prochain run de l'agent
+            // Charger l'historique de conversation
+            let conversations = {};
+            try { conversations = await store.get('agent-conversations', { type: 'json' }) || {}; } catch {}
+            if (!conversations[agent]) conversations[agent] = [];
+
+            // Action reset : vider l'historique
+            if (action === 'reset') {
+                conversations[agent] = [];
+                await store.setJSON('agent-conversations', conversations);
+                return { statusCode: 200, headers, body: JSON.stringify({ ok: true, history: [] }) };
+            }
+
+            if (!instruction) return { statusCode: 400, headers, body: JSON.stringify({ error: 'instruction requise' }) };
+
+            // Sauvegarder la consigne (dernière uniquement, pour les agents cron)
             let instructions = {};
             try { instructions = await store.get('agent-instructions', { type: 'json' }) || {}; } catch {}
             instructions[agent] = { text: instruction, ts: new Date().toISOString(), status: 'pending' };
             await store.setJSON('agent-instructions', instructions);
 
-            // Générer une réponse via Claude
+            // Ajouter le message user à l'historique
+            conversations[agent].push({ role: 'user', content: instruction });
+
+            // Garder max 20 échanges (40 messages)
+            if (conversations[agent].length > 40) conversations[agent] = conversations[agent].slice(-40);
+
+            // Générer une réponse via Claude avec tout l'historique
             const persona = AGENT_PERSONAS[agent] || AGENT_PERSONAS.leader;
             const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
             const message = await anthropic.messages.create({
                 model: 'claude-sonnet-4-6',
-                max_tokens: 200,
+                max_tokens: 300,
                 system: persona.system,
-                messages: [{ role: 'user', content: instruction }]
+                messages: conversations[agent]
             });
             const reply = message.content[0]?.text || 'Consigne prise en compte.';
 
-            return { statusCode: 200, headers, body: JSON.stringify({ ok: true, reply, agent: persona.name }) };
+            // Ajouter la réponse à l'historique et sauvegarder
+            conversations[agent].push({ role: 'assistant', content: reply });
+            await store.setJSON('agent-conversations', conversations);
+
+            return { statusCode: 200, headers, body: JSON.stringify({ ok: true, reply, agent: persona.name, history: conversations[agent] }) };
         } catch (err) {
             return { statusCode: 500, headers, body: JSON.stringify({ error: err.message }) };
         }
