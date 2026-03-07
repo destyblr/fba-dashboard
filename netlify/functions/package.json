@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "description": "Netlify Functions - Deal Scanner scrapers",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.3",
     "@netlify/blobs": "^7.0.0",
     "@netlify/functions": "^2.4.0",
-    "node-fetch": "^2.7.0",
-    "cheerio": "^1.0.0"
+    "cheerio": "^1.0.0",
+    "node-fetch": "^2.7.0"
   }
 }

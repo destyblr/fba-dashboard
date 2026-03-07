@@ -5959,22 +5959,34 @@ async function sendAgentInstruction(agent) {
     var text = textarea ? textarea.value.trim() : '';
     if (!text) return;
     var btn = textarea.nextElementSibling;
+    var replyEl = document.getElementById('agent-reply-' + agent);
     if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+    if (replyEl) replyEl.classList.add('hidden');
     try {
         var resp = await fetch('/.netlify/functions/agent-instruction', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ agent: agent, instruction: text })
         });
-        if (resp.ok) {
+        var data = resp.ok ? await resp.json() : null;
+        if (data && data.ok) {
+            var userMsg = text;
             if (textarea) textarea.value = '';
-            toggleAgentInstruction(agent);
-            showToast('Consigne envoyée à l\'agent ' + agent, 'success');
+            if (replyEl && data.reply) {
+                replyEl.innerHTML =
+                    '<div class="mb-2 flex items-start gap-2">' +
+                        '<span class="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-lg max-w-[80%]">Vous : ' + userMsg + '</span>' +
+                    '</div>' +
+                    '<div class="flex items-start gap-2">' +
+                        '<span class="text-xs bg-blue-50 border border-blue-100 text-blue-800 px-2 py-1 rounded-lg max-w-[90%] whitespace-pre-wrap">' + (data.agent || agent) + ' : ' + data.reply + '</span>' +
+                    '</div>';
+                replyEl.classList.remove('hidden');
+            }
         } else {
-            showToast('Erreur lors de l\'envoi', 'error');
+            showOANotification('Erreur lors de l\'envoi', 'error');
         }
     } catch (e) {
-        showToast('Erreur réseau', 'error');
+        showOANotification('Erreur réseau', 'error');
     }
     if (btn) { btn.disabled = false; btn.textContent = 'Envoyer'; }
 }
