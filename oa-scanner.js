@@ -5851,6 +5851,71 @@ function renderBlobList(listId, emptyId, countId, items) {
 // JOURNAL DES AGENTS
 // ============================================================
 
+async function loadOAAccueil() {
+    // Stats pipeline
+    try {
+        var resp = await fetch('/.netlify/functions/catalog-read?mode=stats');
+        var data = resp.ok ? await resp.json() : {};
+        var s = data.stats || {};
+        var setEl = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+        setEl('accueil-stat-raw',       s.rawTotal       || 0);
+        setEl('accueil-stat-ean',       s.withEan        || 0);
+        setEl('accueil-stat-enriched',  s.enrichedTotal  || 0);
+        setEl('accueil-stat-profitable',s.profitable     || 0);
+    } catch(e) {}
+
+    // Statut agents
+    try {
+        var actResp = await fetch('/.netlify/functions/portfolio-read?include=activity');
+        var actData = actResp.ok ? await actResp.json() : {};
+        var activity = actData.activity || [];
+        ['catalog', 'enricher', 'leader'].forEach(function(agent) {
+            var last = activity.find(function(e) { return e.agent === agent; });
+            var lastEl   = document.getElementById('accueil-' + agent + '-last');
+            var statusEl = document.getElementById('accueil-' + agent + '-status');
+            if (lastEl)   lastEl.textContent   = last ? timeAgo(last.ts) + (last.summary ? ' — ' + last.summary : '') : 'Jamais execute';
+            if (statusEl) {
+                statusEl.textContent = last ? 'OK' : 'En attente';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full ' + (last ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400');
+            }
+        });
+    } catch(e) {}
+
+    // Top deals rentables
+    try {
+        var catResp = await fetch('/.netlify/functions/catalog-read?mode=enriched');
+        var catData = catResp.ok ? await catResp.json() : {};
+        var deals = (catData.products || [])
+            .filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; })
+            .sort(function(a, b) { return (b.netProfit || 0) - (a.netProfit || 0); })
+            .slice(0, 5);
+        var container = document.getElementById('accueil-top-deals');
+        if (!container) return;
+        if (!deals.length) {
+            container.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucun deal rentable pour l\'instant — les agents tournent toutes les heures</div>';
+            return;
+        }
+        container.innerHTML = deals.map(function(p) {
+            var mpFlag = { FR: '🇫🇷', DE: '🇩🇪', IT: '🇮🇹', ES: '🇪🇸' }[p.bestMarketplace] || '🇩🇪';
+            var bestP = p.bestPrice || p.amazonPrice || 0;
+            return '<div class="flex items-center gap-3 p-4 hover:bg-gray-50 transition">' +
+                (p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded flex-shrink-0" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-100 rounded flex-shrink-0"></div>') +
+                '<div class="flex-1 min-w-0">' +
+                    '<div class="text-sm font-medium text-gray-800 truncate">' + (p.amazonTitle || p.title || '').slice(0, 55) + '</div>' +
+                    '<div class="text-xs text-gray-400">' + (p.retailer || '') + ' · ' + (p.price || 0).toFixed(2) + '€ → ' + mpFlag + ' ' + bestP.toFixed(2) + '€</div>' +
+                '</div>' +
+                '<div class="text-right flex-shrink-0 mr-2">' +
+                    '<div class="text-green-600 font-bold text-sm">' + (p.netProfit || 0).toFixed(2) + '€</div>' +
+                    '<div class="text-xs text-gray-400">ROI ' + (p.roi || 0).toFixed(0) + '%</div>' +
+                '</div>' +
+                '<button onclick="showSection(\'oa-catalogue\')" class="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs flex-shrink-0">Voir →</button>' +
+            '</div>';
+        }).join('');
+    } catch(e) {}
+
+    if (typeof updateFixedChargesDashboard === 'function') updateFixedChargesDashboard();
+}
+
 async function loadJournal() {
     var logEl = document.getElementById('journal-log');
     if (logEl) logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Chargement…</div>';
@@ -6254,7 +6319,7 @@ function updateCatalogFilters() {
 
 function renderCatalogEmpty(msg) {
     var tbody = document.getElementById('catalog-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="12" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
 }
 
 function renderCatalogTable() {
@@ -6299,6 +6364,23 @@ function renderCatalogTable() {
             amzBadge = '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">Non ✓</span>';
         }
 
+        // Colonne "Vendre sur" — meilleure marketplace
+        var mpFlags = { FR: '🇫🇷', DE: '🇩🇪', IT: '🇮🇹', ES: '🇪🇸' };
+        var vendreCol;
+        if (!p.asin) {
+            vendreCol = '<span class="text-gray-300 text-xs">—</span>';
+        } else if (p.bestMarketplace) {
+            var mpPrices = '';
+            if (p.priceDE) mpPrices += '🇩🇪' + p.priceDE.toFixed(0) + '€ ';
+            if (p.priceFR) mpPrices += '🇫🇷' + p.priceFR.toFixed(0) + '€';
+            vendreCol = '<div class="text-center">' +
+                '<div class="font-bold text-sm">' + (mpFlags[p.bestMarketplace] || '') + ' ' + p.bestMarketplace + '</div>' +
+                (mpPrices ? '<div class="text-xs text-gray-400">' + mpPrices.trim() + '</div>' : '') +
+                '</div>';
+        } else {
+            vendreCol = '<span class="text-xs text-gray-400">🇩🇪</span>';
+        }
+
         return '<tr class="border-b border-gray-50 hover:bg-gray-50 transition' + (profitable ? ' bg-green-50/40' : '') + '">' +
             '<td class="p-3 max-w-xs">' +
                 '<div class="flex items-center gap-2">' + img +
@@ -6317,10 +6399,11 @@ function renderCatalogTable() {
             '<td class="p-3 text-sm text-center">' + (p.monthlySold != null ? '<span class="font-semibold text-blue-600">~' + p.monthlySold + '</span>' : '<span class="text-gray-300">—</span>') + '</td>' +
             '<td class="p-3 text-sm text-center">' + (p.offerCountNew != null ? p.offerCountNew : '<span class="text-gray-300">—</span>') + '</td>' +
             '<td class="p-3 text-center">' + amzBadge + '</td>' +
+            '<td class="p-3 text-center">' + vendreCol + '</td>' +
             '<td class="p-3 text-center">' +
                 '<div class="flex gap-1 justify-center">' +
                 (p.link ? '<a href="' + p.link + '" target="_blank" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">Voir</a>' : '') +
-                (p.asin ? '<a href="https://www.amazon.de/dp/' + p.asin + '" target="_blank" class="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs">AMZ</a>' : '') +
+                (p.asin ? '<a href="' + (p.link || 'https://www.amazon.de/dp/' + p.asin) + '" target="_blank" class="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs">AMZ</a>' : '') +
                 (profitable ? '<button onclick="catalogToChecklist(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')" class="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs">Checklist</button>' : '') +
                 '</div>' +
             '</td>' +

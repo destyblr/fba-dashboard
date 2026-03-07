@@ -670,6 +670,9 @@ function showSection(sectionName) {
     if (sectionName === 'oa-flux' && typeof loadFlux === 'function') {
         loadFlux();
     }
+    if (sectionName === 'oa-accueil' && typeof loadOAAccueil === 'function') {
+        loadOAAccueil();
+    }
 }
 
 // ===========================
@@ -712,20 +715,17 @@ function switchMode(mode) {
         btn.classList.remove('active');
     });
 
-    const oaDashboard = document.getElementById('oa-dashboard-recap');
-
     if (mode === 'oa') {
         // Mode Online Arbitrage
         navPL.classList.add('hidden');
         navOA.classList.remove('hidden');
-        if (oaDashboard) oaDashboard.classList.remove('hidden');
 
-        // Afficher la premiere section OA (Catalogue)
-        const oaSection = document.getElementById('section-oa-catalogue');
+        // Afficher la page d'accueil OA
+        const oaSection = document.getElementById('section-oa-accueil');
         if (oaSection) oaSection.classList.remove('hidden');
-        if (typeof loadCatalog === 'function') loadCatalog();
+        if (typeof loadOAAccueil === 'function') loadOAAccueil();
 
-        // Activer le bouton nav OA
+        // Activer le bouton nav OA Accueil
         const firstOABtn = navOA.querySelector('.nav-btn[data-section]');
         if (firstOABtn) firstOABtn.classList.add('active');
 
@@ -737,7 +737,6 @@ function switchMode(mode) {
         // Mode Private Label
         navPL.classList.remove('hidden');
         navOA.classList.add('hidden');
-        if (oaDashboard) oaDashboard.classList.add('hidden');
 
         // Afficher le dashboard PL
         const dashboard = document.getElementById('section-dashboard');

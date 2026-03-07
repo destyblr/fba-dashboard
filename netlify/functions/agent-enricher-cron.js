@@ -23,14 +23,24 @@ async function sendTelegram(msg) {
     }).catch(() => {});
 }
 
-// ─── Keepa lookup par EAN ─────────────────────────────────────────────────
-async function keepaEANLookup(ean, keepaKey) {
+// ─── IDs Amazon par marketplace ──────────────────────────────────────────
+const AMAZON_SELLER_IDS = {
+    3: 'A1PA6795UKMFR9', // Amazon.de
+    4: 'A13V1IB3VIYZZH', // Amazon.fr
+    8: 'A11IL2PNWYGU7H', // Amazon.it
+    9: 'A1RKKUPIHCS9HS', // Amazon.es
+};
+const DOMAIN_NAMES = { 3: 'DE', 4: 'FR', 8: 'IT', 9: 'ES' };
+const DOMAIN_LINKS = { 3: 'amazon.de', 4: 'amazon.fr', 8: 'amazon.it', 9: 'amazon.es' };
+
+// ─── Keepa lookup pour un domaine ────────────────────────────────────────
+async function keepaDomainLookup(ean, keepaKey, domain) {
     try {
-        const url = `https://api.keepa.com/product?key=${keepaKey}&domain=3&ean=${ean}&stats=1&history=0`;
+        const url = `https://api.keepa.com/product?key=${keepaKey}&domain=${domain}&ean=${ean}&stats=1&history=0`;
         const resp = await fetch(url, { timeout: 12000 });
         const data = await resp.json();
         const p    = (data.products || [])[0];
-        if (!p) return null;
+        if (!p) return { price: null, tokensLeft: data.tokensLeft ?? null };
 
         const current        = (p.stats || {}).current || [];
         const newPrice       = current[1] ?? -1;
@@ -38,23 +48,51 @@ async function keepaEANLookup(ean, keepaKey) {
         const monthlySold    = p.monthlySold ?? null;
         const offerCountNew  = p.stats?.offerCountNew ?? null;
         const buyBoxSellerId = p.stats?.buyBoxSellerId ?? null;
-        const amazonIsSeller = buyBoxSellerId === 'A1PA6795UKMFR9'; // Amazon.de
+        const amazonIsSeller = buyBoxSellerId === AMAZON_SELLER_IDS[domain];
+        const price          = newPrice > 0 ? +(newPrice / 100).toFixed(2) : null;
 
         return {
             asin:            p.asin || '',
             amazonTitle:     p.title || '',
             brand:           p.brand || '',
             category:        p.categoryTree?.slice(-1)[0]?.name || '',
-            amazonPrice:     newPrice > 0 ? +(newPrice / 100).toFixed(2) : null,
+            price,
             bsr:             bsr > 0 ? bsr : null,
             monthlySold,
             offerCountNew,
             buyBoxSellerId,
             amazonIsSeller,
-            link:            `https://www.amazon.de/dp/${p.asin}`,
+            link:            `https://www.${DOMAIN_LINKS[domain]}/dp/${p.asin}`,
             tokensLeft:      data.tokensLeft ?? null,
         };
-    } catch { return null; }
+    } catch { return { price: null, tokensLeft: null }; }
+}
+
+// ─── Keepa multi-marketplace : retourne le meilleur prix (DE + FR) ────────
+async function keepaEANLookup(ean, keepaKey) {
+    // Query DE (primaire) + FR (comparaison)
+    const [de, fr] = await Promise.all([
+        keepaDomainLookup(ean, keepaKey, 3),
+        keepaDomainLookup(ean, keepaKey, 4),
+    ]);
+
+    // Choisir la marketplace avec le prix le plus eleve
+    const dePrice = de.price || 0;
+    const frPrice = fr.price || 0;
+    const best    = dePrice >= frPrice ? de : fr;
+    const bestMP  = dePrice >= frPrice ? 'DE' : 'FR';
+
+    if (!best.asin) return null;
+
+    return {
+        ...best,
+        amazonPrice:      best.price,    // prix de la meilleure MP
+        bestMarketplace:  bestMP,
+        bestPrice:        best.price,
+        priceDE:          de.price,
+        priceFR:          fr.price,
+        tokensLeft:       de.tokensLeft ?? fr.tokensLeft ?? null,
+    };
 }
 
 // ─── Calcul profit FBA ────────────────────────────────────────────────────
@@ -96,8 +134,8 @@ exports.handler = async () => {
         p.ean && (!enrichedIndex[p.ean] || Date.now() - enrichedIndex[p.ean] > SEVEN_DAYS)
     );
 
-    // Limiter à 8 produits par run pour tenir dans 60s (Keepa ~5s/appel)
-    const batch    = toEnrich.slice(0, 8);
+    // Limiter à 5 produits par run (2 appels Keepa/produit = 10 tokens max)
+    const batch    = toEnrich.slice(0, 5);
     console.log(`[Enricher] ${rawProducts.length} produits bruts · ${toEnrich.length} à enrichir · batch de ${batch.length}`);
 
     if (!batch.length) {
@@ -147,17 +185,20 @@ exports.handler = async () => {
 
     // ── 4. Telegram pour deals rentables ──────────────────────────────────
     for (const item of profitableItems.slice(0, 3)) {
+        const mpFlag = { DE: '🇩🇪', FR: '🇫🇷', IT: '🇮🇹', ES: '🇪🇸' }[item.bestMarketplace] || '🇩🇪';
+        const priceInfo = item.priceDE && item.priceFR
+            ? `🇩🇪 ${item.priceDE}€ · 🇫🇷 ${item.priceFR}€ → Meilleur : ${mpFlag} ${item.bestPrice}€`
+            : `${mpFlag} Amazon : ${item.bestPrice || item.amazonPrice}€`;
         const msg = `💎 <b>Agent Enricher — Deal rentable</b>\n\n` +
             `📦 <b>${(item.amazonTitle || item.title || '').slice(0, 60)}</b>\n` +
-            `🏷️ Retailer : ${item.retailer}\n` +
-            `💰 ${item.price}€ → Amazon.de : ${item.amazonPrice}€\n` +
+            `🏷️ Retailer : ${item.retailer} · ${item.price}€\n` +
+            `${priceInfo}\n` +
             `📈 Profit net : <b>${item.netProfit}€</b> | ROI : <b>${item.roi}%</b>\n` +
             (item.bsr ? `📊 BSR : ${Number(item.bsr).toLocaleString('fr')}\n` : '') +
             (item.monthlySold ? `📦 Ventes/mois : ~${item.monthlySold}\n` : '') +
             (item.offerCountNew !== null ? `🏪 Vendeurs : ${item.offerCountNew}\n` : '') +
             `🤖 Amazon vendeur : ${item.amazonIsSeller ? 'Oui ⚠️' : 'Non ✅'}\n` +
-            `🔗 <a href="${item.link || '#'}">Amazon.de</a>` +
-            (item.retailerLink || item.link ? ` | <a href="${item.retailerLink || item.link}">Retailer</a>` : '');
+            `🔗 <a href="${item.link || '#'}">Voir sur Amazon</a>`;
         await sendTelegram(msg);
     }
 

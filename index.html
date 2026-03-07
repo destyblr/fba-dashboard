@@ -240,6 +240,9 @@
 
                 <!-- ====== NAV ONLINE ARBITRAGE ====== -->
                 <nav class="nav-oa hidden flex items-center gap-0.5 flex-1 flex-wrap">
+                    <button class="nav-btn" data-section="oa-accueil" onclick="showSection('oa-accueil')">
+                        <i class="fas fa-home mr-1"></i>Accueil
+                    </button>
                     <button class="nav-btn" data-section="oa-catalogue" onclick="showSection('oa-catalogue')">
                         <i class="fas fa-store mr-1"></i>Catalogue
                     </button>
@@ -2911,55 +2914,123 @@
                  =========================== -->
 
             <!-- Dashboard OA Recap — visible sur toutes les sections OA -->
-            <div id="oa-dashboard-recap" class="hidden mb-6">
-                <div class="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-5 shadow-lg">
-                    <!-- Header + Selecteur de periode -->
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-white font-bold text-lg"><i class="fas fa-tachometer-alt mr-2 text-indigo-400"></i>OA Recap</h3>
-                        <div class="flex bg-gray-700 rounded-lg p-0.5" id="oa-period-selector">
-                            <button onclick="setOAPeriod('month')" class="oa-period-btn active px-3 py-1 rounded-md text-xs font-semibold transition" data-period="month">Ce mois</button>
-                            <button onclick="setOAPeriod('lastmonth')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="lastmonth">Mois dernier</button>
-                            <button onclick="setOAPeriod('year')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="year">Annee</button>
-                            <button onclick="setOAPeriod('all')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="all">Tout</button>
-                        </div>
-                    </div>
-                    <!-- Cartes KPI -->
-                    <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
-                        <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                            <div class="text-xs text-red-400 font-semibold mb-1"><i class="fas fa-tools mr-1"></i>Charges fixes</div>
-                            <div id="oa-fixed-total" class="text-lg font-bold text-red-300">48 &euro;</div>
-                            <div id="oa-fixed-period-label" class="text-xs text-gray-500">ce mois</div>
-                        </div>
-                        <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                            <div class="text-xs text-blue-400 font-semibold mb-1"><i class="fas fa-shopping-bag mr-1"></i>Achetes</div>
-                            <div id="oa-fixed-bought" class="text-lg font-bold text-blue-300">0</div>
-                            <div class="text-xs text-gray-500">produits</div>
-                        </div>
-                        <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                            <div class="text-xs text-cyan-400 font-semibold mb-1"><i class="fas fa-check-circle mr-1"></i>Vendus</div>
-                            <div id="oa-fixed-sales" class="text-lg font-bold text-cyan-300">0</div>
-                            <div class="text-xs text-gray-500">produits</div>
-                        </div>
-                        <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                            <div class="text-xs text-green-400 font-semibold mb-1"><i class="fas fa-hand-holding-usd mr-1"></i>Profit brut</div>
-                            <div id="oa-fixed-profit" class="text-lg font-bold text-green-300">0 &euro;</div>
-                            <div class="text-xs text-gray-500">ventes</div>
-                        </div>
-                        <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                            <div class="text-xs text-amber-400 font-semibold mb-1"><i class="fas fa-calculator mr-1"></i>Cout/vente</div>
-                            <div id="oa-fixed-per-sale" class="text-lg font-bold text-amber-300">- &euro;</div>
-                            <div class="text-xs text-gray-500">charges / vente</div>
-                        </div>
-                        <div class="bg-gray-700/50 rounded-xl p-3 text-center border-2" id="oa-fixed-net-card">
-                            <div class="text-xs text-purple-400 font-semibold mb-1"><i class="fas fa-chart-line mr-1"></i>Resultat net</div>
-                            <div id="oa-fixed-net" class="text-lg font-bold text-purple-300">0 &euro;</div>
-                            <div id="oa-fixed-net-label" class="text-xs text-gray-500">profit - charges</div>
-                        </div>
-                    </div>
-                    <!-- Deals rentables du jour -->
-                    <div id="oa-recap-deals" class="mt-4 hidden"></div>
+            <!-- OA Accueil — section propre avec recap + stats pipeline -->
+            <section id="section-oa-accueil" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-tachometer-alt text-indigo-600 mr-2"></i>Online Arbitrage
+                    </h2>
+                    <p class="text-gray-500">Tableau de bord — activité agents, résultats, pipeline</p>
                 </div>
-            </div>
+
+                <!-- OA Recap block -->
+                <div id="oa-dashboard-recap" class="mb-6">
+                    <div class="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-5 shadow-lg">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-white font-bold text-lg"><i class="fas fa-chart-line mr-2 text-indigo-400"></i>Recap</h3>
+                            <div class="flex bg-gray-700 rounded-lg p-0.5" id="oa-period-selector">
+                                <button onclick="setOAPeriod('month')" class="oa-period-btn active px-3 py-1 rounded-md text-xs font-semibold transition" data-period="month">Ce mois</button>
+                                <button onclick="setOAPeriod('lastmonth')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="lastmonth">Mois dernier</button>
+                                <button onclick="setOAPeriod('year')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="year">Annee</button>
+                                <button onclick="setOAPeriod('all')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="all">Tout</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
+                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
+                                <div class="text-xs text-red-400 font-semibold mb-1"><i class="fas fa-tools mr-1"></i>Charges fixes</div>
+                                <div id="oa-fixed-total" class="text-lg font-bold text-red-300">48 &euro;</div>
+                                <div id="oa-fixed-period-label" class="text-xs text-gray-500">ce mois</div>
+                            </div>
+                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
+                                <div class="text-xs text-blue-400 font-semibold mb-1"><i class="fas fa-shopping-bag mr-1"></i>Achetes</div>
+                                <div id="oa-fixed-bought" class="text-lg font-bold text-blue-300">0</div>
+                                <div class="text-xs text-gray-500">produits</div>
+                            </div>
+                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
+                                <div class="text-xs text-cyan-400 font-semibold mb-1"><i class="fas fa-check-circle mr-1"></i>Vendus</div>
+                                <div id="oa-fixed-sales" class="text-lg font-bold text-cyan-300">0</div>
+                                <div class="text-xs text-gray-500">produits</div>
+                            </div>
+                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
+                                <div class="text-xs text-green-400 font-semibold mb-1"><i class="fas fa-hand-holding-usd mr-1"></i>Profit brut</div>
+                                <div id="oa-fixed-profit" class="text-lg font-bold text-green-300">0 &euro;</div>
+                                <div class="text-xs text-gray-500">ventes</div>
+                            </div>
+                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
+                                <div class="text-xs text-amber-400 font-semibold mb-1"><i class="fas fa-calculator mr-1"></i>Cout/vente</div>
+                                <div id="oa-fixed-per-sale" class="text-lg font-bold text-amber-300">- &euro;</div>
+                                <div class="text-xs text-gray-500">charges / vente</div>
+                            </div>
+                            <div class="bg-gray-700/50 rounded-xl p-3 text-center border-2" id="oa-fixed-net-card">
+                                <div class="text-xs text-purple-400 font-semibold mb-1"><i class="fas fa-chart-line mr-1"></i>Resultat net</div>
+                                <div id="oa-fixed-net" class="text-lg font-bold text-purple-300">0 &euro;</div>
+                                <div id="oa-fixed-net-label" class="text-xs text-gray-500">profit - charges</div>
+                            </div>
+                        </div>
+                        <div id="oa-recap-deals" class="mt-4 hidden"></div>
+                    </div>
+                </div>
+
+                <!-- Stats pipeline -->
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-orange-300 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
+                        <div id="accueil-stat-raw" class="text-3xl font-bold text-orange-500">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Produits bruts</div>
+                        <div class="text-xs text-gray-400">Scrapes</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-blue-300 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
+                        <div id="accueil-stat-ean" class="text-3xl font-bold text-blue-500">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Avec EAN</div>
+                        <div class="text-xs text-gray-400">Prets pour Keepa</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-indigo-300 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
+                        <div id="accueil-stat-enriched" class="text-3xl font-bold text-indigo-500">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Enrichis</div>
+                        <div class="text-xs text-gray-400">Avec donnees Amazon</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-green-400 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
+                        <div id="accueil-stat-profitable" class="text-3xl font-bold text-green-600">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Rentables</div>
+                        <div class="text-xs text-gray-400">Profit &ge;5€ · ROI &ge;30%</div>
+                    </div>
+                </div>
+
+                <!-- Agents status -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Catalog</span>
+                            <span id="accueil-catalog-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="accueil-catalog-last">Chargement…</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-gem mr-2 text-blue-500"></i>Agent Enricher</span>
+                            <span id="accueil-enricher-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="accueil-enricher-last">Chargement…</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-brain mr-2 text-purple-500"></i>Team Leader</span>
+                            <span id="accueil-leader-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="accueil-leader-last">Chargement…</div>
+                    </div>
+                </div>
+
+                <!-- Top 5 produits rentables -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                        <h3 class="font-bold text-gray-700"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Meilleurs deals du catalogue</h3>
+                        <button onclick="showSection('oa-catalogue')" class="text-xs text-indigo-500 hover:underline">Voir tout →</button>
+                    </div>
+                    <div id="accueil-top-deals" class="divide-y divide-gray-50">
+                        <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
+                    </div>
+                </div>
+            </section>
 
             <!-- Section OA Scanner (supprimé — remplacé par Agent Catalog) -->
             <section id="section-oa-scanner" class="content-section hidden" style="display:none!important">
@@ -3257,12 +3328,13 @@
                                     <th class="p-3 font-semibold text-gray-600 text-center cursor-pointer hover:text-indigo-600" onclick="sortCatalog('sales')">Ventes/m ↕</th>
                                     <th class="p-3 font-semibold text-gray-600 text-center">Vendeurs</th>
                                     <th class="p-3 font-semibold text-gray-600 text-center">Amazon?</th>
+                                    <th class="p-3 font-semibold text-gray-600 text-center">Vendre sur</th>
                                     <th class="p-3 font-semibold text-gray-600 text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="catalog-tbody">
                                 <tr>
-                                    <td colspan="11" class="p-8 text-center text-gray-400">
+                                    <td colspan="12" class="p-8 text-center text-gray-400">
                                         <i class="fas fa-store text-4xl mb-3 block text-gray-300"></i>
                                         <p>Chargement du catalogue…</p>
                                         <p class="text-xs mt-1">Agent Catalog (scrape) + Agent Enricher (Keepa) tournent toutes les heures</p>
