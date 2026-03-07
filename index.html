@@ -3301,27 +3301,74 @@
                 </div>
 
                 <!-- Résumé agents -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6" id="journal-agent-summary">
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center">
-                        <div class="text-2xl mb-1">🏪</div>
-                        <div class="font-bold text-gray-700 text-sm">Agent Catalog</div>
-                        <div id="journal-last-catalog" class="text-xs text-gray-400 mt-1">Jamais exécuté</div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="journal-agent-summary">
+
+                    <!-- Agent Catalog -->
+                    <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-400">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">🏪</span>
+                                <span class="font-bold text-gray-800 text-sm">Agent Catalog</span>
+                            </div>
+                            <span id="journal-status-catalog" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inactif</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">Scrape les retailers actifs, extrait les produits avec EAN, les stocke dans le pipeline pour enrichissement Keepa.</p>
+                        <div id="journal-last-catalog" class="text-xs text-gray-400 mb-3">Dernier run : jamais</div>
+                        <div class="border-t border-gray-100 pt-3">
+                            <button onclick="toggleAgentInstruction('catalog')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 mb-2">
+                                <i class="fas fa-terminal text-xs"></i>Nouvelle consigne
+                            </button>
+                            <div id="agent-instruction-catalog" class="hidden">
+                                <textarea id="agent-instruction-text-catalog" rows="2" placeholder="Ex: Scrape uniquement Fnac et Cdiscount cette semaine…" class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-blue-300"></textarea>
+                                <button onclick="sendAgentInstruction('catalog')" class="mt-1 px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 w-full">Envoyer</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center">
-                        <div class="text-2xl mb-1">⚡</div>
-                        <div class="font-bold text-gray-700 text-sm">Agent Deal FR</div>
-                        <div id="journal-last-deals" class="text-xs text-gray-400 mt-1">Jamais exécuté</div>
+
+                    <!-- Agent Sourcing -->
+                    <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-yellow-400">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">⚡</span>
+                                <span class="font-bold text-gray-800 text-sm">Agent Sourcing</span>
+                            </div>
+                            <span id="journal-status-deals" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inactif</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">Analyse les deals RSS (Dealabs, MyDealz…), les croise avec Keepa pour calculer la rentabilité, alerte sur les opportunités.</p>
+                        <div id="journal-last-deals" class="text-xs text-gray-400 mb-3">Dernier run : jamais</div>
+                        <div class="border-t border-gray-100 pt-3">
+                            <button onclick="toggleAgentInstruction('deals')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 mb-2">
+                                <i class="fas fa-terminal text-xs"></i>Nouvelle consigne
+                            </button>
+                            <div id="agent-instruction-deals" class="hidden">
+                                <textarea id="agent-instruction-text-deals" rows="2" placeholder="Ex: Focus sur les deals électronique ROI > 40%…" class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-blue-300"></textarea>
+                                <button onclick="sendAgentInstruction('deals')" class="mt-1 px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 w-full">Envoyer</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center">
-                        <div class="text-2xl mb-1">🧠</div>
-                        <div class="font-bold text-gray-700 text-sm">Team Leader</div>
-                        <div id="journal-last-leader" class="text-xs text-gray-400 mt-1">Jamais exécuté</div>
+
+                    <!-- Team Leader -->
+                    <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-purple-400">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">🧠</span>
+                                <span class="font-bold text-gray-800 text-sm">Team Leader</span>
+                            </div>
+                            <span id="journal-status-leader" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inactif</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">Orchestre tous les agents, ajuste les retailers chaque lundi selon les performances, envoie les alertes Telegram sur les deals rentables.</p>
+                        <div id="journal-last-leader" class="text-xs text-gray-400 mb-3">Dernier run : jamais</div>
+                        <div class="border-t border-gray-100 pt-3">
+                            <button onclick="toggleAgentInstruction('leader')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 mb-2">
+                                <i class="fas fa-terminal text-xs"></i>Nouvelle consigne
+                            </button>
+                            <div id="agent-instruction-leader" class="hidden">
+                                <textarea id="agent-instruction-text-leader" rows="2" placeholder="Ex: Priorise les catégories Maison et Beauté ce mois…" class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-blue-300"></textarea>
+                                <button onclick="sendAgentInstruction('leader')" class="mt-1 px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 w-full">Envoyer</button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center">
-                        <div class="text-2xl mb-1">📦</div>
-                        <div class="font-bold text-gray-700 text-sm">Catalogue</div>
-                        <div id="journal-catalog-size" class="text-xs text-gray-400 mt-1">0 produits</div>
-                    </div>
+
                 </div>
 
                 <!-- Log complet -->

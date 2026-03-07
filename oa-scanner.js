@@ -5935,6 +5935,36 @@ async function loadJournal() {
     }
 }
 
+function toggleAgentInstruction(agent) {
+    var el = document.getElementById('agent-instruction-' + agent);
+    if (el) el.classList.toggle('hidden');
+}
+
+async function sendAgentInstruction(agent) {
+    var textarea = document.getElementById('agent-instruction-text-' + agent);
+    var text = textarea ? textarea.value.trim() : '';
+    if (!text) return;
+    var btn = textarea.nextElementSibling;
+    if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
+    try {
+        var resp = await fetch('/.netlify/functions/agent-instruction', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ agent: agent, instruction: text })
+        });
+        if (resp.ok) {
+            if (textarea) textarea.value = '';
+            toggleAgentInstruction(agent);
+            showToast('Consigne envoyée à l\'agent ' + agent, 'success');
+        } else {
+            showToast('Erreur lors de l\'envoi', 'error');
+        }
+    } catch (e) {
+        showToast('Erreur réseau', 'error');
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Envoyer'; }
+}
+
 function openFluxDrilldown(mode) {
     var modal   = document.getElementById('flux-drilldown-modal');
     var title   = document.getElementById('flux-drilldown-title');
@@ -6063,11 +6093,26 @@ function renderJournal(events) {
     }
     var agentIcons = { catalog: '🏪', sourcing: '⚡', leader: '🧠', decision: '💰' };
     var agentIdMap = { catalog: 'catalog', sourcing: 'deals', leader: 'leader' };
+    var statusColors = {
+        recent: 'bg-green-100 text-green-700',
+        active: 'bg-blue-100 text-blue-700',
+        old:    'bg-gray-100 text-gray-500'
+    };
     ['catalog', 'sourcing', 'leader'].forEach(function(agent) {
         var last = events.find(function(e) { return e.agent === agent; });
-        var elId = 'journal-last-' + (agentIdMap[agent] || agent);
-        var el = document.getElementById(elId);
-        if (el && last) el.textContent = 'Dernier run : ' + timeAgo(last.ts);
+        var mapId = agentIdMap[agent] || agent;
+        var lastEl   = document.getElementById('journal-last-'   + mapId);
+        var statusEl = document.getElementById('journal-status-' + mapId);
+        if (last) {
+            if (lastEl)   lastEl.textContent = 'Dernier run : ' + timeAgo(last.ts);
+            if (statusEl) {
+                var minsAgo = (Date.now() - new Date(last.ts)) / 60000;
+                var cls = minsAgo < 120 ? statusColors.recent : minsAgo < 1440 ? statusColors.active : statusColors.old;
+                var label = minsAgo < 120 ? 'Récent' : minsAgo < 1440 ? 'Actif' : 'Inactif';
+                statusEl.className = 'text-xs px-2 py-0.5 rounded-full ' + cls;
+                statusEl.textContent = label;
+            }
+        }
     });
     logEl.innerHTML = events.map(function(e) {
         var icon = agentIcons[e.agent] || '🤖';
