@@ -1,15 +1,12 @@
 # Configuration Netlify pour FBA Dashboard
 
 [build]
-  command = "echo 'Static site'"
+  command = "cd netlify/functions && npm install"
   publish = "."
 
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-
-[[plugins]]
-  package = "@netlify/plugin-functions-install-core"
 
 [functions."agent-instruction"]
   timeout = 30
