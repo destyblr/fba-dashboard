@@ -243,6 +243,9 @@
                             <button class="dropdown-item" data-section="oa-journal" onclick="showSection('oa-journal');closeDropdowns()">
                                 <i class="fas fa-robot mr-2 text-purple-500 w-4"></i>Agents &amp; Journal
                             </button>
+                            <button class="dropdown-item" data-section="oa-flux" onclick="showSection('oa-flux');closeDropdowns()">
+                                <i class="fas fa-stream mr-2 text-blue-500 w-4"></i>Flux
+                            </button>
                             <button class="dropdown-item" data-section="oa-retailers" onclick="showSection('oa-retailers');closeDropdowns()">
                                 <i class="fas fa-shop mr-2 text-green-500 w-4"></i>Retailers
                             </button>
@@ -3331,6 +3334,75 @@
                         <button onclick="loadJournal()" class="text-xs text-blue-500 hover:underline"><i class="fas fa-sync-alt mr-1"></i>Actualiser</button>
                     </div>
                     <div id="journal-log" class="divide-y divide-gray-50 max-h-[500px] overflow-y-auto">
+                        <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="section-oa-flux" class="content-section hidden">
+                <div class="mb-6">
+                    <h2 class="text-3xl font-bold text-gray-800">
+                        <i class="fas fa-stream text-blue-600 mr-2"></i>Flux
+                    </h2>
+                    <p class="text-gray-500">Etat du pipeline de donnees : scraping → EAN → enrichissement Keepa</p>
+                </div>
+
+                <!-- Stats pipeline (cliquables → drilldown) -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-orange-400 cursor-pointer hover:shadow-md transition group" onclick="openFluxDrilldown('raw')">
+                        <div class="text-3xl font-bold text-orange-500" id="flux-raw-count">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Produits bruts</div>
+                        <div class="text-xs text-gray-400 mt-1">Scrapes depuis les retailers</div>
+                        <div class="text-xs text-orange-400 mt-2 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-eye mr-1"></i>Voir la liste</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-blue-400 cursor-pointer hover:shadow-md transition group" onclick="openFluxDrilldown('ean')">
+                        <div class="text-3xl font-bold text-blue-500" id="flux-ean-count">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Avec EAN</div>
+                        <div class="text-xs text-gray-400 mt-1">Prets pour enrichissement Keepa</div>
+                        <div class="text-xs text-blue-400 mt-2 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-eye mr-1"></i>Voir la liste</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-green-400 cursor-pointer hover:shadow-md transition group" onclick="openFluxDrilldown('enriched')">
+                        <div class="text-3xl font-bold text-green-500" id="flux-enriched-count">—</div>
+                        <div class="text-sm font-medium text-gray-600 mt-1">Enrichis</div>
+                        <div class="text-xs text-gray-400 mt-1">Avec donnees Amazon (Keepa)</div>
+                        <div class="text-xs text-green-400 mt-2 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-eye mr-1"></i>Voir la liste</div>
+                    </div>
+                </div>
+
+                <!-- Dernier run de chaque agent -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Catalog</span>
+                            <span id="flux-catalog-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="flux-catalog-last">Dernier run : —</div>
+                        <div class="text-xs text-gray-500 mt-1" id="flux-catalog-retailer">Retailer : —</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-gem mr-2 text-blue-500"></i>Agent Enricher</span>
+                            <span id="flux-enricher-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="flux-enricher-last">Dernier run : —</div>
+                        <div class="text-xs text-gray-500 mt-1" id="flux-enricher-queue">File Keepa : —</div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-brain mr-2 text-purple-500"></i>Team Leader</span>
+                            <span id="flux-leader-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
+                        </div>
+                        <div class="text-xs text-gray-400" id="flux-leader-last">Dernier run : —</div>
+                    </div>
+                </div>
+
+                <!-- Log recent -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="flex items-center justify-between p-4 border-b border-gray-100">
+                        <h3 class="font-bold text-gray-700"><i class="fas fa-list text-blue-400 mr-2"></i>Log recent</h3>
+                        <button onclick="loadFlux()" class="text-xs text-blue-500 hover:underline"><i class="fas fa-sync-alt mr-1"></i>Actualiser</button>
+                    </div>
+                    <div id="flux-log" class="divide-y divide-gray-50 max-h-96 overflow-y-auto">
                         <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
                     </div>
                 </div>
