@@ -6278,6 +6278,72 @@ function loadCatalog() {
 function filterCatalog() {
     catalogCurrentPage = 0;
     loadCatalog();
+    renderFilterTags();
+}
+
+function resetCatalogFilters() {
+    var setVal = function(id, v) { var el = document.getElementById(id); if (el) el.value = v; };
+    setVal('catalog-retailer-filter',  'all');
+    setVal('catalog-category-filter',  'all');
+    setVal('catalog-min-profit',       '0');
+    setVal('catalog-min-roi',          '0');
+    setVal('catalog-min-sales',        '0');
+    setVal('catalog-max-sellers',      '');
+    setVal('catalog-sort-select',      'profit');
+    var cb = document.getElementById('catalog-no-amazon');
+    if (cb) cb.checked = false;
+    catalogSortKey = 'profit';
+    catalogCurrentPage = 0;
+    var tags = document.getElementById('catalog-filter-tags');
+    if (tags) { tags.innerHTML = ''; tags.classList.add('hidden'); }
+    loadCatalog();
+}
+
+function removeFilterTag(field) {
+    var defaults = { 'catalog-retailer-filter': 'all', 'catalog-category-filter': 'all', 'catalog-min-profit': '0', 'catalog-min-roi': '0', 'catalog-min-sales': '0', 'catalog-max-sellers': '' };
+    if (field === 'catalog-no-amazon') {
+        var cb = document.getElementById('catalog-no-amazon');
+        if (cb) cb.checked = false;
+    } else {
+        var el = document.getElementById(field);
+        if (el) el.value = defaults[field] !== undefined ? defaults[field] : '';
+    }
+    filterCatalog();
+}
+
+function renderFilterTags() {
+    var tags = document.getElementById('catalog-filter-tags');
+    if (!tags) return;
+    var pills = [];
+    var getVal = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+    var retailer  = getVal('catalog-retailer-filter');
+    var category  = getVal('catalog-category-filter');
+    var minProfit = parseFloat(getVal('catalog-min-profit')) || 0;
+    var minRoi    = parseFloat(getVal('catalog-min-roi'))    || 0;
+    var minSales  = parseInt(getVal('catalog-min-sales'))    || 0;
+    var maxSellers= parseInt(getVal('catalog-max-sellers'));
+    var noAmz     = (document.getElementById('catalog-no-amazon') || {}).checked;
+
+    if (retailer && retailer !== 'all')  pills.push({ label: 'Retailer: ' + retailer,    field: 'catalog-retailer-filter' });
+    if (category && category !== 'all')  pills.push({ label: 'Catégorie: ' + category,   field: 'catalog-category-filter' });
+    if (minProfit > 0)                   pills.push({ label: 'Profit > ' + minProfit + '€', field: 'catalog-min-profit' });
+    if (minRoi > 0)                      pills.push({ label: 'Marge > ' + minRoi + '%',  field: 'catalog-min-roi' });
+    if (minSales > 0)                    pills.push({ label: 'Ventes > ' + minSales,     field: 'catalog-min-sales' });
+    if (!isNaN(maxSellers) && maxSellers > 0) pills.push({ label: 'Vendeurs ≤ ' + maxSellers, field: 'catalog-max-sellers' });
+    if (noAmz)                           pills.push({ label: 'Sans Amazon',              field: 'catalog-no-amazon' });
+
+    if (!pills.length) {
+        tags.innerHTML = '';
+        tags.classList.add('hidden');
+        return;
+    }
+    tags.classList.remove('hidden');
+    tags.innerHTML = pills.map(function(p) {
+        return '<span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full px-2.5 py-0.5 text-xs font-medium">' +
+            p.label +
+            '<button onclick="removeFilterTag(\'' + p.field + '\')" class="ml-1 text-indigo-400 hover:text-indigo-700 font-bold leading-none">×</button>' +
+        '</span>';
+    }).join('');
 }
 
 function setCatalogFilter(mode) {
@@ -6334,6 +6400,18 @@ function renderCatalogTable() {
     } else if (catalogFilterMode === 'amazon-absent') {
         data = data.filter(function(p) { return p.asin && !p.amazonIsSeller; });
     }
+
+    // Filtres Flippix (client-side)
+    var getVal = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
+    var minSales   = parseInt(getVal('catalog-min-sales'))  || 0;
+    var maxSellers = parseInt(getVal('catalog-max-sellers'));
+    var noAmz      = (document.getElementById('catalog-no-amazon') || {}).checked;
+    if (minSales > 0)
+        data = data.filter(function(p) { return (p.monthlySold || 0) >= minSales; });
+    if (!isNaN(maxSellers) && maxSellers > 0)
+        data = data.filter(function(p) { return p.offerCountNew == null || p.offerCountNew <= maxSellers; });
+    if (noAmz)
+        data = data.filter(function(p) { return p.asin && !p.amazonIsSeller; });
 
     // Tri
     data = data.slice().sort(function(a, b) {

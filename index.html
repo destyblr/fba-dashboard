@@ -2925,10 +2925,10 @@
 
                 <!-- OA Recap block -->
                 <div id="oa-dashboard-recap" class="mb-6">
-                    <div class="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-5 shadow-lg">
+                    <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
                         <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-white font-bold text-lg"><i class="fas fa-chart-line mr-2 text-indigo-400"></i>Recap</h3>
-                            <div class="flex bg-gray-700 rounded-lg p-0.5" id="oa-period-selector">
+                            <h3 class="text-gray-800 font-bold text-base"><i class="fas fa-chart-line mr-2 text-indigo-500"></i>Recap</h3>
+                            <div class="flex bg-gray-100 rounded-lg p-0.5" id="oa-period-selector">
                                 <button onclick="setOAPeriod('month')" class="oa-period-btn active px-3 py-1 rounded-md text-xs font-semibold transition" data-period="month">Ce mois</button>
                                 <button onclick="setOAPeriod('lastmonth')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="lastmonth">Mois dernier</button>
                                 <button onclick="setOAPeriod('year')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="year">Annee</button>
@@ -2936,35 +2936,35 @@
                             </div>
                         </div>
                         <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
-                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                                <div class="text-xs text-red-400 font-semibold mb-1"><i class="fas fa-tools mr-1"></i>Charges fixes</div>
-                                <div id="oa-fixed-total" class="text-lg font-bold text-red-300">48 &euro;</div>
-                                <div id="oa-fixed-period-label" class="text-xs text-gray-500">ce mois</div>
+                            <div class="bg-red-50 rounded-xl p-3 text-center border border-red-100">
+                                <div class="text-xs text-red-500 font-semibold mb-1"><i class="fas fa-tools mr-1"></i>Charges fixes</div>
+                                <div id="oa-fixed-total" class="text-lg font-bold text-red-600">48 &euro;</div>
+                                <div id="oa-fixed-period-label" class="text-xs text-gray-400">ce mois</div>
                             </div>
-                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                                <div class="text-xs text-blue-400 font-semibold mb-1"><i class="fas fa-shopping-bag mr-1"></i>Achetes</div>
-                                <div id="oa-fixed-bought" class="text-lg font-bold text-blue-300">0</div>
-                                <div class="text-xs text-gray-500">produits</div>
+                            <div class="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
+                                <div class="text-xs text-blue-500 font-semibold mb-1"><i class="fas fa-shopping-bag mr-1"></i>Achetes</div>
+                                <div id="oa-fixed-bought" class="text-lg font-bold text-blue-600">0</div>
+                                <div class="text-xs text-gray-400">produits</div>
                             </div>
-                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                                <div class="text-xs text-cyan-400 font-semibold mb-1"><i class="fas fa-check-circle mr-1"></i>Vendus</div>
-                                <div id="oa-fixed-sales" class="text-lg font-bold text-cyan-300">0</div>
-                                <div class="text-xs text-gray-500">produits</div>
+                            <div class="bg-cyan-50 rounded-xl p-3 text-center border border-cyan-100">
+                                <div class="text-xs text-cyan-600 font-semibold mb-1"><i class="fas fa-check-circle mr-1"></i>Vendus</div>
+                                <div id="oa-fixed-sales" class="text-lg font-bold text-cyan-700">0</div>
+                                <div class="text-xs text-gray-400">produits</div>
                             </div>
-                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                                <div class="text-xs text-green-400 font-semibold mb-1"><i class="fas fa-hand-holding-usd mr-1"></i>Profit brut</div>
-                                <div id="oa-fixed-profit" class="text-lg font-bold text-green-300">0 &euro;</div>
-                                <div class="text-xs text-gray-500">ventes</div>
+                            <div class="bg-green-50 rounded-xl p-3 text-center border border-green-100">
+                                <div class="text-xs text-green-600 font-semibold mb-1"><i class="fas fa-hand-holding-usd mr-1"></i>Profit brut</div>
+                                <div id="oa-fixed-profit" class="text-lg font-bold text-green-700">0 &euro;</div>
+                                <div class="text-xs text-gray-400">ventes</div>
                             </div>
-                            <div class="bg-gray-700/50 rounded-xl p-3 text-center">
-                                <div class="text-xs text-amber-400 font-semibold mb-1"><i class="fas fa-calculator mr-1"></i>Cout/vente</div>
-                                <div id="oa-fixed-per-sale" class="text-lg font-bold text-amber-300">- &euro;</div>
-                                <div class="text-xs text-gray-500">charges / vente</div>
+                            <div class="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
+                                <div class="text-xs text-amber-600 font-semibold mb-1"><i class="fas fa-calculator mr-1"></i>Cout/vente</div>
+                                <div id="oa-fixed-per-sale" class="text-lg font-bold text-amber-700">- &euro;</div>
+                                <div class="text-xs text-gray-400">charges / vente</div>
                             </div>
-                            <div class="bg-gray-700/50 rounded-xl p-3 text-center border-2" id="oa-fixed-net-card">
-                                <div class="text-xs text-purple-400 font-semibold mb-1"><i class="fas fa-chart-line mr-1"></i>Resultat net</div>
-                                <div id="oa-fixed-net" class="text-lg font-bold text-purple-300">0 &euro;</div>
-                                <div id="oa-fixed-net-label" class="text-xs text-gray-500">profit - charges</div>
+                            <div class="rounded-xl p-3 text-center border-2 border-indigo-200 bg-indigo-50" id="oa-fixed-net-card">
+                                <div class="text-xs text-indigo-600 font-semibold mb-1"><i class="fas fa-chart-line mr-1"></i>Resultat net</div>
+                                <div id="oa-fixed-net" class="text-lg font-bold text-indigo-700">0 &euro;</div>
+                                <div id="oa-fixed-net-label" class="text-xs text-gray-400">profit - charges</div>
                             </div>
                         </div>
                         <div id="oa-recap-deals" class="mt-4 hidden"></div>
@@ -3269,47 +3269,79 @@
                     </div>
                 </div>
 
-                <!-- Filtres -->
-                <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
-                    <div class="flex flex-wrap items-end gap-4">
-                        <div>
-                            <label class="text-xs text-gray-500 block mb-1">Retailer</label>
-                            <select id="catalog-retailer-filter" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" onchange="filterCatalog()">
-                                <option value="all">Tous les retailers</option>
-                            </select>
+                <!-- Filtres style Flippix -->
+                <div class="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
+                    <div class="p-4 flex flex-wrap items-center gap-2 border-b border-gray-100">
+                        <!-- Retailer -->
+                        <select id="catalog-retailer-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
+                            <option value="all">🛍 Tous les retailers</option>
+                        </select>
+                        <select id="catalog-category-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
+                            <option value="all">Toutes catégories</option>
+                            <option value="beaute">Beauté</option>
+                            <option value="jouets">Jouets</option>
+                            <option value="informatique">Informatique</option>
+                            <option value="animalerie">Animalerie</option>
+                            <option value="cuisine">Cuisine</option>
+                            <option value="sport">Sport</option>
+                            <option value="bebe">Bébé</option>
+                            <option value="culture">Culture</option>
+                            <option value="jardin">Jardin</option>
+                        </select>
+
+                        <div class="h-5 w-px bg-gray-200 mx-1"></div>
+
+                        <!-- Ventes > n -->
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">Ventes &gt;</span>
+                            <input type="number" id="catalog-min-sales" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                         </div>
-                        <div>
-                            <label class="text-xs text-gray-500 block mb-1">Catégorie</label>
-                            <select id="catalog-category-filter" class="border border-gray-200 rounded-lg px-3 py-2 text-sm" onchange="filterCatalog()">
-                                <option value="all">Toutes</option>
-                                <option value="jouets">Jouets</option>
-                                <option value="electronique">Électronique</option>
-                                <option value="sports">Sports & Loisirs</option>
-                                <option value="beaute">Beauté & Santé</option>
-                                <option value="cuisine">Cuisine & Maison</option>
-                                <option value="informatique">Informatique</option>
-                                <option value="animalerie">Animalerie</option>
-                            </select>
+                        <!-- Marge > n % -->
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">Marge &gt;</span>
+                            <input type="number" id="catalog-min-roi" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
+                            <span class="text-gray-400 text-xs">%</span>
                         </div>
-                        <div>
-                            <label class="text-xs text-gray-500 block mb-1">Profit min (€)</label>
-                            <input type="number" id="catalog-min-profit" value="5" min="0" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20" onchange="filterCatalog()">
+                        <!-- Profit > n € -->
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">Profit &gt;</span>
+                            <input type="number" id="catalog-min-profit" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
+                            <span class="text-gray-400 text-xs">€</span>
                         </div>
-                        <div>
-                            <label class="text-xs text-gray-500 block mb-1">ROI min (%)</label>
-                            <input type="number" id="catalog-min-roi" value="30" min="0" class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-20" onchange="filterCatalog()">
+                        <!-- Vend. < n -->
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">Vend. &lt;</span>
+                            <input type="number" id="catalog-max-sellers" value="0" min="0" placeholder="∞" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                         </div>
-                        <div class="flex gap-2">
-                            <button onclick="setCatalogFilter('all')" id="catalog-filter-all" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Tous (0)</button>
-                            <button onclick="setCatalogFilter('profitable')" id="catalog-filter-profitable" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Rentables (0)</button>
-                            <button onclick="setCatalogFilter('amazon-absent')" id="catalog-filter-amazon-absent" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Sans Amazon (0)</button>
-                        </div>
-                        <div class="ml-auto">
-                            <button onclick="loadCatalog()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold">
-                                <i class="fas fa-sync-alt mr-2"></i>Actualiser
-                            </button>
-                        </div>
+
+                        <div class="h-5 w-px bg-gray-200 mx-1"></div>
+
+                        <!-- Trier -->
+                        <select id="catalog-sort-select" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white" onchange="catalogSortKey=this.value; renderCatalogTable()">
+                            <option value="profit">Trier : Profit</option>
+                            <option value="roi">Trier : Marge</option>
+                            <option value="bsr">Trier : BSR</option>
+                            <option value="sales">Trier : Ventes</option>
+                        </select>
+
+                        <!-- Sans Amazon toggle -->
+                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 select-none">
+                            <input type="checkbox" id="catalog-no-amazon" class="rounded">
+                            Sans Amazon
+                        </label>
+
+                        <div class="flex-1"></div>
+
+                        <!-- Réinitialiser + Rechercher -->
+                        <button onclick="resetCatalogFilters()" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 transition">
+                            <i class="fas fa-undo mr-1 text-xs"></i>Réinitialiser
+                        </button>
+                        <button onclick="filterCatalog()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">
+                            <i class="fas fa-search mr-1"></i>Rechercher
+                        </button>
                     </div>
+                    <!-- Tags filtres actifs -->
+                    <div id="catalog-filter-tags" class="px-4 py-2 flex flex-wrap gap-2 hidden border-b border-gray-100 bg-gray-50"></div>
                 </div>
 
                 <!-- Tableau résultats -->
