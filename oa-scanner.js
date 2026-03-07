@@ -6011,7 +6011,24 @@ async function sendAgentInstruction(agent) {
         var data = await resp.json().catch(function() { return null; });
         if (data && data.ok) {
             if (textarea) textarea.value = '';
-            if (replyEl) renderAgentHistory(data.history || [], replyEl, data.agent || agent);
+            if (replyEl) {
+                renderAgentHistory(data.history || [], replyEl, data.agent || agent);
+                // Afficher les actions effectuées
+                if (data.actions && data.actions.length) {
+                    var actionsHtml = data.actions.map(function(a) {
+                        var ok = a.result && a.result.ok !== false;
+                        return '<div class="flex items-center gap-1 text-xs ' + (ok ? 'text-emerald-600' : 'text-red-500') + '">' +
+                            '<i class="fas fa-' + (ok ? 'check-circle' : 'times-circle') + ' text-xs"></i>' +
+                            (a.result.message || a.tool) +
+                        '</div>';
+                    }).join('');
+                    replyEl.insertAdjacentHTML('beforeend', '<div class="mt-2 p-2 bg-emerald-50 rounded-lg border border-emerald-100">' + actionsHtml + '</div>');
+                    // Recharger Sources actives si un retailer a été modifié
+                    if (data.actions.some(function(a) { return ['add_retailer','toggle_retailer','update_retailer','remove_retailer'].includes(a.tool); })) {
+                        setTimeout(function() { if (typeof loadFlux === 'function') loadFlux(); }, 500);
+                    }
+                }
+            }
         } else {
             var errMsg = (data && data.error) ? data.error : ('HTTP ' + resp.status);
             if (replyEl) {
