@@ -6210,8 +6210,17 @@ function renderJournalStats(stats, agent) {
     }
     if (agent === 'sourcing') {
         return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
-            '<span class="text-blue-600">📦 ' + (stats.deals || 0) + ' deals analysés</span>' +
+            '<span class="text-emerald-600">📦 ' + (stats.deals || 0) + ' deals analysés</span>' +
             '<span class="text-green-600">💰 ' + (stats.profitable || 0) + ' rentables</span>' +
+            '</div>';
+    }
+    if (agent === 'leader') {
+        var retailersAdjusted = stats.retailersAdjusted || 0;
+        var decisions         = stats.decisions || 0;
+        return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
+            '<span class="text-purple-600">🏪 ' + retailersAdjusted + ' retailer(s) ajusté(s)</span>' +
+            '<span class="text-blue-600">🎯 ' + decisions + ' décision(s) envoyée(s)</span>' +
+            '<span class="text-gray-400">⏰ Prochaine révision : lundi</span>' +
             '</div>';
     }
     if (agent === 'inventory') {
@@ -6818,34 +6827,52 @@ function toggleRetailer(id) {
     .catch(function() {});
 }
 
+function nextScanDay(days) {
+    if (!days || !days.length) return 'tous les jours';
+    var today = new Date().getDay(); // 0=dim
+    var sorted = days.slice().sort(function(a,b){return a-b;});
+    var next = sorted.find(function(d){return d > today;}) ?? sorted[0];
+    var DAY_FULL = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+    var diff = (next - today + 7) % 7 || 7;
+    return DAY_FULL[next] + (diff === 1 ? ' (demain)' : diff === 7 ? ' (dans 7j)' : ' (dans ' + diff + 'j)');
+}
+
 function renderRetailersList(retailers, lastScanMap) {
     lastScanMap = lastScanMap || {};
     var el = document.getElementById('retailers-list');
     var countEl = document.getElementById('retailers-count');
     var active = retailers.filter(function(r) { return r.active !== false; }).length;
-    if (countEl) countEl.textContent = active + ' actifs sur ' + retailers.length;
+    if (countEl) countEl.textContent = active + ' actifs · ' + retailers.length + ' total';
+
+    // Calculer prochaine révision Team Leader (lundi prochain)
+    var nextLeaderEl = document.getElementById('retailers-next-leader');
+    if (nextLeaderEl) {
+        var daysToMonday = (8 - new Date().getDay()) % 7 || 7;
+        nextLeaderEl.textContent = 'Révision Team Leader : ' + (daysToMonday === 1 ? 'demain' : 'dans ' + daysToMonday + 'j (lundi)');
+    }
+
     if (!el) return;
     if (!retailers.length) {
-        el.innerHTML = '<div class="p-8 text-center text-gray-400 text-sm"><i class="fas fa-spinner fa-spin text-2xl mb-3 block text-gray-300"></i><p>En attente du premier run du Team Leader…</p></div>';
+        el.innerHTML = '<div class="p-8 text-center text-gray-400 text-sm"><p>Aucun retailer configuré — le Team Leader les initialise au premier run.</p></div>';
         return;
     }
     var DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     el.innerHTML = retailers.map(function(r) {
         var days = (r.days || []).sort(function(a,b){return a-b;}).map(function(d) { return DAY_NAMES[d]; }).join(' · ');
-        var lastTs = lastScanMap[r.name];
-        var lastScanTxt = lastTs ? '<span class="text-xs text-gray-400"><i class="fas fa-clock mr-1"></i>Dernier scan : ' + timeAgo(lastTs) + '</span>' : '<span class="text-xs text-gray-300">Jamais scanné</span>';
+        var lastTs  = lastScanMap[r.name];
+        var nextDay = r.active !== false ? nextScanDay(r.days) : '—';
         return '<div class="flex items-center gap-4 p-4 hover:bg-gray-50 transition">' +
             '<div class="flex-1 min-w-0">' +
-                '<div class="flex items-center gap-2 flex-wrap">' +
+                '<div class="flex items-center gap-2 flex-wrap mb-1">' +
                     '<span class="font-semibold text-gray-800">' + r.name + '</span>' +
                     '<span class="text-xs px-2 py-0.5 rounded-full ' + (r.active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (r.active !== false ? 'Actif' : 'Inactif') + '</span>' +
-                    '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">' + (r.category || '') + '</span>' +
-                    lastScanTxt +
+                    (r.category ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">' + r.category + '</span>' : '') +
                 '</div>' +
-                '<div class="text-xs text-gray-400 mt-1">' +
-                    '<span class="mr-3"><i class="fas fa-calendar-alt mr-1"></i>' + (days || 'tous les jours') + '</span>' +
-                    '<span class="mr-3"><i class="fas fa-box mr-1"></i>max ' + (r.maxProducts || 200) + ' produits</span>' +
-                    '<span class="text-gray-300 truncate">' + r.url + '</span>' +
+                '<div class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400">' +
+                    '<span><i class="fas fa-calendar-alt mr-1 text-gray-300"></i>' + (days || 'quotidien') + '</span>' +
+                    '<span><i class="fas fa-forward mr-1 text-blue-300"></i>Prochain : <b class="text-gray-600">' + nextDay + '</b></span>' +
+                    '<span><i class="fas fa-clock mr-1 text-gray-300"></i>Dernier : ' + (lastTs ? timeAgo(lastTs) : 'jamais') + '</span>' +
+                    '<span><i class="fas fa-box mr-1 text-gray-300"></i>max ' + (r.maxProducts || 200) + '</span>' +
                 '</div>' +
             '</div>' +
             '<button onclick="toggleRetailer(\'' + r.id + '\')" class="flex-shrink-0 px-3 py-1 ' + (r.active !== false ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-green-100 hover:bg-green-200 text-green-700') + ' rounded text-xs">' +
