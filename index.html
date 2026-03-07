@@ -246,9 +246,6 @@
                     <button class="nav-btn" data-section="oa-catalogue" onclick="showSection('oa-catalogue')">
                         <i class="fas fa-store mr-1"></i>Catalogue
                     </button>
-                    <button class="nav-btn" data-section="oa-deals" onclick="showSection('oa-deals')">
-                        <i class="fas fa-bolt mr-1"></i>Deals
-                    </button>
                     <button class="nav-btn" data-section="oa-checklist" onclick="showSection('oa-checklist')">
                         <i class="fas fa-clipboard-check mr-1"></i>Checklist
                     </button>
@@ -3131,103 +3128,6 @@
                 </div>
             </section>
 
-            <!-- Section Deals (Agent Deal FR) -->
-            <section id="section-oa-deals" class="content-section hidden">
-                <div class="mb-6">
-                    <h2 class="text-3xl font-bold text-gray-800">
-                        <i class="fas fa-bolt text-orange-500 mr-2"></i>Deals
-                        <span class="text-lg font-normal text-gray-400 ml-2">(Agent Deal FR)</span>
-                    </h2>
-                    <p class="text-gray-500">Deals RSS Dealabs/MyDealz filtrés sur le catalogue · calcul rentabilité FBA automatique</p>
-                </div>
-
-                <!-- Barre de controles -->
-                <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
-                    <div class="flex flex-wrap items-end gap-4">
-                        <!-- Source (fixe) -->
-                        <div class="flex items-center gap-2">
-                            <span class="text-xs font-medium text-gray-600">Source</span>
-                            <span class="px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700">&#127467;&#127479; Dealabs (FR)</span>
-                        </div>
-                        <!-- Marketplace vente -->
-                        <div class="min-w-[160px]">
-                            <label class="text-xs font-medium text-gray-600 mb-1 block">Vendre sur</label>
-                            <select id="deal-sell-market" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg bg-white text-sm" onchange="dealSellMarket = this.value">
-                                <option value="fr">&#127467;&#127479; Amazon.fr</option>
-                                <option value="de" selected>&#127465;&#127466; Amazon.de</option>
-                                <option value="it">&#127470;&#127481; Amazon.it</option>
-                                <option value="es">&#127466;&#127480; Amazon.es</option>
-                            </select>
-                        </div>
-                        <!-- Boutons refresh -->
-                        <div class="flex gap-3 items-center">
-                            <button onclick="fetchDeals()" id="deal-fetch-btn" class="px-5 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-semibold transition">
-                                <i class="fas fa-sync-alt mr-2"></i>Charger
-                            </button>
-                            <span id="deal-cron-status" class="text-xs text-gray-400"></span>
-                        </div>
-                    </div>
-                    <!-- Stats dynamiques -->
-                    <div id="deal-stats" class="mt-3 text-sm text-gray-500 hidden">
-                        <span id="deal-stats-funnel" class="text-gray-400 mr-3"></span>
-                        <span id="deal-stats-keepa" class="text-amber-500"></span>
-                    </div>
-                </div>
-
-                <!-- Pipeline entonnoir -->
-                <div id="deal-pipeline" class="mb-4 hidden"></div>
-
-                <!-- Navigation jour + Filtres -->
-                <div class="flex flex-wrap items-center gap-3 mb-4">
-                    <!-- Navigation par jour -->
-                    <div class="flex items-center gap-1 mr-4 pr-4 border-r border-gray-300">
-                        <i class="fas fa-calendar-alt text-gray-400 mr-2"></i>
-                        <button onclick="setDealDay(0)" id="deal-day-0" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Aujourd'hui (0)</button>
-                        <button onclick="setDealDay(1)" id="deal-day-1" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Hier (0)</button>
-                        <button onclick="setDealDay(2)" id="deal-day-2" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Avant-hier (0)</button>
-                    </div>
-                    <!-- Filtres dynamiques -->
-                    <button onclick="setDealFilter('all')" id="deal-filter-all" class="px-4 py-2 bg-gray-700 text-white rounded-lg text-sm font-semibold">Tous (0)</button>
-                    <button onclick="setDealFilter('profitable')" id="deal-filter-profitable" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Rentables (0)</button>
-                    <button onclick="setDealFilter('amazon')" id="deal-filter-amazon" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Amazon (0)</button>
-                    <button onclick="setDealFilter('no_asin')" id="deal-filter-no_asin" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Sans ASIN (0)</button>
-                    <button onclick="setDealFilter('unprocessed')" id="deal-filter-unprocessed" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold">Non traites (0)</button>
-                </div>
-
-                <!-- Ajout manuel -->
-                <div class="bg-white rounded-xl shadow-sm p-5 mb-6">
-                    <h3 class="font-bold text-gray-800 mb-2"><i class="fas fa-plus-circle text-green-500 mr-2"></i>Ajouter un deal manuellement</h3>
-                    <p class="text-xs text-gray-400 mb-3">Deal trouve en magasin (Action, Stokomani, Noz...) ou sur un site non supporte ? Ajoute-le ici.</p>
-                    <div class="flex flex-wrap items-end gap-3">
-                        <div>
-                            <label class="text-xs font-medium text-gray-600 mb-1 block">ASIN / Lien Amazon / EAN</label>
-                            <input type="text" id="deal-manual-input" placeholder="B0XXXXXXXX ou lien Amazon ou EAN..." class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-72">
-                        </div>
-                        <div>
-                            <label class="text-xs font-medium text-gray-600 mb-1 block">Prix promo (&euro;)</label>
-                            <input type="number" id="deal-manual-price" step="0.01" placeholder="29.99" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-32">
-                        </div>
-                        <div>
-                            <label class="text-xs font-medium text-gray-600 mb-1 block">Source (optionnel)</label>
-                            <input type="text" id="deal-manual-source" placeholder="Stokomani, Noz..." class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm w-40">
-                        </div>
-                        <button onclick="addManualDeal()" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-semibold">
-                            <i class="fas fa-search-dollar mr-1"></i>Analyser
-                        </button>
-                    </div>
-                    <div id="deal-manual-result" class="mt-3"></div>
-                </div>
-
-                <!-- Tableau resultats -->
-                <div id="deal-scanner-results" class="rounded-xl shadow-sm overflow-hidden">
-                    <div class="p-8 text-center text-gray-400" style="background-color: #2d3748">
-                        <i class="fas fa-tags text-5xl mb-4"></i>
-                        <p class="text-lg">Selectionnez une source et cliquez "Charger les deals"</p>
-                        <p class="text-sm mt-2">Les deals des sites de promos seront analyses automatiquement</p>
-                    </div>
-                </div>
-            </section>
-
             <!-- Section Catalogue (Agent Catalog) -->
             <section id="section-oa-catalogue" class="content-section hidden">
                 <div class="mb-6 flex items-start justify-between flex-wrap gap-4">
@@ -3245,36 +3145,12 @@
                     </div>
                 </div>
 
-                <!-- Stats pipeline -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-orange-300">
-                        <div id="catalog-stat-products" class="text-2xl font-bold text-orange-500">0</div>
-                        <div class="text-xs text-gray-400 mt-1">Produits bruts</div>
-                        <div class="text-xs text-gray-300">Scrapes</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-blue-300">
-                        <div id="catalog-stat-matched" class="text-2xl font-bold text-blue-500">0</div>
-                        <div class="text-xs text-gray-400 mt-1">Avec EAN</div>
-                        <div class="text-xs text-gray-300">Prets pour Keepa</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-indigo-300">
-                        <div id="catalog-stat-eligible" class="text-2xl font-bold text-indigo-500">0</div>
-                        <div class="text-xs text-gray-400 mt-1">Enrichis</div>
-                        <div class="text-xs text-gray-300">Avec donnees Amazon</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4 text-center border-t-4 border-green-400">
-                        <div id="catalog-stat-profitable" class="text-2xl font-bold text-green-600">0</div>
-                        <div class="text-xs text-gray-400 mt-1">Rentables</div>
-                        <div class="text-xs text-gray-300">Profit &ge;5€ · ROI &ge;30%</div>
-                    </div>
-                </div>
-
                 <!-- Filtres style Flippix -->
                 <div class="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
+                    <!-- Ligne 1 -->
                     <div class="p-4 flex flex-wrap items-center gap-2 border-b border-gray-100">
-                        <!-- Retailer -->
                         <select id="catalog-retailer-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
-                            <option value="all">🛍 Tous les retailers</option>
+                            <option value="all">Tous les retailers</option>
                         </select>
                         <select id="catalog-category-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
                             <option value="all">Toutes catégories</option>
@@ -3288,60 +3164,62 @@
                             <option value="culture">Culture</option>
                             <option value="jardin">Jardin</option>
                         </select>
-
                         <div class="h-5 w-px bg-gray-200 mx-1"></div>
-
-                        <!-- Ventes > n -->
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
                             <span class="text-gray-500 text-xs whitespace-nowrap">Ventes &gt;</span>
                             <input type="number" id="catalog-min-sales" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                         </div>
-                        <!-- Marge > n % -->
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
                             <span class="text-gray-500 text-xs whitespace-nowrap">Marge &gt;</span>
                             <input type="number" id="catalog-min-roi" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                             <span class="text-gray-400 text-xs">%</span>
                         </div>
-                        <!-- Profit > n € -->
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
                             <span class="text-gray-500 text-xs whitespace-nowrap">Profit &gt;</span>
                             <input type="number" id="catalog-min-profit" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                             <span class="text-gray-400 text-xs">€</span>
                         </div>
-                        <!-- Vend. < n -->
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1 text-sm bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">Vend. &lt;</span>
-                            <input type="number" id="catalog-max-sellers" value="0" min="0" placeholder="∞" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                        </div>
-
                         <div class="h-5 w-px bg-gray-200 mx-1"></div>
-
-                        <!-- Trier -->
                         <select id="catalog-sort-select" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white" onchange="catalogSortKey=this.value; renderCatalogTable()">
-                            <option value="profit">Trier : Profit</option>
-                            <option value="roi">Trier : Marge</option>
-                            <option value="bsr">Trier : BSR</option>
-                            <option value="sales">Trier : Ventes</option>
+                            <option value="profit">Trier ↕ Profit</option>
+                            <option value="roi">Trier ↕ Marge</option>
+                            <option value="bsr">Trier ↕ BSR</option>
+                            <option value="sales">Trier ↕ Ventes</option>
                         </select>
-
-                        <!-- Sans Amazon toggle -->
-                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 select-none">
+                        <div class="flex-1"></div>
+                        <button onclick="toggleCatalogAdvanced()" id="catalog-advanced-btn" class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition">
+                            <i class="fas fa-sliders-h text-xs"></i>Filtres avancés
+                            <span id="catalog-advanced-badge" class="hidden bg-indigo-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none"></span>
+                        </button>
+                    </div>
+                    <!-- Ligne 2 (avancée, masquée par défaut) -->
+                    <div id="catalog-advanced-row" class="hidden px-4 py-3 flex flex-wrap items-center gap-2 bg-gray-50 border-b border-gray-100">
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">ROI &gt;</span>
+                            <input type="number" id="catalog-min-roi-adv" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
+                            <span class="text-gray-400 text-xs">%</span>
+                        </div>
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">Vend. &lt;</span>
+                            <input type="number" id="catalog-max-sellers" min="0" placeholder="∞" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
+                        </div>
+                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 bg-white select-none">
                             <input type="checkbox" id="catalog-no-amazon" class="rounded">
                             Sans Amazon
                         </label>
-
-                        <div class="flex-1"></div>
-
-                        <!-- Réinitialiser + Rechercher -->
-                        <button onclick="resetCatalogFilters()" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 transition">
-                            <i class="fas fa-undo mr-1 text-xs"></i>Réinitialiser
-                        </button>
-                        <button onclick="filterCatalog()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">
-                            <i class="fas fa-search mr-1"></i>Rechercher
-                        </button>
                     </div>
-                    <!-- Tags filtres actifs -->
-                    <div id="catalog-filter-tags" class="px-4 py-2 flex flex-wrap gap-2 hidden border-b border-gray-100 bg-gray-50"></div>
+                    <!-- Ligne actions + tags -->
+                    <div class="px-4 py-3 flex items-center justify-between gap-3">
+                        <div id="catalog-filter-tags" class="flex flex-wrap gap-2 flex-1"></div>
+                        <div class="flex gap-2 flex-shrink-0">
+                            <button onclick="resetCatalogFilters()" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 transition">
+                                <i class="fas fa-undo mr-1 text-xs"></i>Réinitialiser
+                            </button>
+                            <button onclick="filterCatalog()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">
+                                <i class="fas fa-search mr-1"></i>Rechercher
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Tableau résultats -->
@@ -3350,23 +3228,24 @@
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100">
-                                    <th class="p-3 font-semibold text-gray-600">Produit</th>
+                                    <th class="p-3 font-semibold text-gray-600">Titre</th>
                                     <th class="p-3 font-semibold text-gray-600">Retailer</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-right">Achat</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-right">Amazon.de</th>
+                                    <th class="p-3 font-semibold text-gray-600 text-right">Prix achat</th>
+                                    <th class="p-3 font-semibold text-gray-600 text-right">Prix de vente</th>
                                     <th class="p-3 font-semibold text-gray-600 text-right cursor-pointer hover:text-indigo-600" onclick="sortCatalog('profit')">Profit ↕</th>
                                     <th class="p-3 font-semibold text-gray-600 text-right cursor-pointer hover:text-indigo-600" onclick="sortCatalog('roi')">ROI ↕</th>
+                                    <th class="p-3 font-semibold text-gray-600 text-right cursor-pointer hover:text-indigo-600" onclick="sortCatalog('marge')">Marge ↕</th>
                                     <th class="p-3 font-semibold text-gray-600 text-center cursor-pointer hover:text-indigo-600" onclick="sortCatalog('bsr')">BSR ↕</th>
                                     <th class="p-3 font-semibold text-gray-600 text-center cursor-pointer hover:text-indigo-600" onclick="sortCatalog('sales')">Ventes/m ↕</th>
                                     <th class="p-3 font-semibold text-gray-600 text-center">Vendeurs</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center">Amazon?</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center">Vendre sur</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center">Actions</th>
+                                    <th class="p-3 font-semibold text-gray-600 text-center">Amazon</th>
+                                    <th class="p-3 font-semibold text-gray-600 text-center">Marketplace</th>
+                                    <th class="p-3 font-semibold text-gray-600 text-center">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="catalog-tbody">
                                 <tr>
-                                    <td colspan="12" class="p-8 text-center text-gray-400">
+                                    <td colspan="13" class="p-8 text-center text-gray-400">
                                         <i class="fas fa-store text-4xl mb-3 block text-gray-300"></i>
                                         <p>Chargement du catalogue…</p>
                                         <p class="text-xs mt-1">Agent Catalog (scrape) + Agent Enricher (Keepa) tournent toutes les heures</p>

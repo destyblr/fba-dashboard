@@ -6279,6 +6279,7 @@ function filterCatalog() {
     catalogCurrentPage = 0;
     loadCatalog();
     renderFilterTags();
+    updateAdvancedBadge();
 }
 
 function resetCatalogFilters() {
@@ -6287,6 +6288,7 @@ function resetCatalogFilters() {
     setVal('catalog-category-filter',  'all');
     setVal('catalog-min-profit',       '0');
     setVal('catalog-min-roi',          '0');
+    setVal('catalog-min-roi-adv',      '0');
     setVal('catalog-min-sales',        '0');
     setVal('catalog-max-sellers',      '');
     setVal('catalog-sort-select',      'profit');
@@ -6295,12 +6297,13 @@ function resetCatalogFilters() {
     catalogSortKey = 'profit';
     catalogCurrentPage = 0;
     var tags = document.getElementById('catalog-filter-tags');
-    if (tags) { tags.innerHTML = ''; tags.classList.add('hidden'); }
+    if (tags) { tags.innerHTML = ''; }
+    updateAdvancedBadge();
     loadCatalog();
 }
 
 function removeFilterTag(field) {
-    var defaults = { 'catalog-retailer-filter': 'all', 'catalog-category-filter': 'all', 'catalog-min-profit': '0', 'catalog-min-roi': '0', 'catalog-min-sales': '0', 'catalog-max-sellers': '' };
+    var defaults = { 'catalog-retailer-filter': 'all', 'catalog-category-filter': 'all', 'catalog-min-profit': '0', 'catalog-min-roi': '0', 'catalog-min-roi-adv': '0', 'catalog-min-sales': '0', 'catalog-max-sellers': '' };
     if (field === 'catalog-no-amazon') {
         var cb = document.getElementById('catalog-no-amazon');
         if (cb) cb.checked = false;
@@ -6316,21 +6319,23 @@ function renderFilterTags() {
     if (!tags) return;
     var pills = [];
     var getVal = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
-    var retailer  = getVal('catalog-retailer-filter');
-    var category  = getVal('catalog-category-filter');
-    var minProfit = parseFloat(getVal('catalog-min-profit')) || 0;
-    var minRoi    = parseFloat(getVal('catalog-min-roi'))    || 0;
-    var minSales  = parseInt(getVal('catalog-min-sales'))    || 0;
-    var maxSellers= parseInt(getVal('catalog-max-sellers'));
-    var noAmz     = (document.getElementById('catalog-no-amazon') || {}).checked;
+    var retailer   = getVal('catalog-retailer-filter');
+    var category   = getVal('catalog-category-filter');
+    var minProfit  = parseFloat(getVal('catalog-min-profit'))   || 0;
+    var minRoi     = parseFloat(getVal('catalog-min-roi'))      || 0;
+    var minRoiAdv  = parseFloat(getVal('catalog-min-roi-adv'))  || 0;
+    var minSales   = parseInt(getVal('catalog-min-sales'))      || 0;
+    var maxSellers = parseInt(getVal('catalog-max-sellers'));
+    var noAmz      = (document.getElementById('catalog-no-amazon') || {}).checked;
 
-    if (retailer && retailer !== 'all')  pills.push({ label: 'Retailer: ' + retailer,    field: 'catalog-retailer-filter' });
-    if (category && category !== 'all')  pills.push({ label: 'Catégorie: ' + category,   field: 'catalog-category-filter' });
-    if (minProfit > 0)                   pills.push({ label: 'Profit > ' + minProfit + '€', field: 'catalog-min-profit' });
-    if (minRoi > 0)                      pills.push({ label: 'Marge > ' + minRoi + '%',  field: 'catalog-min-roi' });
-    if (minSales > 0)                    pills.push({ label: 'Ventes > ' + minSales,     field: 'catalog-min-sales' });
+    if (retailer && retailer !== 'all')  pills.push({ label: 'Retailer: ' + retailer,        field: 'catalog-retailer-filter' });
+    if (category && category !== 'all')  pills.push({ label: 'Catégorie: ' + category,       field: 'catalog-category-filter' });
+    if (minProfit > 0)                   pills.push({ label: 'Profit > ' + minProfit + '€',  field: 'catalog-min-profit' });
+    if (minRoi > 0)                      pills.push({ label: 'Marge > ' + minRoi + '%',      field: 'catalog-min-roi' });
+    if (minRoiAdv > 0)                   pills.push({ label: 'ROI > ' + minRoiAdv + '%',     field: 'catalog-min-roi-adv' });
+    if (minSales > 0)                    pills.push({ label: 'Ventes > ' + minSales,         field: 'catalog-min-sales' });
     if (!isNaN(maxSellers) && maxSellers > 0) pills.push({ label: 'Vendeurs ≤ ' + maxSellers, field: 'catalog-max-sellers' });
-    if (noAmz)                           pills.push({ label: 'Sans Amazon',              field: 'catalog-no-amazon' });
+    if (noAmz)                           pills.push({ label: 'Sans Amazon',                  field: 'catalog-no-amazon' });
 
     if (!pills.length) {
         tags.innerHTML = '';
@@ -6385,7 +6390,32 @@ function updateCatalogFilters() {
 
 function renderCatalogEmpty(msg) {
     var tbody = document.getElementById('catalog-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="12" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="13" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
+}
+
+function toggleCatalogAdvanced() {
+    var row = document.getElementById('catalog-advanced-row');
+    if (!row) return;
+    row.classList.toggle('hidden');
+    updateAdvancedBadge();
+}
+
+function updateAdvancedBadge() {
+    var badge = document.getElementById('catalog-advanced-badge');
+    if (!badge) return;
+    var count = 0;
+    var roiAdv    = parseFloat((document.getElementById('catalog-min-roi-adv')   || {}).value) || 0;
+    var maxSellers= parseInt((document.getElementById('catalog-max-sellers')     || {}).value);
+    var noAmz     = (document.getElementById('catalog-no-amazon') || {}).checked;
+    if (roiAdv > 0) count++;
+    if (!isNaN(maxSellers) && maxSellers > 0) count++;
+    if (noAmz) count++;
+    if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
 }
 
 function renderCatalogTable() {
@@ -6403,11 +6433,14 @@ function renderCatalogTable() {
 
     // Filtres Flippix (client-side)
     var getVal = function(id) { var el = document.getElementById(id); return el ? el.value : ''; };
-    var minSales   = parseInt(getVal('catalog-min-sales'))  || 0;
+    var minSales   = parseInt(getVal('catalog-min-sales'))   || 0;
+    var minRoiAdv  = parseFloat(getVal('catalog-min-roi-adv')) || 0;
     var maxSellers = parseInt(getVal('catalog-max-sellers'));
     var noAmz      = (document.getElementById('catalog-no-amazon') || {}).checked;
     if (minSales > 0)
         data = data.filter(function(p) { return (p.monthlySold || 0) >= minSales; });
+    if (minRoiAdv > 0)
+        data = data.filter(function(p) { return (p.roi || 0) >= minRoiAdv; });
     if (!isNaN(maxSellers) && maxSellers > 0)
         data = data.filter(function(p) { return p.offerCountNew == null || p.offerCountNew <= maxSellers; });
     if (noAmz)
@@ -6415,8 +6448,11 @@ function renderCatalogTable() {
 
     // Tri
     data = data.slice().sort(function(a, b) {
+        var margeA = (a.amazonPrice && a.netProfit != null) ? a.netProfit / a.amazonPrice * 100 : -99999;
+        var margeB = (b.amazonPrice && b.netProfit != null) ? b.netProfit / b.amazonPrice * 100 : -99999;
         if (catalogSortKey === 'profit') return (b.netProfit    || -99999) - (a.netProfit    || -99999);
         if (catalogSortKey === 'roi')    return (b.roi          || -99999) - (a.roi          || -99999);
+        if (catalogSortKey === 'marge')  return margeB - margeA;
         if (catalogSortKey === 'bsr')    return (a.bsr          || 9999999) - (b.bsr          || 9999999);
         if (catalogSortKey === 'sales')  return (b.monthlySold  || -1)     - (a.monthlySold  || -1);
         return 0;
@@ -6428,6 +6464,7 @@ function renderCatalogTable() {
     }
 
     tbody.innerHTML = data.map(function(p) {
+        var marge       = (p.amazonPrice && p.netProfit != null) ? (p.netProfit / p.amazonPrice * 100) : null;
         var profitable  = p.netProfit >= 5 && p.roi >= 30;
         var profitClass = profitable ? 'text-green-600 font-bold' : (p.netProfit > 0 ? 'text-gray-600' : 'text-red-500');
         var img = p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded mr-2 flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
@@ -6473,6 +6510,7 @@ function renderCatalogTable() {
             '<td class="p-3 text-sm text-right">' + (p.amazonPrice ? '<span class="font-semibold">' + p.amazonPrice.toFixed(2) + '€</span>' : '<span class="text-gray-300">—</span>') + '</td>' +
             '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.netProfit != null ? p.netProfit.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>' +
             '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.roi != null ? p.roi.toFixed(1) + '%' : '<span class="text-gray-300">—</span>') + '</td>' +
+            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (marge != null ? marge.toFixed(1) + '%' : '<span class="text-gray-300">—</span>') + '</td>' +
             '<td class="p-3 text-sm text-center text-gray-500">' + (p.bsr ? Number(p.bsr).toLocaleString('fr') : '—') + '</td>' +
             '<td class="p-3 text-sm text-center">' + (p.monthlySold != null ? '<span class="font-semibold text-blue-600">~' + p.monthlySold + '</span>' : '<span class="text-gray-300">—</span>') + '</td>' +
             '<td class="p-3 text-sm text-center">' + (p.offerCountNew != null ? p.offerCountNew : '<span class="text-gray-300">—</span>') + '</td>' +
