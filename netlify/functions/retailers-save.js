@@ -34,6 +34,16 @@ const DEFAULT_RETAILERS = [
     { id: 'jardindeco',         name: 'Jardindeco',        url: 'https://www.jardindeco.com',          type: 'prestashop', category: 'jardin',       days: [1,5],   maxProducts: 100, active: true },
     { id: 'plantes-et-jardins', name: 'Plantes & Jardins', url: 'https://www.plantes-et-jardins.com', type: 'prestashop', category: 'jardin',       days: [3,6],   maxProducts: 100, active: true },
     { id: 'fnac',               name: 'Fnac',              url: 'https://www.fnac.com',                type: 'generic',    category: 'informatique', days: [1,4],   maxProducts: 150, active: true },
+    // ── GRANDS RETAILERS MULTI-CATÉGORIES ───────────────────────────────────
+    { id: 'leclerc',            name: 'E.Leclerc',         url: 'https://www.e.leclerc',               type: 'generic',    category: 'multi',        days: [3,6],   maxProducts: 200, active: true },
+    { id: 'darty',              name: 'Darty',             url: 'https://www.darty.com',               type: 'generic',    category: 'informatique', days: [0,4],   maxProducts: 150, active: true },
+    { id: 'cdiscount',          name: 'Cdiscount',         url: 'https://www.cdiscount.com',           type: 'generic',    category: 'multi',        days: [2,3],   maxProducts: 200, active: true },
+    { id: 'boulanger',          name: 'Boulanger',         url: 'https://www.boulanger.com',           type: 'generic',    category: 'informatique', days: [0,3],   maxProducts: 150, active: true },
+    { id: 'conforama',          name: 'Conforama',         url: 'https://www.conforama.fr',            type: 'generic',    category: 'maison',       days: [3,6],   maxProducts: 150, active: true },
+    { id: 'manomano',           name: 'ManoMano',          url: 'https://www.manomano.fr',             type: 'generic',    category: 'bricolage',    days: [0,6],   maxProducts: 150, active: true },
+    { id: 'decathlon',          name: 'Decathlon',         url: 'https://www.decathlon.fr',            type: 'generic',    category: 'sport',        days: [4,6],   maxProducts: 200, active: true },
+    { id: 'maisonsdumonde',     name: 'Maisons du Monde',  url: 'https://www.maisonsdumonde.com',      type: 'generic',    category: 'maison',       days: [2,6],   maxProducts: 100, active: true },
+    { id: 'natureetdecouvertes',name: 'Nature & Découvertes', url: 'https://www.natureetdecouvertes.com', type: 'generic', category: 'culture',     days: [3,6],   maxProducts: 100, active: true },
 ];
 
 exports.handler = async (event) => {
