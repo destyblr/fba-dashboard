@@ -6154,7 +6154,7 @@ async function loadFlux() {
                 fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activite — les agents n\'ont pas encore tourne.</div>';
             } else {
                 var FLUX_STYLE = {
-                    catalog:   { border: 'border-orange-500', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',       label: 'Agent Catalog'    },
+                    catalog:   { border: 'border-orange-500', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',       label: 'Agent Scraper'    },
                     enricher:  { border: 'border-sky-500',    bg: 'bg-sky-50',     badge: 'bg-sky-500 text-white',          label: 'Agent Enricher'   },
                     sourcing:  { border: 'border-emerald-500',bg: 'bg-emerald-50', badge: 'bg-emerald-500 text-white',      label: 'Agent Sourcing'   },
                     leader:    { border: 'border-purple-600', bg: 'bg-purple-50',  badge: 'bg-purple-600 text-white',       label: 'Team Leader'      },
@@ -6225,7 +6225,7 @@ function renderJournal(events) {
         }
     });
     var AGENT_STYLE = {
-        catalog:   { border: 'border-orange-500', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',       label: 'Agent Catalog'    },
+        catalog:   { border: 'border-orange-500', bg: 'bg-orange-50',  badge: 'bg-orange-500 text-white',       label: 'Agent Scraper'    },
         enricher:  { border: 'border-sky-500',    bg: 'bg-sky-50',     badge: 'bg-sky-500 text-white',          label: 'Agent Enricher'   },
         sourcing:  { border: 'border-emerald-500',bg: 'bg-emerald-50', badge: 'bg-emerald-500 text-white',      label: 'Agent Sourcing'   },
         leader:    { border: 'border-purple-600', bg: 'bg-purple-50',  badge: 'bg-purple-600 text-white',       label: 'Team Leader'      },
@@ -6471,7 +6471,7 @@ function addProspectionToPortfolio(index) {
 }
 
 // ============================================================
-// ── CATALOGUE (Agent Catalog) ────────────────────────────────
+// ── CATALOGUE (Agent Scraper) ────────────────────────────────
 // ============================================================
 
 var catalogData        = [];

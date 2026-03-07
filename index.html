@@ -2991,7 +2991,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div class="bg-white rounded-xl shadow-sm p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Catalog</span>
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Scraper</span>
                             <span id="accueil-catalog-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
                         </div>
                         <div class="text-xs text-gray-400" id="accueil-catalog-last">Chargement…</div>
@@ -3024,7 +3024,7 @@
                 </div>
             </section>
 
-            <!-- Section OA Scanner (supprimé — remplacé par Agent Catalog) -->
+            <!-- Section OA Scanner (supprimé — remplacé par Agent Scraper) -->
             <section id="section-oa-scanner" class="content-section hidden" style="display:none!important">
                 <div class="mb-6">
                     <h2 class="text-3xl font-bold text-gray-800">
@@ -3123,13 +3123,13 @@
                 </div>
             </section>
 
-            <!-- Section Catalogue (Agent Catalog) -->
+            <!-- Section Catalogue (Agent Scraper) -->
             <section id="section-oa-catalogue" class="content-section hidden">
                 <div class="mb-6 flex items-start justify-between flex-wrap gap-4">
                     <div>
                         <h2 class="text-3xl font-bold text-gray-800">
                             <i class="fas fa-store text-indigo-600 mr-2"></i>Catalogue
-                            <span class="text-lg font-normal text-gray-400 ml-2">(Agent Catalog)</span>
+                            <span class="text-lg font-normal text-gray-400 ml-2">(Agent Scraper)</span>
                         </h2>
                         <p class="text-gray-500">Pipeline : Scrape → EAN → Keepa enrichment → Catalogue prêt</p>
                     </div>
@@ -3266,7 +3266,7 @@
                                     <td colspan="13" class="p-8 text-center text-gray-400">
                                         <i class="fas fa-store text-4xl mb-3 block text-gray-300"></i>
                                         <p>Chargement du catalogue…</p>
-                                        <p class="text-xs mt-1">Agent Catalog (scrape) + Agent Enricher (Keepa) tournent toutes les heures</p>
+                                        <p class="text-xs mt-1">Agent Scraper (scrape) + Agent Enricher (Keepa) tournent toutes les heures</p>
                                     </td>
                                 </tr>
                             </tbody>
@@ -3326,16 +3326,16 @@
                 <!-- Résumé agents -->
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" id="journal-agent-summary">
 
-                    <!-- Agent Catalog -->
+                    <!-- Agent Scraper -->
                     <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-orange-400">
                         <div class="flex items-center justify-between mb-2">
                             <div class="flex items-center gap-2">
                                 <span class="text-xl">🏪</span>
-                                <span class="font-bold text-gray-800 text-sm">Agent Catalog</span>
+                                <span class="font-bold text-gray-800 text-sm">Agent Scraper</span>
                             </div>
                             <span id="journal-status-catalog" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inactif</span>
                         </div>
-                        <p class="text-xs text-gray-500 mb-3">Scrape les retailers actifs, extrait les produits avec EAN, les stocke dans le pipeline pour enrichissement Keepa.</p>
+                        <p class="text-xs text-gray-500 mb-3">Lit le sitemap.xml de chaque retailer actif, scrape les pages produit via ScraperAPI, extrait titre/prix/EAN depuis le JSON-LD et stocke les produits bruts dans le pipeline.</p>
                         <div id="journal-last-catalog" class="text-xs text-gray-400 mb-3">Dernier run : jamais</div>
                         <div class="border-t border-gray-100 pt-3">
                             <button onclick="toggleAgentInstruction('catalog')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 mb-2">
@@ -3489,7 +3489,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div class="bg-white rounded-xl shadow-sm p-4">
                         <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Catalog</span>
+                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Scraper</span>
                             <span id="flux-catalog-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inconnu</span>
                         </div>
                         <div class="text-xs text-gray-400" id="flux-catalog-last">Dernier run : —</div>
