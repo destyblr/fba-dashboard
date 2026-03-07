@@ -118,12 +118,12 @@ function isProductUrl(url) {
 }
 
 async function fetchXml(url) {
-    const scraperKey = process.env.SCRAPER_API_KEY;
-    const fetchUrl = scraperKey
-        ? `https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`
-        : url;
+    // Sitemaps XML : fetch direct sans ScraperAPI (XML ne nécessite pas de rendu JS)
     try {
-        const resp = await fetch(fetchUrl, { timeout: 15000 });
+        const resp = await fetch(url, {
+            timeout: 10000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
+        });
         console.log(`[Catalog] fetchXml ${url} → ${resp.status}`);
         if (!resp.ok) return null;
         return await resp.text();
