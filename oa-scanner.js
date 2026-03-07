@@ -5935,6 +5935,58 @@ async function loadJournal() {
     }
 }
 
+function openFluxDrilldown(mode) {
+    var modal   = document.getElementById('flux-drilldown-modal');
+    var title   = document.getElementById('flux-drilldown-title');
+    var subtitle= document.getElementById('flux-drilldown-subtitle');
+    var list    = document.getElementById('flux-drilldown-list');
+    if (!modal) return;
+
+    var labels = { raw: 'Produits bruts (scrapés)', ean: 'Produits avec EAN', enriched: 'Produits enrichis' };
+    title.textContent = labels[mode] || mode;
+    subtitle.textContent = '';
+    list.innerHTML = '<div class="text-center text-gray-400 py-10"><i class="fas fa-spinner fa-spin text-2xl"></i></div>';
+    modal.classList.remove('hidden');
+
+    var fetchMode = mode === 'ean' ? 'raw' : mode;
+    fetch('/.netlify/functions/catalog-read?mode=' + fetchMode)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var products = data.products || [];
+            if (mode === 'ean') products = products.filter(function(p) { return p.ean; });
+
+            subtitle.textContent = products.length + ' produit' + (products.length > 1 ? 's' : '');
+
+            if (!products.length) {
+                list.innerHTML = '<div class="text-center text-gray-400 py-10"><i class="fas fa-box-open text-3xl mb-3 block text-gray-300"></i><p>Aucun produit dans ce stage</p><p class="text-xs mt-1">Les agents tournent toutes les heures</p></div>';
+                return;
+            }
+
+            list.innerHTML = products.map(function(p) {
+                var priceStr = p.price ? p.price.toFixed(2) + ' €' : '—';
+                var amzStr   = p.amazonPrice ? p.amazonPrice.toFixed(2) + ' €' : '';
+                return '<div class="flex items-center gap-3 p-3 hover:bg-gray-50">' +
+                    (p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded flex-shrink-0" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-100 rounded flex-shrink-0"></div>') +
+                    '<div class="flex-1 min-w-0">' +
+                        '<div class="text-sm font-medium text-gray-800 truncate">' + (p.title || p.amazonTitle || '—') + '</div>' +
+                        '<div class="text-xs text-gray-400">' +
+                            (p.retailer || '') +
+                            (p.ean ? ' · <span class="font-mono">EAN ' + p.ean + '</span>' : '') +
+                            (p.asin ? ' · ASIN ' + p.asin : '') +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="text-right flex-shrink-0">' +
+                        '<div class="text-sm font-semibold text-gray-700">' + priceStr + '</div>' +
+                        (amzStr ? '<div class="text-xs text-orange-500">' + amzStr + '</div>' : '') +
+                    '</div>' +
+                '</div>';
+            }).join('');
+        })
+        .catch(function() {
+            list.innerHTML = '<div class="text-center text-red-400 py-10">Erreur de chargement</div>';
+        });
+}
+
 async function loadFlux() {
     var fluxLog = document.getElementById('flux-log');
     if (fluxLog) fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Chargement…</div>';

@@ -64,16 +64,43 @@ function showApp() {
     setupRealtimeListeners();
 }
 
-// Mode hors-ligne (sans Firebase)
+// Mode hors-ligne (sans Firebase) — protégé par mot de passe Netlify
 function showOfflineMode() {
-    console.log('Mode hors-ligne active (Firebase non configure)');
+    const token = sessionStorage.getItem('fba_auth');
+    if (!token) {
+        showSimpleLogin();
+        return;
+    }
+    showOfflineModeApp();
+}
+
+function showSimpleLogin() {
+    sessionStorage.setItem('fba_mode', 'offline');
+    document.getElementById('login-screen').classList.remove('hidden');
+    document.getElementById('app-container').classList.add('hidden');
+    // Cacher le champ email (auth par mot de passe uniquement)
+    var emailField = document.getElementById('login-email');
+    if (emailField && emailField.parentElement) emailField.parentElement.style.display = 'none';
+    // Pré-remplir l'email pour que la validation HTML ne bloque pas
+    if (emailField) emailField.value = 'admin@fba.local';
+    // Cacher inscription et mot de passe oublié
+    var signupSection = document.querySelector('#login-form .mt-4.text-sm.text-gray-600');
+    if (signupSection) signupSection.style.display = 'none';
+}
+
+function showOfflineModeApp() {
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-container').classList.remove('hidden');
-
-    // Masquer les elements lies a l'auth
-    const userInfo = document.getElementById('user-info');
-    if (userInfo) userInfo.classList.add('hidden');
-
+    // Afficher l'icone utilisateur dans le header
+    var userInfo = document.getElementById('user-info');
+    if (userInfo) {
+        userInfo.classList.remove('hidden');
+        userInfo.style.display = 'flex';
+        var emailSpan = document.getElementById('user-email');
+        if (emailSpan) emailSpan.textContent = 'Admin';
+        var statusSpan = document.getElementById('online-status');
+        if (statusSpan) statusSpan.innerHTML = '<i class="fas fa-lock text-green-300 text-xs"></i>';
+    }
     // Charger depuis localStorage comme avant
     loadData();
     loadStockData();
@@ -147,15 +174,40 @@ function backToLogin() {
 async function handleLogin(event) {
     event.preventDefault();
 
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
     const errorDiv = document.getElementById('login-error');
     const btn = document.getElementById('login-btn');
-
     errorDiv.classList.add('hidden');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Connexion...';
 
+    // Mode offline : auth par mot de passe via Netlify function
+    if (sessionStorage.getItem('fba_mode') === 'offline') {
+        const password = document.getElementById('login-password').value;
+        try {
+            const resp = await fetch('/.netlify/functions/auth-check?p=' + encodeURIComponent(password));
+            const data = await resp.json();
+            if (data.ok) {
+                sessionStorage.setItem('fba_auth', data.token);
+                sessionStorage.removeItem('fba_mode');
+                showOfflineModeApp();
+            } else {
+                errorDiv.textContent = data.error || 'Mot de passe incorrect';
+                errorDiv.classList.remove('hidden');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Se connecter';
+            }
+        } catch (e) {
+            errorDiv.textContent = 'Erreur serveur — vérifiez la connexion';
+            errorDiv.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-sign-in-alt mr-2"></i>Se connecter';
+        }
+        return;
+    }
+
+    // Mode Firebase normal
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
     const result = await signIn(email, password);
 
     if (!result.success) {
@@ -237,6 +289,12 @@ async function handleForgotPassword(event) {
 // Deconnexion
 async function handleLogout() {
     if (confirm('Voulez-vous vous deconnecter ?')) {
+        // Mode offline
+        if (sessionStorage.getItem('fba_auth')) {
+            sessionStorage.removeItem('fba_auth');
+            window.location.reload();
+            return;
+        }
         clearUnsubscribeListeners();
         await signOut();
     }
