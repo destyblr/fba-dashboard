@@ -10,15 +10,30 @@ async function readBlob(store, key, fallback) {
 }
 async function writeBlob(store, key, data) { await store.setJSON(key, data); }
 
-async function sendTelegram(msg) {
+async function sendTelegram(msg, replyMarkup) {
     const token  = process.env.TELEGRAM_BOT_TOKEN;
     const chatId = process.env.TELEGRAM_CHAT_ID;
     if (!token || !chatId) return;
+    const payload = { chat_id: chatId, text: msg, parse_mode: 'HTML' };
+    if (replyMarkup) payload.reply_markup = replyMarkup;
     await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: chatId, text: msg, parse_mode: 'HTML' })
+        body: JSON.stringify(payload)
     }).catch(() => {});
+}
+
+function makeYesNo(decisionId) {
+    return {
+        inline_keyboard: [[
+            { text: '✅ Oui', callback_data: `yes__${decisionId}` },
+            { text: '❌ Non', callback_data: `no__${decisionId}` }
+        ]]
+    };
+}
+
+function genId() {
+    return Math.random().toString(36).slice(2, 10);
 }
 
 const DEFAULT_RETAILERS = [
@@ -67,6 +82,7 @@ const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 exports.handler = async () => {
     const catalogStore  = getStore('oa-catalog');
     const activityStore = getStore('oa-activity');
+    const SITE_URL      = process.env.URL || 'https://fba-dashboard.netlify.app';
 
     // ── 1. Lire toutes les données ─────────────────────────────────────────
     const [catalogProducts, retailers, dealHistory, activityLog] = await Promise.all([
@@ -103,31 +119,51 @@ exports.handler = async () => {
         profitByRetailer[r].total += d.netProfit || 0;
     });
 
-    // ── 4. Ajuster le plan de scan selon les performances ─────────────────
-    // Retailers les plus rentables → plus de jours de scan
-    // Retailers sans résultats après 2 semaines → réduire
-    updatedRetailers = updatedRetailers.map(r => {
-        const perf    = matchByRetailer[r.name] || { total: 0, matched: 0, profitable: 0 };
-        const profit  = profitByRetailer[r.name] || { count: 0, total: 0 };
+    // ── 4. Générer les décisions stratégiques (à soumettre au user) ───────
+    const pendingDecisions = [];
+
+    for (const r of updatedRetailers) {
+        const perf      = matchByRetailer[r.name] || { total: 0, matched: 0, profitable: 0 };
+        const profit    = profitByRetailer[r.name] || { count: 0, total: 0 };
         const matchRate = perf.total > 0 ? perf.matched / perf.total : 0;
+        if (perf.total === 0) continue;
 
-        // Pas encore de données → garder config actuelle
-        if (perf.total === 0) return r;
+        // Retailer très performant → proposer boost
+        if ((profit.count >= 3 || perf.profitable >= 5) && (r.days || []).length < 7) {
+            pendingDecisions.push({
+                id:     genId(),
+                action: 'boost_retailer',
+                label:  `Booster ${r.name} (scan quotidien)`,
+                reason: `${perf.profitable} produits rentables trouvés`,
+                params: { retailerId: r.id, retailerName: r.name }
+            });
+        }
+        // Retailer très faible → proposer désactivation
+        else if (matchRate < 0.05 && perf.total >= 80 && r.active !== false) {
+            pendingDecisions.push({
+                id:     genId(),
+                action: 'disable_retailer',
+                label:  `Désactiver ${r.name} (très faible match)`,
+                reason: `Seulement ${Math.round(matchRate * 100)}% de match rate sur ${perf.total} produits`,
+                params: { retailerId: r.id, retailerName: r.name }
+            });
+        }
+        // Retailer sous-performant → proposer réduction
+        else if (matchRate < 0.10 && perf.total >= 50 && (r.days || []).length > 2) {
+            pendingDecisions.push({
+                id:     genId(),
+                action: 'reduce_retailer',
+                label:  `Réduire ${r.name} à 2j/semaine`,
+                reason: `Match rate faible (${Math.round(matchRate * 100)}%) sur ${perf.total} produits`,
+                params: { retailerId: r.id, retailerName: r.name }
+            });
+        }
+    }
 
-        // Très rentable → scan tous les jours
-        if (profit.count >= 3 || perf.profitable >= 5) {
-            return { ...r, days: [0,1,2,3,4,5,6], maxProducts: 300 };
-        }
-        // Bon match rate → scan 4 jours
-        if (matchRate >= 0.3 || perf.profitable >= 1) {
-            return { ...r, days: [1,3,5,0], maxProducts: 200 };
-        }
-        // Mauvais match rate (< 10%) → réduire à 2 jours
-        if (matchRate < 0.10 && perf.total >= 50) {
-            return { ...r, days: [1,4], maxProducts: 100 };
-        }
-        return r;
-    });
+    // Sauvegarder les décisions en attente
+    const existingPending = await readBlob(activityStore, 'pending-decisions', []);
+    const allPending = [...pendingDecisions, ...existingPending].slice(0, 20);
+    await writeBlob(activityStore, 'pending-decisions', allPending);
 
     await writeBlob(catalogStore, 'retailers', updatedRetailers);
 
@@ -208,21 +244,33 @@ exports.handler = async () => {
     await writeBlob(activityStore, 'log', activity.slice(0, 100));
     await writeBlob(activityStore, 'last-report', report);
 
-    // ── 9. Telegram ────────────────────────────────────────────────────────
+    // ── 9. Telegram — résumé global ───────────────────────────────────────
     const planLines = Object.entries(weekPlan)
         .filter(([, rs]) => rs.length > 0)
         .map(([day, rs]) => `  ${day}: ${rs.join(', ')}`)
         .join('\n');
 
-    const msg = `🧠 <b>Team Leader — Rapport hebdomadaire</b>\n\n` +
+    const summary = `🧠 <b>Team Leader — Rapport hebdomadaire</b>\n\n` +
         `🏪 ${activeRetailers.length} retailers · ${catalogProducts.length} produits catalogue\n` +
         `📊 Match rate : ${matchRate}% · ${profitable.length} deals rentables ce mois\n\n` +
-        `<b>Plan de scan ajusté :</b>\n${planLines || '  En attente du premier run'}\n\n` +
-        `<b>Recommandations :</b>\n` +
-        recommendations.map(r => `• ${r}`).join('\n');
+        `<b>Plan de scan :</b>\n${planLines || '  En attente du premier run'}\n\n` +
+        `<b>Analyse :</b>\n` +
+        recommendations.map(r => `• ${r}`).join('\n') +
+        (pendingDecisions.length ? `\n\n⚡ <b>${pendingDecisions.length} décision(s) en attente de ta validation</b>` : '');
 
-    await sendTelegram(msg);
+    await sendTelegram(summary);
 
-    console.log(`[Team Leader] Rapport généré — ${recommendations.length} recommandations · ${boosted.length} boostés · ${reduced.length} réduits`);
+    // ── 10. Envoyer chaque décision avec boutons YES/NO ────────────────────
+    for (const decision of pendingDecisions) {
+        const msg = `🧠 <b>Team Leader — Décision stratégique</b>\n\n` +
+            `📋 <b>${decision.label}</b>\n` +
+            `💡 Raison : ${decision.reason}\n\n` +
+            `Approuves-tu cette action ?`;
+        await sendTelegram(msg, makeYesNo(decision.id));
+        // Petit délai pour éviter le flood Telegram
+        await new Promise(r => setTimeout(r, 500));
+    }
+
+    console.log(`[Team Leader] Rapport généré — ${recommendations.length} reco · ${pendingDecisions.length} décisions soumises`);
     return { statusCode: 200 };
 };

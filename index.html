@@ -3369,6 +3369,28 @@
                         </div>
                     </div>
 
+                    <!-- Agent Inventaire -->
+                    <div class="bg-white rounded-xl shadow-sm p-5 border-l-4 border-indigo-400">
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center gap-2">
+                                <span class="text-xl">📦</span>
+                                <span class="font-bold text-gray-800 text-sm">Agent Inventaire</span>
+                            </div>
+                            <span id="journal-status-inventory" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">Inactif</span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">Surveille chaque jour les produits en pipeline : alertes sur les délais dépassés, ruptures de stock FBA, et capital immobilisé par étape.</p>
+                        <div id="journal-last-inventory" class="text-xs text-gray-400 mb-3">Dernier run : jamais</div>
+                        <div class="border-t border-gray-100 pt-3">
+                            <button onclick="toggleAgentInstruction('inventory')" class="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-1 mb-2">
+                                <i class="fas fa-terminal text-xs"></i>Nouvelle consigne
+                            </button>
+                            <div id="agent-instruction-inventory" class="hidden">
+                                <textarea id="agent-instruction-text-inventory" rows="2" placeholder="Ex: Alerte si un produit reste en 'Acheté' plus de 7 jours…" class="w-full text-xs border border-gray-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:border-blue-300"></textarea>
+                                <button onclick="sendAgentInstruction('inventory')" class="mt-1 px-3 py-1.5 bg-blue-500 text-white text-xs rounded-lg hover:bg-blue-600 w-full">Envoyer</button>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
 
                 <!-- Log complet -->

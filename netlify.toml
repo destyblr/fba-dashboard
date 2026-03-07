@@ -16,9 +16,13 @@
 [functions."agent-enricher-cron"]
   schedule = "20 * * * *"
 
-# Agent Deal FR — toutes les heures (Dealabs/MyDealz RSS)
+# Agent Sourcing — toutes les heures (analyse produits enrichis → deals rentables)
 [functions."agent-sourcing-cron"]
   schedule = "30 * * * *"
+
+# Agent Inventaire — tous les jours à 8h UTC (alertes délais + ruptures)
+[functions."agent-inventory-cron"]
+  schedule = "0 8 * * *"
 
 # Team Leader — tous les lundis à 9h UTC
 [functions."team-leader-cron"]

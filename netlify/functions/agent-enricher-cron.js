@@ -68,30 +68,37 @@ async function keepaDomainLookup(ean, keepaKey, domain) {
     } catch { return { price: null, tokensLeft: null }; }
 }
 
-// ─── Keepa multi-marketplace : retourne le meilleur prix (DE + FR) ────────
+// ─── Keepa multi-marketplace : retourne la meilleure MP parmi DE/FR/IT/ES ─
 async function keepaEANLookup(ean, keepaKey) {
-    // Query DE (primaire) + FR (comparaison)
-    const [de, fr] = await Promise.all([
+    const [de, fr, it, es] = await Promise.all([
         keepaDomainLookup(ean, keepaKey, 3),
         keepaDomainLookup(ean, keepaKey, 4),
+        keepaDomainLookup(ean, keepaKey, 8),
+        keepaDomainLookup(ean, keepaKey, 9),
     ]);
 
-    // Choisir la marketplace avec le prix le plus eleve
-    const dePrice = de.price || 0;
-    const frPrice = fr.price || 0;
-    const best    = dePrice >= frPrice ? de : fr;
-    const bestMP  = dePrice >= frPrice ? 'DE' : 'FR';
+    const candidates = [
+        { mp: 'DE', data: de },
+        { mp: 'FR', data: fr },
+        { mp: 'IT', data: it },
+        { mp: 'ES', data: es },
+    ].filter(c => c.data.price && c.data.asin);
 
-    if (!best.asin) return null;
+    if (!candidates.length) return null;
+
+    // Choisir la marketplace avec le prix le plus élevé (meilleure marge)
+    const best = candidates.reduce((a, b) => a.data.price >= b.data.price ? a : b);
 
     return {
-        ...best,
-        amazonPrice:      best.price,    // prix de la meilleure MP
-        bestMarketplace:  bestMP,
-        bestPrice:        best.price,
-        priceDE:          de.price,
-        priceFR:          fr.price,
-        tokensLeft:       de.tokensLeft ?? fr.tokensLeft ?? null,
+        ...best.data,
+        amazonPrice:     best.data.price,
+        bestMarketplace: best.mp,
+        bestPrice:       best.data.price,
+        priceDE:         de.price,
+        priceFR:         fr.price,
+        priceIT:         it.price,
+        priceES:         es.price,
+        tokensLeft:      de.tokensLeft ?? fr.tokensLeft ?? it.tokensLeft ?? es.tokensLeft ?? null,
     };
 }
 
@@ -134,8 +141,8 @@ exports.handler = async () => {
         p.ean && (!enrichedIndex[p.ean] || Date.now() - enrichedIndex[p.ean] > SEVEN_DAYS)
     );
 
-    // Limiter à 5 produits par run (2 appels Keepa/produit = 10 tokens max)
-    const batch    = toEnrich.slice(0, 5);
+    // Limiter à 3 produits par run (4 appels Keepa/produit × 3 = 12 tokens max)
+    const batch    = toEnrich.slice(0, 3);
     console.log(`[Enricher] ${rawProducts.length} produits bruts · ${toEnrich.length} à enrichir · batch de ${batch.length}`);
 
     if (!batch.length) {
@@ -186,8 +193,14 @@ exports.handler = async () => {
     // ── 4. Telegram pour deals rentables ──────────────────────────────────
     for (const item of profitableItems.slice(0, 3)) {
         const mpFlag = { DE: '🇩🇪', FR: '🇫🇷', IT: '🇮🇹', ES: '🇪🇸' }[item.bestMarketplace] || '🇩🇪';
-        const priceInfo = item.priceDE && item.priceFR
-            ? `🇩🇪 ${item.priceDE}€ · 🇫🇷 ${item.priceFR}€ → Meilleur : ${mpFlag} ${item.bestPrice}€`
+        const prices = [
+            item.priceDE ? `🇩🇪 ${item.priceDE}€` : null,
+            item.priceFR ? `🇫🇷 ${item.priceFR}€` : null,
+            item.priceIT ? `🇮🇹 ${item.priceIT}€` : null,
+            item.priceES ? `🇪🇸 ${item.priceES}€` : null,
+        ].filter(Boolean).join(' · ');
+        const priceInfo = prices
+            ? `${prices}\n➡️ Meilleure MP : ${mpFlag} <b>${item.bestPrice}€</b>`
             : `${mpFlag} Amazon : ${item.bestPrice || item.amazonPrice}€`;
         const msg = `💎 <b>Agent Enricher — Deal rentable</b>\n\n` +
             `📦 <b>${(item.amazonTitle || item.title || '').slice(0, 60)}</b>\n` +

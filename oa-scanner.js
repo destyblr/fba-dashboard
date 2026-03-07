@@ -2252,6 +2252,12 @@ function saveOAInventory() {
     try {
         localStorage.setItem('oaInventory', JSON.stringify(oaInventory));
         console.log('[OA] Inventaire sauvegarde:', oaInventory.length, 'produits');
+        // Sync vers Netlify Blobs pour l'Agent Inventaire
+        fetch('/.netlify/functions/inventory-sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ items: oaInventory })
+        }).catch(function() {});
     } catch (e) {
         console.log('[OA] Erreur sauvegarde inventaire:', e);
     }
@@ -6091,14 +6097,14 @@ function renderJournal(events) {
         logEl.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activité enregistrée.</div>';
         return;
     }
-    var agentIcons = { catalog: '🏪', sourcing: '⚡', leader: '🧠', decision: '💰' };
-    var agentIdMap = { catalog: 'catalog', sourcing: 'deals', leader: 'leader' };
+    var agentIcons = { catalog: '🏪', sourcing: '⚡', leader: '🧠', decision: '💰', inventory: '📦' };
+    var agentIdMap = { catalog: 'catalog', sourcing: 'deals', leader: 'leader', inventory: 'inventory' };
     var statusColors = {
         recent: 'bg-green-100 text-green-700',
         active: 'bg-blue-100 text-blue-700',
         old:    'bg-gray-100 text-gray-500'
     };
-    ['catalog', 'sourcing', 'leader'].forEach(function(agent) {
+    ['catalog', 'sourcing', 'leader', 'inventory'].forEach(function(agent) {
         var last = events.find(function(e) { return e.agent === agent; });
         var mapId = agentIdMap[agent] || agent;
         var lastEl   = document.getElementById('journal-last-'   + mapId);
@@ -6145,6 +6151,15 @@ function renderJournalStats(stats, agent) {
         return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
             '<span class="text-blue-600">📦 ' + (stats.deals || 0) + ' deals analysés</span>' +
             '<span class="text-green-600">💰 ' + (stats.profitable || 0) + ' rentables</span>' +
+            '</div>';
+    }
+    if (agent === 'inventory') {
+        return '<div class="flex gap-3 mt-1 flex-wrap text-xs">' +
+            '<span class="text-indigo-600">📦 ' + (stats.total || 0) + ' produits actifs</span>' +
+            (stats.alerts > 0
+                ? '<span class="text-red-500">⚠️ ' + stats.alerts + ' alerte(s)</span>'
+                : '<span class="text-green-600">✅ Aucune alerte</span>') +
+            (stats.capital ? '<span class="text-gray-500">💰 ' + stats.capital + '€ immobilisé</span>' : '') +
             '</div>';
     }
     return '';
