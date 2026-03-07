@@ -33,6 +33,7 @@ const DEFAULT_RETAILERS = [
     { id: 'bambinou',           name: 'Bambinou',          url: 'https://www.bambinou.com',            type: 'prestashop', category: 'bebe',         days: [2,5],   maxProducts: 100, active: true },
     { id: 'jardindeco',         name: 'Jardindeco',        url: 'https://www.jardindeco.com',          type: 'prestashop', category: 'jardin',       days: [1,5],   maxProducts: 100, active: true },
     { id: 'plantes-et-jardins', name: 'Plantes & Jardins', url: 'https://www.plantes-et-jardins.com', type: 'prestashop', category: 'jardin',       days: [3,6],   maxProducts: 100, active: true },
+    { id: 'fnac',               name: 'Fnac',              url: 'https://www.fnac.com',                type: 'generic',    category: 'informatique', days: [1,4],   maxProducts: 150, active: true },
 ];
 
 exports.handler = async (event) => {
@@ -44,7 +45,12 @@ exports.handler = async (event) => {
 
     if (event.httpMethod === 'GET') {
         try {
-            const retailers = (await store.get('retailers', { type: 'json' })) || DEFAULT_RETAILERS;
+            let retailers = await store.get('retailers', { type: 'json' });
+            // Auto-restaure si blob absent ou corrompu (< 5 retailers)
+            if (!retailers || retailers.length < 5) {
+                retailers = DEFAULT_RETAILERS;
+                await store.setJSON('retailers', retailers);
+            }
             return {
                 statusCode: 200,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
