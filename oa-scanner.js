@@ -6073,29 +6073,59 @@ async function loadFlux() {
             }
         });
 
+        // Retailers : last scan par retailer depuis l'activité
+        var lastScanMap = {};
+        activity.forEach(function(ev) {
+            if (ev.agent === 'catalog' && ev.retailer && !lastScanMap[ev.retailer]) {
+                lastScanMap[ev.retailer] = ev.ts;
+            }
+        });
+        loadRetailersWithScan(lastScanMap);
+
         // Log recent
         if (fluxLog) {
             if (!activity.length) {
                 fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucune activite — les agents n\'ont pas encore tourne.</div>';
             } else {
-                var agentIcons = { catalog: '🏪', enricher: '💎', leader: '🧠', sourcing: '⚡', decision: '💰' };
-                fluxLog.innerHTML = activity.slice(0, 30).map(function(e) {
-                    var icon = agentIcons[e.agent] || '🤖';
+                var FLUX_STYLE = {
+                    catalog:   { border: 'border-orange-400', bg: 'bg-orange-50',  badge: 'bg-orange-100 text-orange-700',  label: 'Agent Catalog'    },
+                    enricher:  { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-100 text-blue-700',      label: 'Agent Enricher'   },
+                    sourcing:  { border: 'border-amber-400',  bg: 'bg-amber-50',   badge: 'bg-amber-100 text-amber-700',    label: 'Agent Sourcing'   },
+                    leader:    { border: 'border-purple-400', bg: 'bg-purple-50',  badge: 'bg-purple-100 text-purple-700',  label: 'Team Leader'      },
+                    inventory: { border: 'border-indigo-400', bg: 'bg-indigo-50',  badge: 'bg-indigo-100 text-indigo-700',  label: 'Agent Inventaire' },
+                };
+                var agentIcons2 = { catalog: '🏪', enricher: '💎', leader: '🧠', sourcing: '⚡', inventory: '📦' };
+                fluxLog.innerHTML = activity.slice(0, 30).map(function(e, idx) {
+                    var icon = agentIcons2[e.agent] || '🤖';
+                    var sty  = FLUX_STYLE[e.agent] || { border: 'border-gray-300', bg: 'bg-gray-50', badge: 'bg-gray-100 text-gray-600', label: e.agent };
                     var date = new Date(e.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-                    return '<div class="flex items-start gap-3 p-3 hover:bg-gray-50 text-sm">' +
-                        '<span class="text-lg">' + icon + '</span>' +
-                        '<div class="flex-1 min-w-0">' +
-                            '<span class="font-semibold capitalize text-gray-700">Agent ' + e.agent + '</span>' +
-                            (e.retailer ? ' — <span class="text-gray-500">' + e.retailer + '</span>' : '') +
-                            '<span class="text-xs text-gray-400 ml-2">' + date + '</span>' +
-                            '<div class="text-xs text-gray-500 mt-0.5">' + (e.summary || '') + '</div>' +
-                        '</div></div>';
+                    var uid  = 'flog-' + idx;
+                    var open = idx === 0;
+                    return '<div class="border-l-4 ' + sty.border + ' rounded-r-xl mb-2 overflow-hidden shadow-sm">' +
+                        '<button onclick="toggleJournalEntry(\'' + uid + '\')" class="w-full flex items-center gap-3 px-4 py-3 ' + sty.bg + ' hover:brightness-95 transition text-left">' +
+                            '<span class="text-base">' + icon + '</span>' +
+                            '<span class="text-xs font-bold px-2 py-0.5 rounded-full ' + sty.badge + '">' + sty.label + '</span>' +
+                            (e.retailer ? '<span class="text-xs text-gray-500">· ' + e.retailer + '</span>' : '') +
+                            '<span class="text-xs text-gray-400 ml-auto mr-2">' + date + ' · ' + timeAgo(e.ts) + '</span>' +
+                            '<i id="' + uid + '-chevron" class="fas fa-chevron-' + (open ? 'up' : 'down') + ' text-xs text-gray-400 flex-shrink-0"></i>' +
+                        '</button>' +
+                        '<div id="' + uid + '" class="' + (open ? '' : 'hidden') + ' px-4 py-3 bg-white border-t border-gray-100">' +
+                            '<div class="text-sm text-gray-700">' + (e.summary || '') + '</div>' +
+                        '</div>' +
+                    '</div>';
                 }).join('');
             }
         }
     } catch (e) {
         if (fluxLog) fluxLog.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Erreur de chargement.</div>';
     }
+}
+
+function loadRetailersWithScan(lastScanMap) {
+    fetch('/.netlify/functions/retailers-save')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderRetailersList(data.retailers || [], lastScanMap); })
+        .catch(function() { renderRetailersList([], {}); });
 }
 
 function renderJournal(events) {
@@ -6128,23 +6158,46 @@ function renderJournal(events) {
             }
         }
     });
-    logEl.innerHTML = events.map(function(e) {
+    var AGENT_STYLE = {
+        catalog:   { border: 'border-orange-400', bg: 'bg-orange-50',  badge: 'bg-orange-100 text-orange-700',  label: 'Agent Catalog'    },
+        enricher:  { border: 'border-blue-400',   bg: 'bg-blue-50',    badge: 'bg-blue-100 text-blue-700',      label: 'Agent Enricher'   },
+        sourcing:  { border: 'border-amber-400',  bg: 'bg-amber-50',   badge: 'bg-amber-100 text-amber-700',    label: 'Agent Sourcing'   },
+        leader:    { border: 'border-purple-400', bg: 'bg-purple-50',  badge: 'bg-purple-100 text-purple-700',  label: 'Team Leader'      },
+        inventory: { border: 'border-indigo-400', bg: 'bg-indigo-50',  badge: 'bg-indigo-100 text-indigo-700',  label: 'Agent Inventaire' },
+    };
+    logEl.innerHTML = events.map(function(e, idx) {
         var icon = agentIcons[e.agent] || '🤖';
+        var sty  = AGENT_STYLE[e.agent] || { border: 'border-gray-300', bg: 'bg-gray-50', badge: 'bg-gray-100 text-gray-600', label: 'Agent ' + e.agent };
         var date = new Date(e.ts).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-        return '<div class="flex items-start gap-3 p-4 hover:bg-gray-50 transition">' +
-            '<div class="text-xl flex-shrink-0 mt-0.5">' + icon + '</div>' +
-            '<div class="flex-1 min-w-0">' +
-                '<div class="flex items-center gap-2 flex-wrap">' +
-                    '<span class="font-semibold text-gray-800 capitalize">Agent ' + e.agent + '</span>' +
-                    (e.preset ? '<span class="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded">' + e.preset + '</span>' : '') +
-                    '<span class="text-xs text-gray-400 ml-auto">' + date + ' · ' + timeAgo(e.ts) + '</span>' +
-                '</div>' +
-                '<div class="text-sm text-gray-600 mt-0.5">' + (e.summary || '') + '</div>' +
-                (e.stats ? renderJournalStats(e.stats, e.agent) : '') +
-                (e.tokensLeft !== undefined ? '<div class="text-xs text-gray-400 mt-1">Tokens Keepa restants : ' + e.tokensLeft + '</div>' : '') +
+        var uid  = 'jlog-' + idx;
+        var open = idx === 0;
+        var statsHtml = (e.stats ? renderJournalStats(e.stats, e.agent) : '') +
+            (e.tokensLeft !== undefined && e.tokensLeft !== null ? '<div class="text-xs text-gray-400 mt-1">Tokens Keepa restants : ' + e.tokensLeft + '</div>' : '');
+        return '<div class="border-l-4 ' + sty.border + ' rounded-r-xl mb-2 overflow-hidden shadow-sm">' +
+            '<button onclick="toggleJournalEntry(\'' + uid + '\')" class="w-full flex items-center gap-3 px-4 py-3 ' + sty.bg + ' hover:brightness-95 transition text-left">' +
+                '<span class="text-lg">' + icon + '</span>' +
+                '<span class="text-xs font-bold px-2 py-0.5 rounded-full ' + sty.badge + '">' + sty.label + '</span>' +
+                (e.retailer ? '<span class="text-xs text-gray-500">· ' + e.retailer + '</span>' : '') +
+                '<span class="text-xs text-gray-400 ml-auto mr-2">' + date + ' · ' + timeAgo(e.ts) + '</span>' +
+                '<i id="' + uid + '-chevron" class="fas fa-chevron-' + (open ? 'up' : 'down') + ' text-xs text-gray-400 flex-shrink-0"></i>' +
+            '</button>' +
+            '<div id="' + uid + '" class="' + (open ? '' : 'hidden') + ' px-4 py-3 bg-white border-t border-gray-100">' +
+                '<div class="text-sm text-gray-700">' + (e.summary || '') + '</div>' +
+                statsHtml +
             '</div>' +
-            '</div>';
+        '</div>';
     }).join('');
+}
+
+function toggleJournalEntry(uid) {
+    var body    = document.getElementById(uid);
+    var chevron = document.getElementById(uid + '-chevron');
+    if (!body) return;
+    var hidden = body.classList.toggle('hidden');
+    if (chevron) {
+        chevron.classList.toggle('fa-chevron-down', hidden);
+        chevron.classList.toggle('fa-chevron-up',  !hidden);
+    }
 }
 
 function renderJournalStats(stats, agent) {
@@ -6765,7 +6818,8 @@ function toggleRetailer(id) {
     .catch(function() {});
 }
 
-function renderRetailersList(retailers) {
+function renderRetailersList(retailers, lastScanMap) {
+    lastScanMap = lastScanMap || {};
     var el = document.getElementById('retailers-list');
     var countEl = document.getElementById('retailers-count');
     var active = retailers.filter(function(r) { return r.active !== false; }).length;
@@ -6778,17 +6832,20 @@ function renderRetailersList(retailers) {
     var DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
     el.innerHTML = retailers.map(function(r) {
         var days = (r.days || []).sort(function(a,b){return a-b;}).map(function(d) { return DAY_NAMES[d]; }).join(' · ');
+        var lastTs = lastScanMap[r.name];
+        var lastScanTxt = lastTs ? '<span class="text-xs text-gray-400"><i class="fas fa-clock mr-1"></i>Dernier scan : ' + timeAgo(lastTs) + '</span>' : '<span class="text-xs text-gray-300">Jamais scanné</span>';
         return '<div class="flex items-center gap-4 p-4 hover:bg-gray-50 transition">' +
             '<div class="flex-1 min-w-0">' +
                 '<div class="flex items-center gap-2 flex-wrap">' +
                     '<span class="font-semibold text-gray-800">' + r.name + '</span>' +
                     '<span class="text-xs px-2 py-0.5 rounded-full ' + (r.active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (r.active !== false ? 'Actif' : 'Inactif') + '</span>' +
                     '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">' + (r.category || '') + '</span>' +
+                    lastScanTxt +
                 '</div>' +
                 '<div class="text-xs text-gray-400 mt-1">' +
                     '<span class="mr-3"><i class="fas fa-calendar-alt mr-1"></i>' + (days || 'tous les jours') + '</span>' +
-                    '<span class="mr-3"><i class="fas fa-box mr-1"></i>max ' + (r.maxProducts || 200) + '</span>' +
-                    '<span class="text-gray-300">' + r.url + '</span>' +
+                    '<span class="mr-3"><i class="fas fa-box mr-1"></i>max ' + (r.maxProducts || 200) + ' produits</span>' +
+                    '<span class="text-gray-300 truncate">' + r.url + '</span>' +
                 '</div>' +
             '</div>' +
             '<button onclick="toggleRetailer(\'' + r.id + '\')" class="flex-shrink-0 px-3 py-1 ' + (r.active !== false ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-green-100 hover:bg-green-200 text-green-700') + ' rounded text-xs">' +
