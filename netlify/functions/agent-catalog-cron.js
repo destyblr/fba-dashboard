@@ -234,8 +234,15 @@ exports.handler = async () => {
 
         // Scraper les pages en batch (max 15 via ScraperAPI pour tenir dans les 60s)
         const batch = urls.slice(0, 15);
+        let debugSample = true; // log le 1er résultat pour diagnostic
         for (const url of batch) {
             const jsonlds = await scrapeProductPage(url);
+            if (debugSample) {
+                if (!jsonlds) { console.log(`[Catalog] DEBUG ${url} → null (fetch failed ou HTML vide)`); }
+                else if (jsonlds.length === 0) { console.log(`[Catalog] DEBUG ${url} → 0 JSON-LD Product trouvés`); }
+                else { console.log(`[Catalog] DEBUG ${url} → ${jsonlds.length} JSON-LD, ex: type=${jsonlds[0]['@type']} name=${jsonlds[0].name?.slice(0,40)} price=${jsonlds[0].offers?.price ?? jsonlds[0].offers?.[0]?.price}`); }
+                debugSample = false;
+            }
             if (!jsonlds) continue;
 
             for (const jld of jsonlds) {
