@@ -6412,12 +6412,56 @@ function resetCatalogFilters() {
     setVal('catalog-sort-select',      'profit');
     var cb = document.getElementById('catalog-no-amazon');
     if (cb) cb.checked = false;
+    var ps = document.getElementById('preset-strict'); if (ps) ps.checked = false;
+    var pp = document.getElementById('preset-souple'); if (pp) pp.checked = false;
+    var sw = document.getElementById('preset-strict-wrap'); if (sw) { sw.classList.remove('bg-indigo-50'); }
+    var pw = document.getElementById('preset-souple-wrap'); if (pw) { pw.classList.remove('bg-amber-50'); }
     catalogSortKey = 'profit';
     catalogCurrentPage = 0;
     var tags = document.getElementById('catalog-filter-tags');
     if (tags) { tags.innerHTML = ''; }
     updateAdvancedBadge();
     loadCatalog();
+}
+
+function applyCatalogPreset(mode, checked) {
+    // Décocher l'autre preset
+    var other = mode === 'strict' ? 'souple' : 'strict';
+    var otherCb = document.getElementById('preset-' + other);
+    if (otherCb) otherCb.checked = false;
+    var otherWrap = document.getElementById('preset-' + other + '-wrap');
+    if (otherWrap) otherWrap.classList.remove(other === 'strict' ? 'bg-indigo-50' : 'bg-amber-50');
+
+    var wrap = document.getElementById('preset-' + mode + '-wrap');
+    var setVal = function(id, v) { var el = document.getElementById(id); if (el) el.value = v; };
+
+    if (!checked) {
+        // Désactiver → réinitialiser les champs numériques
+        if (wrap) wrap.classList.remove(mode === 'strict' ? 'bg-indigo-50' : 'bg-amber-50');
+        setVal('catalog-min-profit', '0');
+        setVal('catalog-min-roi',    '0');
+        setVal('catalog-max-sellers', '');
+        var cb = document.getElementById('catalog-no-amazon');
+        if (cb) cb.checked = false;
+        filterCatalog();
+        return;
+    }
+
+    if (wrap) wrap.classList.add(mode === 'strict' ? 'bg-indigo-50' : 'bg-amber-50');
+
+    var prefix = mode === 'strict' ? '' : 'souple-';
+    var minProfit  = parseFloat(oaSettings[prefix + 'minProfit'])       || 0;
+    var minROI     = parseFloat(oaSettings[prefix + 'minROI'])          || 0;
+    var maxSellers = parseInt(oaSettings[prefix + 'maxFBASellers'])     || null;
+    var noAmazon   = !oaSettings.amazonSells;
+
+    setVal('catalog-min-profit', minProfit > 0 ? minProfit : '0');
+    setVal('catalog-min-roi',    minROI > 0    ? minROI    : '0');
+    setVal('catalog-max-sellers', maxSellers   ? maxSellers : '');
+    var cbAmz = document.getElementById('catalog-no-amazon');
+    if (cbAmz) cbAmz.checked = noAmazon;
+
+    filterCatalog();
 }
 
 function removeFilterTag(field) {
