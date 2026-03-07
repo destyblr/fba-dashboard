@@ -50,7 +50,13 @@ function initAuthUI() {
 }
 
 // Afficher l'ecran de connexion
+function hideLoadingScreen() {
+    var s = document.getElementById('loading-screen');
+    if (s) s.classList.add('hidden');
+}
+
 function showLoginScreen() {
+    hideLoadingScreen();
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-container').classList.add('hidden');
     clearUnsubscribeListeners();
@@ -58,6 +64,7 @@ function showLoginScreen() {
 
 // Afficher l'application
 function showApp() {
+    hideLoadingScreen();
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-container').classList.remove('hidden');
     updateUserInfo();
@@ -75,6 +82,7 @@ function showOfflineMode() {
 }
 
 function showSimpleLogin() {
+    hideLoadingScreen();
     sessionStorage.setItem('fba_mode', 'offline');
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('app-container').classList.add('hidden');
@@ -89,6 +97,7 @@ function showSimpleLogin() {
 }
 
 function showOfflineModeApp() {
+    hideLoadingScreen();
     document.getElementById('login-screen').classList.add('hidden');
     document.getElementById('app-container').classList.remove('hidden');
     // Afficher le bouton utilisateur dans le header

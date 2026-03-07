@@ -617,10 +617,10 @@ function updateFixedChargesDashboard() {
     var card = document.getElementById('oa-fixed-net-card');
     if (card) {
         if (isCurrentMonth) {
-            card.className = 'bg-gray-700/50 rounded-xl p-3 text-center border-2 border-cyan-500/50';
+            card.className = 'bg-indigo-50 rounded-xl p-3 text-center border-2 border-indigo-200';
         } else {
-            card.className = 'bg-gray-700/50 rounded-xl p-3 text-center border-2 ' +
-                (netResult >= 0 ? 'border-green-500/50' : 'border-red-500/50');
+            card.className = 'rounded-xl p-3 text-center border-2 ' +
+                (netResult >= 0 ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300');
         }
     }
 }
