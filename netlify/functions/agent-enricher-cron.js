@@ -63,6 +63,7 @@ async function keepaDomainLookup(ean, keepaKey, domain) {
             offerCountNew,
             buyBoxSellerId,
             amazonIsSeller,
+            packageWeight:   p.packageWeight > 0 ? p.packageWeight : null, // grammes
             link:            `https://www.${DOMAIN_LINKS[domain]}/dp/${p.asin}`,
             tokensLeft:      data.tokensLeft ?? null,
         };
@@ -156,7 +157,7 @@ exports.handler = async () => {
         if (keepa.tokensLeft !== null) lastTokens = keepa.tokensLeft;
 
         const profit = keepa.amazonPrice
-            ? calcProfit(product.price, keepa.amazonPrice, keepa.category)
+            ? calcProfit(product.price, keepa.amazonPrice, keepa.category, keepa.packageWeight)
             : null;
 
         const enriched = {

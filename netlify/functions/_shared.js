@@ -4,17 +4,26 @@
 const MIN_PROFIT = 2;  // € net minimum
 const MIN_ROI    = 25; // % ROI minimum
 
-// ─── Calcul profit FBA (micro-entreprise BIC, URSSAF 12.2%) ──────────────
-function calcProfit(buyPrice, sellPrice, category) {
+// ─── Inbound FBA dynamique selon le poids (même logique que le frontend) ─────
+function getInboundCost(weightGrams) {
+    if (!weightGrams || weightGrams <= 0) return 1.50; // fallback sans données poids
+    if (weightGrams < 500)  return 1.50;
+    if (weightGrams < 2000) return 2.00;
+    if (weightGrams < 5000) return 3.00;
+    return 4.50;
+}
+
+// ─── Calcul profit FBA (micro-entreprise BIC, URSSAF 12.2% du CA) ────────────
+function calcProfit(buyPrice, sellPrice, category, weightGrams) {
     if (!buyPrice || !sellPrice || sellPrice <= 0) return null;
     const commissionRate = (category || '').toLowerCase().match(/electron|informatiq|high.tech/) ? 0.08 : 0.15;
     const commission     = sellPrice * commissionRate;
     const fbaFees        = sellPrice < 10 ? 2.50 : sellPrice < 30 ? 3.50 : 4.80;
-    const inbound        = 0.30;
-    const prep           = 0.50;
-    const totalCosts     = buyPrice + commission + fbaFees + inbound + prep;
-    const grossProfit    = sellPrice - totalCosts;
-    const netProfit      = grossProfit > 0 ? grossProfit * 0.878 : grossProfit; // URSSAF 12.2%
+    const inbound        = getInboundCost(weightGrams);
+    const prep           = 0.25;
+    const urssaf         = sellPrice * 0.122; // 12.2% du CA (micro-BIC achat-revente)
+    const totalCosts     = buyPrice + commission + fbaFees + inbound + prep + urssaf;
+    const netProfit      = sellPrice - totalCosts;
     const roi            = buyPrice > 0 ? (netProfit / buyPrice) * 100 : 0;
     return { netProfit: +netProfit.toFixed(2), roi: +roi.toFixed(1) };
 }
@@ -72,4 +81,4 @@ const DEFAULT_RETAILERS = [
     { id: 'natureetdecouvertes',name: 'Nature & Découvertes', url: 'https://www.natureetdecouvertes.com', type: 'generic', category: 'culture',     days: [3,6],   maxProducts: 100, active: true },
 ];
 
-module.exports = { calcProfit, MIN_PROFIT, MIN_ROI, DEFAULT_RETAILERS };
+module.exports = { calcProfit, getInboundCost, MIN_PROFIT, MIN_ROI, DEFAULT_RETAILERS };

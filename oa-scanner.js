@@ -68,8 +68,8 @@ const OA_DEFAULTS = {
     sellerAmpCost: 19,         // SellerAmp 19€/mois
 
     // Criteres de selection — Strict (par defaut)
-    minProfit: 5.00,
-    minROI: 35,
+    minProfit: 2.00,
+    minROI: 25,
     maxBSR: 30000,
     maxFBASellers: 5,
     amazonSells: false,
@@ -114,7 +114,7 @@ const OA_DEFAULTS = {
     emailjsServiceId: '',
     emailjsTemplateId: '',
     emailjsPublicKey: '',
-    dealNotifyMinProfit: 5        // Profit min pour declencher une notification
+    dealNotifyMinProfit: 2        // Profit min pour declencher une notification
 };
 
 // Paliers inbound par poids (Envoi a AMZ)
@@ -1474,9 +1474,9 @@ function renderScanResults(products, profitableCount, funnel, strictCount, soupl
         // Couleur de la ligne
         const isNonEligible = oaFilterMode === 'noneligible';
         const rowBg = isNonEligible ? 'bg-gray-800/40' : '';
-        const profitClass = p.profit >= 5 ? 'text-green-400 font-bold' :
+        const profitClass = p.profit >= 2 ? 'text-green-400 font-bold' :
                            p.profit >= 0 ? 'text-yellow-300' : 'text-red-400 font-bold';
-        const roiClass = p.roi >= 35 ? 'text-green-400' :
+        const roiClass = p.roi >= 25 ? 'text-green-400' :
                         p.roi >= 0 ? 'text-yellow-300' : 'text-red-400';
         const ecart = p.pricDE - p.pricFR;
         const ecartClass = ecart > 0 ? 'text-green-400' : 'text-red-400';
@@ -2197,8 +2197,8 @@ function showQuickCheckResult(product, fromCSV) {
     const container = document.getElementById('quick-check-result');
     if (!container) return;
 
-    const profitClass = product.profit >= 5 ? 'text-green-600' : (product.profit >= 3 ? 'text-yellow-600' : 'text-red-600');
-    const roiClass = product.roi >= 35 ? 'text-green-600' : (product.roi >= 20 ? 'text-yellow-600' : 'text-red-600');
+    const profitClass = product.profit >= 2 ? 'text-green-600' : (product.profit >= 0 ? 'text-yellow-600' : 'text-red-600');
+    const roiClass = product.roi >= 25 ? 'text-green-600' : (product.roi >= 0 ? 'text-yellow-600' : 'text-red-600');
     const isGood = product.profit >= loadOASettings().minProfit && product.roi >= loadOASettings().minROI;
 
     let html = '<div class="bg-white rounded-xl shadow-sm p-6 mt-4">';
@@ -3536,20 +3536,8 @@ function updateWaitingStatus() {
     el.innerHTML = '<i class="fas fa-satellite-dish text-blue-400 mr-1"></i>En attente · <i class="fas fa-clock text-gray-500 mr-1"></i>Prochain scan ' + nextLabel + ' dans ' + min + ':' + String(sec).padStart(2, '0');
 }
 
-// --- Charger les deals depuis le serveur Netlify (0 token) ---
+// --- Charger les deals depuis le serveur (fonction supprimée — get-deals n'existe pas) ---
 async function fetchDealsFromServer() {
-    try {
-        var baseUrl = window.location.hostname === 'localhost' ? '' : '';
-        var resp = await fetch('/.netlify/functions/get-deals');
-        if (!resp.ok) return null;
-        var data = await resp.json();
-        if (data && data.deals && data.deals.length > 0) {
-            console.log('[DealScanner] Serveur: ' + data.deals.length + ' deals (MAJ: ' + data.updatedAt + ')');
-            return data;
-        }
-    } catch (e) {
-        console.log('[DealScanner] Serveur non disponible, fallback local');
-    }
     return null;
 }
 

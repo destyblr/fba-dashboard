@@ -64,7 +64,7 @@ exports.handler = async () => {
         if (seenKeys.has(p.asin)) continue;
 
         analyzed++;
-        const profit = calcProfit(p.price, p.amazonPrice, p.category);
+        const profit = calcProfit(p.price, p.amazonPrice, p.category, p.packageWeight);
         if (!profit) continue;
 
         if (profit.netProfit >= MIN_PROFIT && profit.roi >= MIN_ROI) {
