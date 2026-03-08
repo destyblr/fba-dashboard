@@ -113,8 +113,6 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
         baseUrl + '/fr/sitemap.xml',
     ];
 
-    const cutoff = Date.now() - 30 * 24 * 3600 * 1000; // 30 jours
-
     // Extrait les entrées {url, lastmod} depuis un XML de sitemap
     const extractEntries = (xml) => {
         const entries = [];
@@ -136,22 +134,14 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
         return entries;
     };
 
-    // Applique les filtres lastmod + isProductUrl sur un tableau d'entrées
+    // Applique le filtre isProductUrl sur un tableau d'entrées (sans filtre lastmod)
     const applyFilters = (entries) => {
-        const withLastmod = entries.filter(e => e.lastmod !== null);
-        let filtered = entries;
-        if (withLastmod.length > 0) {
-            const before = entries.length;
-            filtered = entries.filter(e => !e.lastmod || e.lastmod.getTime() >= cutoff);
-            const skipped = before - filtered.length;
-            if (skipped > 0) console.log(`[Catalog] Filtre lastmod 30j: ${skipped} URLs ignorées, ${filtered.length} récentes`);
-        }
-        let productEntries = filtered.filter(e => isProductUrl(e.url));
-        const rejectedEx = filtered.filter(e => !isProductUrl(e.url) && !e.url.match(/sitemap.*\.xml/i));
+        let productEntries = entries.filter(e => isProductUrl(e.url));
+        const rejectedEx = entries.filter(e => !isProductUrl(e.url) && !e.url.match(/sitemap.*\.xml/i));
         if (rejectedEx.length > 0) console.log(`[Catalog] URLs rejetées isProductUrl (ex): ${rejectedEx.slice(0,3).map(e => e.url).join(' | ')}`);
         // Fallback permissif si le filtre strict donne 0 résultats (ex: PrestaShop URLs propres)
-        if (productEntries.length === 0 && filtered.length > 10) {
-            productEntries = filtered.filter(e =>
+        if (productEntries.length === 0 && entries.length > 10) {
+            productEntries = entries.filter(e =>
                 !e.url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|sitemap|\.xml$|outlet|occasion|reconditionn|destockage/i)
                 && !e.url.match(/\.(jpg|png|gif|css|js)$/i)
             );
@@ -233,7 +223,7 @@ exports.handler = async () => {
     console.log(`[Catalog] Run ${cursor + 1}/${activeToday.length} → ${retailerToProcess.name}`);
 
     // ── 2. Charger état scraping (EANs vus, URLs vues, offsets sitemap) ──────
-    const rawProducts     = await readBlob(catalogStore, 'raw-products', []);
+    const rawProducts     = (await readBlob(catalogStore, 'raw-products', [])).filter(p => p.ean); // purge legacy sans EAN
     const seenEANs        = new Set(rawProducts.map(p => p.ean).filter(Boolean));
     const seenUrlsArr     = await readBlob(catalogStore, 'scraped-urls', []);
     const seenUrls        = new Set(seenUrlsArr);

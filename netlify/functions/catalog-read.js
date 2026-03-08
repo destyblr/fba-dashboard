@@ -35,8 +35,8 @@ exports.handler = async (event) => {
 
         // Stats pipeline
         const stats = {
-            rawTotal:       rawProducts.length,
-            withEan:        rawProducts.filter(p => p.ean).length,
+            rawTotal:       rawProducts.length + noEanProducts.length, // total scrapé = avec EAN + sans EAN
+            withEan:        rawProducts.length, // raw-products ne contient que des produits avec EAN
             enrichedTotal:  enrichedProducts.length,
             profitable:     enrichedProducts.filter(p => p.netProfit >= 2 && p.roi >= 25).length,
             // Compat ancien format

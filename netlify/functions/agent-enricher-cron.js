@@ -156,6 +156,14 @@ exports.handler = async () => {
 
     if (!batch.length) {
         console.log('[Enricher] Rien à enrichir ce run');
+        activityLog.unshift({
+            ts:      Date.now(),
+            agent:   'enricher',
+            summary: `Rien à enrichir (${rawProducts.length} bruts, ${toEnrich.length} en attente EAN)`,
+            stats:   { enriched: 0, profitable: 0 },
+            tokensLeft: lastEnricherLog?.tokensLeft ?? null
+        });
+        await writeBlob(activityStore, 'log', activityLog.slice(0, 100));
         return { statusCode: 200 };
     }
 
