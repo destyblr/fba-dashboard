@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { getStore: _getStore } = require('@netlify/blobs');
+const { calcProfit, MIN_PROFIT, MIN_ROI } = require('./_shared');
 function getStore(name) {
     return _getStore({ name, siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN });
 }
@@ -21,20 +22,9 @@ async function sendTelegram(msg) {
     }).catch(() => {});
 }
 
-// ─── Calcul profit FBA ────────────────────────────────────────────────────
-function calcProfit(buyPrice, sellPrice, category) {
-    if (!buyPrice || !sellPrice || sellPrice <= buyPrice) return null;
-    const commissionRate = (category || '').toLowerCase().includes('électronique') ? 0.08 : 0.15;
-    const commission     = sellPrice * commissionRate;
-    const fbaFees        = sellPrice < 10 ? 2.50 : sellPrice < 30 ? 3.50 : 4.80;
-    const inbound        = 0.30;
-    const prep           = 0.50;
-    const totalCosts     = buyPrice + commission + fbaFees + inbound + prep;
-    const grossProfit    = sellPrice - totalCosts;
-    const netProfit      = grossProfit > 0 ? grossProfit * 0.78 : grossProfit; // URSSAF 22%
-    const roi            = buyPrice > 0 ? (netProfit / buyPrice) * 100 : 0;
-    return { netProfit: +netProfit.toFixed(2), roi: +roi.toFixed(1) };
-}
+// calcProfit importé depuis _shared.js
+
+const MP_DOMAIN = { DE: 'amazon.de', FR: 'amazon.fr', IT: 'amazon.it', ES: 'amazon.es' };
 
 exports.handler = async () => {
     const catalogStore   = getStore('oa-catalog');
@@ -77,7 +67,8 @@ exports.handler = async () => {
         const profit = calcProfit(p.price, p.amazonPrice, p.category);
         if (!profit) continue;
 
-        if (profit.netProfit >= 5 && profit.roi >= 35) {
+        if (profit.netProfit >= MIN_PROFIT && profit.roi >= MIN_ROI) {
+            const mp = p.bestMarketplace || 'DE';
             profitable.push({
                 asin:       p.asin,
                 title:      p.amazonTitle || p.title,
@@ -87,7 +78,8 @@ exports.handler = async () => {
                 netProfit:  profit.netProfit,
                 roi:        profit.roi,
                 bsr:        p.bsr,
-                amazonLink: `https://www.amazon.de/dp/${p.asin}`,
+                marketplace: mp,
+                amazonLink: `https://www.${MP_DOMAIN[mp] || 'amazon.de'}/dp/${p.asin}`,
                 retailLink: p.link || '',
                 ts:         Date.now()
             });
@@ -105,11 +97,12 @@ exports.handler = async () => {
 
     // ── 5. Telegram pour chaque deal rentable ────────────────────────────
     for (const d of profitable) {
+        const mpFlag = { DE: '🇩🇪', FR: '🇫🇷', IT: '🇮🇹', ES: '🇪🇸' }[d.marketplace] || '🇩🇪';
         const msg =
             `⚡ <b>Deal rentable — Agent Sourcing</b>\n\n` +
             `📦 <b>${(d.title || '').slice(0, 60)}</b>\n` +
             `🏪 Source : ${d.retailer || '—'}\n` +
-            `💰 Achat : ${d.buyPrice}€ → Amazon.de : ${d.sellPrice}€\n` +
+            `💰 Achat : ${d.buyPrice}€ → ${mpFlag} Amazon : ${d.sellPrice}€\n` +
             `📈 Profit net : <b>${d.netProfit}€</b> | ROI : <b>${d.roi}%</b>\n` +
             (d.bsr ? `📊 BSR : ${Number(d.bsr).toLocaleString('fr')}\n` : '') +
             (d.retailLink ? `\n🔗 <a href="${d.retailLink}">Voir le deal</a> | ` : '\n') +

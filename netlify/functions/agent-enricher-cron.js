@@ -1,5 +1,6 @@
 const fetch = require('node-fetch');
 const { getStore: _getStore } = require('@netlify/blobs');
+const { calcProfit, MIN_PROFIT, MIN_ROI } = require('./_shared');
 function getStore(name) {
     return _getStore({ name, siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN });
 }
@@ -102,20 +103,7 @@ async function keepaEANLookup(ean, keepaKey) {
     };
 }
 
-// ─── Calcul profit FBA ────────────────────────────────────────────────────
-function calcProfit(buyPrice, sellPrice, category) {
-    if (!buyPrice || !sellPrice || sellPrice <= 0) return null;
-    const commissionRate = (category || '').toLowerCase().includes('electronics') ? 0.08 : 0.15;
-    const commission     = sellPrice * commissionRate;
-    const fbaFees        = sellPrice < 10 ? 2.50 : sellPrice < 30 ? 3.50 : 4.80;
-    const inbound        = 0.30;
-    const prep           = 0.50;
-    const totalCosts     = buyPrice + commission + fbaFees + inbound + prep;
-    const grossProfit    = sellPrice - totalCosts;
-    const netProfit      = grossProfit > 0 ? grossProfit * 0.878 : grossProfit; // URSSAF 12.2% micro BIC
-    const roi            = buyPrice > 0 ? (netProfit / buyPrice) * 100 : 0;
-    return { netProfit: +netProfit.toFixed(2), roi: +roi.toFixed(1) };
-}
+// calcProfit importé depuis _shared.js
 
 // ─── Handler principal ────────────────────────────────────────────────────
 exports.handler = async () => {
@@ -126,8 +114,11 @@ exports.handler = async () => {
     const activityStore = getStore('oa-activity');
 
     // ── 1. Charger les produits bruts avec EAN ─────────────────────────────
-    const rawProducts      = await readBlob(catalogStore, 'raw-products', []);
-    const enrichedProducts = await readBlob(catalogStore, 'enriched-products', []);
+    const [rawProducts, enrichedProducts, activityLog] = await Promise.all([
+        readBlob(catalogStore,  'raw-products',       []),
+        readBlob(catalogStore,  'enriched-products',  []),
+        readBlob(activityStore, 'log',                []),
+    ]);
 
     // Index des produits deja enrichis (EAN → timestamp d'enrichissement)
     const enrichedIndex = {};
@@ -141,9 +132,13 @@ exports.handler = async () => {
         p.ean && (!enrichedIndex[p.ean] || Date.now() - enrichedIndex[p.ean] > SEVEN_DAYS)
     );
 
-    // Limiter à 3 produits par run (4 appels Keepa/produit × 3 = 12 tokens max)
-    const batch    = toEnrich.slice(0, 3);
-    console.log(`[Enricher] ${rawProducts.length} produits bruts · ${toEnrich.length} à enrichir · batch de ${batch.length}`);
+    // Batch dynamique selon les tokens Keepa disponibles (4 appels/produit × DE+FR+IT+ES)
+    const lastEnricherLog = activityLog.find(e => e.agent === 'enricher');
+    const tokensLeft  = lastEnricherLog?.tokensLeft ?? 60;
+    const safeTokens  = Math.max(0, tokensLeft - 20); // garder 20 tokens de réserve
+    const batchSize   = Math.min(Math.floor(safeTokens / 4), 10); // max 10/run
+    const batch       = toEnrich.slice(0, batchSize);
+    console.log(`[Enricher] ${rawProducts.length} produits bruts · ${toEnrich.length} à enrichir · tokens=${tokensLeft} → batch de ${batch.length}`);
 
     if (!batch.length) {
         console.log('[Enricher] Rien à enrichir ce run');
@@ -179,7 +174,7 @@ exports.handler = async () => {
 
         enrichedCount++;
 
-        if (profit && profit.netProfit >= 5 && profit.roi >= 30) {
+        if (profit && profit.netProfit >= MIN_PROFIT && profit.roi >= MIN_ROI) {
             profitableItems.push(enriched);
         }
 
@@ -216,8 +211,7 @@ exports.handler = async () => {
     }
 
     // ── 5. Journal d'activité ──────────────────────────────────────────────
-    const activity = await readBlob(activityStore, 'log', []);
-    activity.unshift({
+    activityLog.unshift({
         ts:      Date.now(),
         agent:   'enricher',
         summary: `${enrichedCount} produits enrichis · ${profitableItems.length} rentables` +
@@ -225,7 +219,7 @@ exports.handler = async () => {
         stats:   { enriched: enrichedCount, profitable: profitableItems.length },
         tokensLeft: lastTokens
     });
-    await writeBlob(activityStore, 'log', activity.slice(0, 100));
+    await writeBlob(activityStore, 'log', activityLog.slice(0, 100));
 
     console.log(`[Enricher] Terminé — ${enrichedCount} enrichis, ${profitableItems.length} rentables`);
     return { statusCode: 200 };
