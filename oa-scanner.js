@@ -531,11 +531,11 @@ function getCompletedMonths(period) {
     const now = new Date();
     if (period && period.match(/^\d{4}-\d{2}$/)) {
         var d = new Date(period + '-01');
-        // Seuls les mois strictement passés sont prélevés
-        var isPastMonth = d < new Date(now.getFullYear(), now.getMonth(), 1);
-        return isPastMonth ? 1 : 0;
+        // Mois passés ET mois courant = charges prélevées, mois futurs = 0
+        var isFutureMonth = d > new Date(now.getFullYear(), now.getMonth(), 1);
+        return isFutureMonth ? 0 : 1;
     }
-    if (period === 'month') return 0;
+    if (period === 'month') return 1;
     if (period === 'lastmonth') return 1;
     if (period === 'year') return now.getMonth();
     return 0; // 'all' — calcule ci-dessous
