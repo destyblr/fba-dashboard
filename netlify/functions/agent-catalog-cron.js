@@ -235,7 +235,7 @@ exports.handler = async () => {
 
     // ── 3. Scraper le retailer du run ─────────────────────────────────────
     console.log(`[Catalog] Scraping ${retailerToProcess.name}...`);
-    const maxP = retailerToProcess.maxProducts || 200;
+    const maxP = Math.min(retailerToProcess.maxProducts || 30, 30); // plafonné à 30 pour respecter le timeout 60s
 
     // Récupère toutes les URLs du sitemap (jusqu'à 5000 pour la rotation)
     const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000);
