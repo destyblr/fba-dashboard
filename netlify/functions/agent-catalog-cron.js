@@ -90,7 +90,7 @@ function isProductUrl(url) {
 }
 
 async function fetchXml(url) {
-    // Sitemaps XML : fetch direct sans ScraperAPI (XML ne nécessite pas de rendu JS)
+    const scraperKey = process.env.SCRAPER_API_KEY;
     try {
         const resp = await fetch(url, {
             timeout: 10000,
@@ -100,15 +100,30 @@ async function fetchXml(url) {
                 'Accept': 'application/xml, text/xml, */*'
             }
         });
-        console.log(`[Catalog] fetchXml ${url} → ${resp.status} (${resp.headers.get('content-type') || 'no-ct'})`);
-        if (!resp.ok) return null;
-        const text = await resp.text();
-        // Vérification : si la réponse ne contient pas de balises XML, log pour debug
-        if (!text.includes('<') && text.length > 0) {
-            console.log(`[Catalog] fetchXml ${url} → réponse non-XML (${text.length} chars, début: ${text.slice(0,50)})`);
-            return null;
+        const status = resp.status;
+        console.log(`[Catalog] fetchXml ${url} → ${status} (${resp.headers.get('content-type') || 'no-ct'})`);
+
+        if (resp.ok) {
+            const text = await resp.text();
+            if (!text.includes('<') && text.length > 0) {
+                console.log(`[Catalog] fetchXml ${url} → réponse non-XML (${text.length} chars, début: ${text.slice(0,50)})`);
+                return null;
+            }
+            return text;
         }
-        return text;
+
+        // 403/502/503 → fallback ScraperAPI (bypasse anti-bot)
+        if ([403, 502, 503].includes(status) && scraperKey) {
+            console.log(`[Catalog] fetchXml ${url} → ${status}, retry via ScraperAPI`);
+            const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 15000 });
+            console.log(`[Catalog] fetchXml (ScraperAPI) ${url} → ${resp2.status}`);
+            if (!resp2.ok) return null;
+            const text2 = await resp2.text();
+            if (!text2.includes('<') && text2.length > 0) return null;
+            return text2;
+        }
+
+        return null;
     } catch (e) {
         console.log(`[Catalog] fetchXml ${url} → erreur: ${e.message}`);
         return null;
@@ -287,41 +302,48 @@ exports.handler = async () => {
 
         console.log(`[Catalog] ${retailerToProcess.name}: ${allUrls.length} URLs total, ${filteredUrls.length} après filtres, offset=${offset}, batch=${batch.length} (${freshUrls.length} nouvelles)`);
 
+        // Scraping en lots parallèles de 5 (séquentiel = trop lent pour le timeout 60s)
+        const CHUNK_SIZE = 5;
         let debugSample = true;
-        for (const url of batch) {
-            const jsonlds = await scrapeProductPage(url);
-            if (debugSample) {
-                if (!jsonlds) { console.log(`[Catalog] DEBUG ${url} → null (fetch failed)`); }
-                else if (jsonlds.length === 0) {
-                    const types = (jsonlds._allTypes || []).join(', ') || 'aucun';
-                    console.log(`[Catalog] DEBUG ${url} → 0 Product. @types: [${types}]`);
-                } else {
-                    const jld   = jsonlds[0];
-                    const price = jld.offers?.price ?? (Array.isArray(jld.offers) ? jld.offers[0]?.price : null);
-                    console.log(`[Catalog] DEBUG ${url} → OK type=${JSON.stringify(jld['@type'])} name="${jld.name?.slice(0,40)}" price=${price}`);
+        for (let i = 0; i < batch.length; i += CHUNK_SIZE) {
+            const chunk   = batch.slice(i, i + CHUNK_SIZE);
+            const results = await Promise.all(chunk.map(async (url) => {
+                const jsonlds = await scrapeProductPage(url);
+                seenUrls.add(url);
+                return { url, jsonlds };
+            }));
+
+            for (const { url, jsonlds } of results) {
+                if (debugSample) {
+                    if (!jsonlds) { console.log(`[Catalog] DEBUG ${url} → null (fetch failed)`); }
+                    else if (jsonlds.length === 0) {
+                        const types = (jsonlds._allTypes || []).join(', ') || 'aucun';
+                        console.log(`[Catalog] DEBUG ${url} → 0 Product. @types: [${types}]`);
+                    } else {
+                        const jld   = jsonlds[0];
+                        const price = jld.offers?.price ?? (Array.isArray(jld.offers) ? jld.offers[0]?.price : null);
+                        console.log(`[Catalog] DEBUG ${url} → OK type=${JSON.stringify(jld['@type'])} name="${jld.name?.slice(0,40)}" price=${price}`);
+                    }
+                    debugSample = false;
                 }
-                debugSample = false;
-            }
-            seenUrls.add(url); // marquer comme vu même si 0 produit
-            if (!jsonlds) continue;
+                if (!jsonlds) continue;
 
-            for (const jld of jsonlds) {
-                const product = parseProduct(jld, retailerToProcess.name, retailerToProcess.url);
-                if (!product) continue;
-                totalScraped++;
+                for (const jld of jsonlds) {
+                    const product = parseProduct(jld, retailerToProcess.name, retailerToProcess.url);
+                    if (!product) continue;
+                    totalScraped++;
 
-                if (!product.ean) {
-                    // Produit sans EAN → tableau séparé pour décision manuelle
-                    noEanProducts.push({ ...product, scrapedAt: Date.now() });
-                    totalNoEan++;
-                    continue;
+                    if (!product.ean) {
+                        noEanProducts.push({ ...product, scrapedAt: Date.now() });
+                        totalNoEan++;
+                        continue;
+                    }
+
+                    if (seenEANs.has(product.ean)) continue;
+                    seenEANs.add(product.ean);
+                    totalWithEan++;
+                    newProducts.push({ ...product, scrapedAt: Date.now() });
                 }
-
-                // Déduplications par EAN
-                if (seenEANs.has(product.ean)) continue;
-                seenEANs.add(product.ean);
-                totalWithEan++;
-                newProducts.push({ ...product, scrapedAt: Date.now() });
             }
         }
 
