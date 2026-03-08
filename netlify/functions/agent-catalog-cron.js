@@ -89,7 +89,7 @@ function isProductUrl(url) {
         && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$|outlet|occasion|reconditionn|destockage|pack-promo/i);
 }
 
-async function fetchXml(url) {
+async function fetchXml(url, allowScraperFallback = false) {
     const scraperKey = process.env.SCRAPER_API_KEY;
     try {
         const resp = await fetch(url, {
@@ -112,8 +112,9 @@ async function fetchXml(url) {
             return text;
         }
 
-        // 403/502/503 → fallback ScraperAPI (bypasse anti-bot)
-        if ([403, 502, 503].includes(status) && scraperKey) {
+        // 403/502/503 → fallback ScraperAPI uniquement si explicitement autorisé
+        // (URLs connues via robots.txt — pas les candidats hardcodés qui peuvent ne pas exister)
+        if (allowScraperFallback && [403, 502, 503].includes(status) && scraperKey) {
             console.log(`[Catalog] fetchXml ${url} → ${status}, retry via ScraperAPI`);
             const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 15000 });
             console.log(`[Catalog] fetchXml (ScraperAPI) ${url} → ${resp2.status}`);
@@ -153,14 +154,16 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
     // 0. Chercher les sitemaps déclarés dans robots.txt (le plus fiable)
     const robotsSitemaps = await getSitemapFromRobots(baseUrl);
 
+    // URLs depuis robots.txt = connues valides → ScraperAPI autorisé si 403/502
+    // Candidats hardcodés = guesses → direct seulement (ScraperAPI sur URL inexistante = crédit gaspillé)
     const candidates = [
-        ...robotsSitemaps,
-        baseUrl + '/sitemap.xml',
-        baseUrl + '/sitemap_index.xml',
-        baseUrl + '/sitemap-index.xml',
-        baseUrl + '/sitemap_products.xml',
-        baseUrl + '/sitemap-products.xml',
-        baseUrl + '/fr/sitemap.xml',
+        ...robotsSitemaps.map(u => ({ url: u, scraperFallback: true })),
+        { url: baseUrl + '/sitemap.xml' },
+        { url: baseUrl + '/sitemap_index.xml' },
+        { url: baseUrl + '/sitemap-index.xml' },
+        { url: baseUrl + '/sitemap_products.xml' },
+        { url: baseUrl + '/sitemap-products.xml' },
+        { url: baseUrl + '/fr/sitemap.xml' },
     ];
 
     // Extrait les entrées {url, lastmod} depuis un XML de sitemap
@@ -201,8 +204,9 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
         return productEntries.map(e => e.url);
     };
 
-    for (const sitemapUrl of candidates) {
-        const xml = await fetchXml(sitemapUrl);
+    for (const candidate of candidates) {
+        const sitemapUrl = candidate.url ?? candidate;
+        const xml = await fetchXml(sitemapUrl, candidate.scraperFallback === true);
         if (!xml) continue;
 
         const allEntries = extractEntries(xml);
@@ -221,7 +225,7 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
                 return bScore - aScore;
             });
             for (const sub of sorted.slice(0, 10)) {
-                const subXml = await fetchXml(sub);
+                const subXml = await fetchXml(sub, candidate.scraperFallback === true);
                 if (!subXml) continue;
                 const subEntries = extractEntries(subXml);
                 const urls       = applyFilters(subEntries);
