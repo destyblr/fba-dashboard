@@ -6788,7 +6788,7 @@ function updateCatalogFilters() {
 
 function renderCatalogEmpty(msg) {
     var tbody = document.getElementById('catalog-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="13" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
 }
 
 function toggleCatalogAdvanced() {
@@ -6876,66 +6876,96 @@ function renderCatalogTable() {
         return;
     }
 
+    var mpFlags   = { FR: '🇫🇷', DE: '🇩🇪', IT: '🇮🇹', ES: '🇪🇸' };
+    var mpDomains = { FR: 'fr', DE: 'de', IT: 'it', ES: 'es' };
+
     tbody.innerHTML = data.map(function(p) {
-        var marge       = (p.amazonPrice && p.netProfit != null) ? (p.netProfit / p.amazonPrice * 100) : null;
-        var profitable  = p.netProfit >= 2 && p.roi >= 25;
-        var profitClass = profitable ? 'text-green-600 font-bold' : (p.netProfit > 0 ? 'text-gray-600' : 'text-red-500');
-        var img = p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded mr-2 flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
+        var marge      = (p.amazonPrice && p.netProfit != null) ? (p.netProfit / p.amazonPrice * 100) : null;
+        var profitable = p.netProfit >= 2 && p.roi >= 25;
+        var borderline = !profitable && p.netProfit > 0;
+        var rowClass   = profitable ? 'bg-green-50/50 border-green-100' : (borderline ? 'bg-yellow-50/40 border-yellow-50' : (p.netProfit < 0 ? 'bg-red-50/30 border-red-50' : 'border-gray-50'));
 
-        // Badge Amazon présent ?
-        var amzBadge;
+        // Colonne Produit
+        var img = p.image ? '<img src="' + p.image + '" class="w-8 h-8 object-contain rounded flex-shrink-0" onerror="this.style.display=\'none\'">' : '<div class="w-8 h-8 bg-gray-100 rounded flex-shrink-0"></div>';
+        var discountBadge = p.discount ? '<span class="bg-red-100 text-red-600 text-xs font-bold px-1 rounded ml-1">-' + p.discount + '%</span>' : '';
+        var titleText = (p.amazonTitle || p.title || '').slice(0, 52);
+        var titleLink = p.link ? '<a href="' + p.link + '" target="_blank" class="font-medium text-gray-800 hover:text-indigo-600 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</a>'
+                                : '<span class="font-medium text-gray-800 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</span>';
+
+        // Colonne Achat
+        var achatCol = '<div class="text-xs text-gray-400 truncate">' + (p.retailer || '—') + '</div>' +
+            (p.originalPrice ? '<div class="text-xs text-gray-300 line-through">' + p.originalPrice.toFixed(2) + '€</div>' : '') +
+            '<div class="font-semibold text-gray-800 text-sm">' + (p.price ? p.price.toFixed(2) + '€' : '—') + '</div>';
+
+        // Colonne Amazon
+        var amzDomain = mpDomains[p.bestMarketplace] || 'de';
+        var amzUrl    = p.asin ? 'https://www.amazon.' + amzDomain + '/dp/' + p.asin : null;
+        var mpPrices  = [['DE', p.priceDE], ['FR', p.priceFR], ['IT', p.priceIT], ['ES', p.priceES]]
+            .filter(function(x) { return x[1]; })
+            .map(function(x) { return (mpFlags[x[0]] || '') + x[1].toFixed(0) + '€'; }).join(' ');
+        var amazonCol;
         if (!p.asin) {
-            amzBadge = '<span class="text-gray-300 text-xs">—</span>';
-        } else if (p.amazonIsSeller) {
-            amzBadge = '<span class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded-full font-semibold">Oui ⚠</span>';
+            amazonCol = '<span class="text-gray-300 text-xs">Non trouvé</span>';
         } else {
-            amzBadge = '<span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-semibold">Non ✓</span>';
+            amazonCol = '<div class="font-bold text-sm">' + (mpFlags[p.bestMarketplace] || '') + ' ' + (p.amazonPrice ? p.amazonPrice.toFixed(2) + '€' : '—') + '</div>' +
+                (mpPrices ? '<div class="text-xs text-gray-400 leading-tight">' + mpPrices + '</div>' : '');
         }
 
-        // Colonne "Vendre sur" — meilleure marketplace
-        var mpFlags = { FR: '🇫🇷', DE: '🇩🇪', IT: '🇮🇹', ES: '🇪🇸' };
-        var vendreCol;
-        if (!p.asin) {
-            vendreCol = '<span class="text-gray-300 text-xs">—</span>';
-        } else if (p.bestMarketplace) {
-            var mpPrices = '';
-            if (p.priceDE) mpPrices += '🇩🇪' + p.priceDE.toFixed(0) + '€ ';
-            if (p.priceFR) mpPrices += '🇫🇷' + p.priceFR.toFixed(0) + '€';
-            vendreCol = '<div class="text-center">' +
-                '<div class="font-bold text-sm">' + (mpFlags[p.bestMarketplace] || '') + ' ' + p.bestMarketplace + '</div>' +
-                (mpPrices ? '<div class="text-xs text-gray-400">' + mpPrices.trim() + '</div>' : '') +
-                '</div>';
+        // Colonne Rendement
+        var profitColor = profitable ? 'text-green-600' : (p.netProfit > 0 ? 'text-amber-600' : 'text-red-500');
+        var rendementCol;
+        if (p.netProfit != null) {
+            rendementCol = '<div class="font-bold ' + profitColor + ' text-sm">' + (p.netProfit >= 0 ? '+' : '') + p.netProfit.toFixed(2) + '€</div>' +
+                '<div class="text-xs text-gray-500">ROI ' + (p.roi != null ? p.roi.toFixed(0) : '—') + '%' +
+                (marge != null ? ' · ' + marge.toFixed(0) + '%' : '') + '</div>';
         } else {
-            vendreCol = '<span class="text-xs text-gray-400">🇩🇪</span>';
+            rendementCol = '<span class="text-gray-300 text-xs">—</span>';
         }
 
-        return '<tr class="border-b border-gray-50 hover:bg-gray-50 transition' + (profitable ? ' bg-green-50/40' : '') + '">' +
-            '<td class="p-3 max-w-xs">' +
-                '<div class="flex items-center gap-2">' + img +
-                '<div class="min-w-0">' +
-                    '<div class="text-sm font-medium text-gray-800 truncate" title="' + (p.amazonTitle || p.title || '') + '">' + (p.amazonTitle || p.title || '').slice(0, 48) + '</div>' +
-                    (p.brand ? '<div class="text-xs text-gray-400">' + p.brand + '</div>' : '') +
+        // Colonne BSR / Ventes
+        var bsrCol = (p.bsr ? '<div class="text-xs font-mono text-gray-600">' + Number(p.bsr).toLocaleString('fr') + '</div>' : '<div class="text-gray-300 text-xs">—</div>') +
+            (p.monthlySold != null ? '<div class="text-xs text-blue-600 font-semibold">~' + p.monthlySold + '/m</div>' : '');
+
+        // Colonne Vendeurs / Amazon
+        var amzSellerBadge = !p.asin ? '' : (p.amazonIsSeller
+            ? '<div class="text-xs bg-red-100 text-red-600 rounded px-1 inline-block">AMZ ⚠</div>'
+            : '<div class="text-xs bg-green-100 text-green-600 rounded px-1 inline-block">AMZ ✓</div>');
+        var vendCol = '<div class="font-semibold text-sm text-gray-700">' + (p.offerCountNew != null ? p.offerCountNew : '—') + '</div>' + amzSellerBadge;
+
+        // Colonne Statut marque
+        var statutCol;
+        if (!p.asin) {
+            statutCol = '<span class="text-gray-300 text-xs">—</span>';
+        } else if (p.offerCountNew > 1 && !p.amazonIsSeller) {
+            statutCol = '<span class="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full font-semibold">Libre ✓</span>';
+        } else if (p.offerCountNew === 1 || p.offerCountNew === 0) {
+            statutCol = '<span class="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded-full">À vérifier</span>';
+        } else {
+            statutCol = '<span class="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full">À vérifier</span>';
+        }
+
+        // Colonne Actions
+        var actionsCol = '<div class="flex flex-col gap-1 items-center">' +
+            (p.link ? '<a href="' + p.link + '" target="_blank" class="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs w-full text-center">Retailer ↗</a>' : '') +
+            (amzUrl  ? '<a href="' + amzUrl  + '" target="_blank" class="px-2 py-0.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs w-full text-center">Amazon ↗</a>' : '') +
+            (profitable ? '<button onclick="catalogToChecklist(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')" class="px-2 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs w-full">Checklist</button>' : '') +
+            '</div>';
+
+        return '<tr class="border-b ' + rowClass + ' hover:brightness-95 transition">' +
+            '<td class="p-2">' +
+                '<div class="flex items-center gap-1.5">' + img +
+                '<div class="min-w-0 flex-1">' + titleLink +
+                    (p.brand ? '<div class="text-xs text-gray-400 truncate">' + p.brand + '</div>' : '') +
                     (p.ean ? '<div class="text-xs text-gray-300 font-mono">EAN ' + p.ean + '</div>' : '') +
                 '</div></div>' +
             '</td>' +
-            '<td class="p-3 text-sm text-gray-600 whitespace-nowrap">' + (p.retailer || '—') + '</td>' +
-            '<td class="p-3 text-sm text-right font-semibold">' + (p.price ? p.price.toFixed(2) + '€' : '—') + '</td>' +
-            '<td class="p-3 text-sm text-right">' + (p.amazonPrice ? '<span class="font-semibold">' + p.amazonPrice.toFixed(2) + '€</span>' : '<span class="text-gray-300">—</span>') + '</td>' +
-            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.netProfit != null ? p.netProfit.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>' +
-            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (p.roi != null ? p.roi.toFixed(1) + '%' : '<span class="text-gray-300">—</span>') + '</td>' +
-            '<td class="p-3 text-sm text-right ' + profitClass + '">' + (marge != null ? marge.toFixed(1) + '%' : '<span class="text-gray-300">—</span>') + '</td>' +
-            '<td class="p-3 text-sm text-center text-gray-500">' + (p.bsr ? Number(p.bsr).toLocaleString('fr') : '—') + '</td>' +
-            '<td class="p-3 text-sm text-center">' + (p.monthlySold != null ? '<span class="font-semibold text-blue-600">~' + p.monthlySold + '</span>' : '<span class="text-gray-300">—</span>') + '</td>' +
-            '<td class="p-3 text-sm text-center">' + (p.offerCountNew != null ? p.offerCountNew : '<span class="text-gray-300">—</span>') + '</td>' +
-            '<td class="p-3 text-center">' + amzBadge + '</td>' +
-            '<td class="p-3 text-center">' + vendreCol + '</td>' +
-            '<td class="p-3 text-center">' +
-                '<div class="flex gap-1 justify-center">' +
-                (p.link ? '<a href="' + p.link + '" target="_blank" class="px-2 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">Voir</a>' : '') +
-                (p.asin ? '<a href="' + (p.link || 'https://www.amazon.de/dp/' + p.asin) + '" target="_blank" class="px-2 py-1 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs">AMZ</a>' : '') +
-                (profitable ? '<button onclick="catalogToChecklist(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')" class="px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs">Checklist</button>' : '') +
-                '</div>' +
-            '</td>' +
+            '<td class="p-2">' + achatCol + '</td>' +
+            '<td class="p-2">' + amazonCol + '</td>' +
+            '<td class="p-2 text-right">' + rendementCol + '</td>' +
+            '<td class="p-2 text-center">' + bsrCol + '</td>' +
+            '<td class="p-2 text-center">' + vendCol + '</td>' +
+            '<td class="p-2 text-center">' + statutCol + '</td>' +
+            '<td class="p-2">' + actionsCol + '</td>' +
         '</tr>';
     }).join('');
 }

@@ -223,7 +223,7 @@
                 </div>
 
                 <!-- ====== NAV ONLINE ARBITRAGE ====== -->
-                <nav class="nav-oa hidden flex items-center gap-0.5 flex-1 flex-wrap">
+                <nav class="nav-oa hidden flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none" style="flex-wrap:nowrap">
                     <button class="nav-btn" data-section="oa-accueil" onclick="showSection('oa-accueil')">
                         <i class="fas fa-home mr-1"></i>Accueil
                     </button>
@@ -255,7 +255,7 @@
                 </nav>
 
                 <!-- ====== NAV PRIVATE LABEL ====== -->
-                <nav class="nav-pl flex items-center gap-0.5 flex-1 flex-wrap">
+                <nav class="nav-pl flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none" style="flex-wrap:nowrap">
                     <button class="nav-btn" data-section="dashboard" onclick="showSection('dashboard')">
                         <i class="fas fa-home mr-1"></i>Accueil
                     </button>
@@ -3260,28 +3260,23 @@
 
                 <!-- Tableau résultats -->
                 <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
+                    <div>
+                        <table class="w-full text-sm table-fixed">
                             <thead>
-                                <tr class="bg-gray-50 text-left border-b border-gray-100">
-                                    <th class="p-3 font-semibold text-gray-600">Titre</th>
-                                    <th class="p-3 font-semibold text-gray-600">Retailer</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-right">Prix achat</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-right">Prix de vente</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-right cursor-pointer hover:text-indigo-600" onclick="sortCatalog('profit')">Profit ↕</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-right cursor-pointer hover:text-indigo-600" onclick="sortCatalog('roi')">ROI ↕</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-right cursor-pointer hover:text-indigo-600" onclick="sortCatalog('marge')">Marge ↕</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center cursor-pointer hover:text-indigo-600" onclick="sortCatalog('bsr')">BSR ↕</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center cursor-pointer hover:text-indigo-600" onclick="sortCatalog('sales')">Ventes/m ↕</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center">Vendeurs</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center">Amazon</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center">Marketplace</th>
-                                    <th class="p-3 font-semibold text-gray-600 text-center">Action</th>
+                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide">
+                                    <th class="p-2 font-semibold text-gray-500 w-[28%]" title="Titre du produit — cliquez pour ouvrir la page retailer">Produit</th>
+                                    <th class="p-2 font-semibold text-gray-500 w-[12%]" title="Retailer source · Prix promo retailer (prix barré = prix normal)">Achat</th>
+                                    <th class="p-2 font-semibold text-gray-500 w-[12%]" title="Prix Amazon sur la meilleure marketplace (DE/FR/IT/ES)">Amazon</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-right w-[14%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('profit')" title="Profit net estimé · ROI · Marge nette (cliquez pour trier)">Rendement ↕</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[10%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('bsr')" title="Best Seller Rank Amazon · Ventes estimées/mois (cliquez pour trier)">BSR / Ventes ↕</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Nombre de vendeurs FBA · Amazon est-il vendeur ?">Vend. / AMZ</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Marque libre = plusieurs vendeurs actifs, probablement sans restriction. À vérifier = 1 seul vendeur ou données insuffisantes.">Marque</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Actions : ouvrir la page retailer, la fiche Amazon, ou envoyer en Checklist">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="catalog-tbody">
                                 <tr>
-                                    <td colspan="13" class="p-8 text-center text-gray-400">
+                                    <td colspan="8" class="p-8 text-center text-gray-400">
                                         <i class="fas fa-store text-4xl mb-3 block text-gray-300"></i>
                                         <p>Chargement du catalogue…</p>
                                         <p class="text-xs mt-1">Agent Scraper (scrape) + Agent Enricher (Keepa) tournent toutes les heures</p>
