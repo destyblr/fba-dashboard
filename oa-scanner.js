@@ -7050,6 +7050,7 @@ function renderRetailersList(retailers, lastScanMap, lastRun) {
                     (isNext ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Prochain</span>' : '') +
                     '<span class="text-xs px-2 py-0.5 rounded-full ' + (r.active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (r.active !== false ? 'Actif' : 'Inactif') + '</span>' +
                     (r.category ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">' + r.category + '</span>' : '') +
+                    ((r.sitemapError >= 2) ? '<span class="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full" title="Sitemap inaccessible depuis ' + r.sitemapError + ' run(s)">⚠️ Sitemap KO</span>' : '') +
                 '</div>' +
                 '<div class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400">' +
                     '<span><i class="fas fa-calendar-alt mr-1 text-gray-300"></i>' + (days || 'quotidien') + '</span>' +

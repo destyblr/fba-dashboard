@@ -94,11 +94,21 @@ async function fetchXml(url) {
     try {
         const resp = await fetch(url, {
             timeout: 10000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept': 'application/xml, text/xml, */*'
+            }
         });
-        console.log(`[Catalog] fetchXml ${url} → ${resp.status}`);
+        console.log(`[Catalog] fetchXml ${url} → ${resp.status} (${resp.headers.get('content-type') || 'no-ct'})`);
         if (!resp.ok) return null;
-        return await resp.text();
+        const text = await resp.text();
+        // Vérification : si la réponse ne contient pas de balises XML, log pour debug
+        if (!text.includes('<') && text.length > 0) {
+            console.log(`[Catalog] fetchXml ${url} → réponse non-XML (${text.length} chars, début: ${text.slice(0,50)})`);
+            return null;
+        }
+        return text;
     } catch (e) {
         console.log(`[Catalog] fetchXml ${url} → erreur: ${e.message}`);
         return null;
@@ -239,8 +249,22 @@ exports.handler = async () => {
 
     // Récupère toutes les URLs du sitemap (jusqu'à 5000 pour la rotation)
     const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000);
+
+    // ── Mettre à jour le statut sitemap du retailer dans le blob ───────────
+    const rIdx = retailers.findIndex(r => r.id === retailerToProcess.id);
+    if (rIdx >= 0) {
+        if (!allUrls.length) {
+            retailers[rIdx].sitemapError = (retailers[rIdx].sitemapError || 0) + 1;
+            retailers[rIdx].lastSitemapError = Date.now();
+        } else {
+            retailers[rIdx].sitemapError = 0; // reset si le sitemap revient
+            delete retailers[rIdx].lastSitemapError;
+        }
+        await writeBlob(catalogStore, 'retailers', retailers);
+    }
+
     if (!allUrls.length) {
-        console.warn(`[Catalog] ${retailerToProcess.name}: pas d'URLs dans le sitemap`);
+        console.warn(`[Catalog] ${retailerToProcess.name}: pas d'URLs dans le sitemap (erreur #${retailers[rIdx]?.sitemapError || 1})`);
     } else {
         // Filtre catégories par chemin URL (si configuré sur le retailer)
         let filteredUrls = allUrls;
