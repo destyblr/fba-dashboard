@@ -150,13 +150,14 @@ async function getSitemapFromRobots(baseUrl) {
     } catch { return []; }
 }
 
-async function fetchSitemapUrls(baseUrl, maxUrls) {
+async function fetchSitemapUrls(baseUrl, maxUrls, overrideSitemapUrl) {
     // 0. Chercher les sitemaps déclarés dans robots.txt (le plus fiable)
     const robotsSitemaps = await getSitemapFromRobots(baseUrl);
 
     // URLs depuis robots.txt = connues valides → ScraperAPI autorisé si 403/502
     // Candidats hardcodés = guesses → direct seulement (ScraperAPI sur URL inexistante = crédit gaspillé)
     const candidates = [
+        ...(overrideSitemapUrl ? [{ url: overrideSitemapUrl, scraperFallback: true }] : []),
         ...robotsSitemaps.map(u => ({ url: u, scraperFallback: true })),
         { url: baseUrl + '/sitemap.xml' },
         { url: baseUrl + '/sitemap_index.xml' },
@@ -261,7 +262,12 @@ exports.handler = async () => {
     const activityStore = getStore('oa-activity');
 
     // ── 1. Charger la liste des retailers + rotation (1 retailer par run) ──
-    const retailers = await readBlob(catalogStore, 'retailers', DEFAULT_RETAILERS);
+    // Merge blob (état runtime) + DEFAULT_RETAILERS (config statique : sitemapUrl, includePaths…)
+    const blobRetailers = await readBlob(catalogStore, 'retailers', DEFAULT_RETAILERS);
+    const retailers = blobRetailers.map(r => {
+        const def = DEFAULT_RETAILERS.find(d => d.id === r.id);
+        return def ? { ...r, sitemapUrl: def.sitemapUrl, includePaths: def.includePaths } : r;
+    });
     const today     = new Date().getDay();
 
     const activeToday = retailers.filter(r => r.active !== false && (r.days || [0,1,2,3,4,5,6]).includes(today));
@@ -292,7 +298,7 @@ exports.handler = async () => {
     const maxP = Math.min(retailerToProcess.maxProducts || 30, 30); // plafonné à 30 pour respecter le timeout 60s
 
     // Récupère toutes les URLs du sitemap (jusqu'à 5000 pour la rotation)
-    const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000);
+    const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000, retailerToProcess.sitemapUrl);
 
     // ── Mettre à jour le statut sitemap du retailer dans le blob ───────────
     const rIdx = retailers.findIndex(r => r.id === retailerToProcess.id);
