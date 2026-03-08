@@ -6925,9 +6925,18 @@ function renderRetailersList(retailers, lastScanMap) {
     var countEl = document.getElementById('retailers-count');
     var active = retailers.filter(function(r) { return r.active !== false; }).length;
     if (countEl) countEl.textContent = active + ' actifs · ' + retailers.length + ' total';
+    var today = new Date().getDay();
     retailers = retailers.slice().sort(function(a, b) {
         var aActive = a.active !== false, bActive = b.active !== false;
         if (aActive !== bActive) return aActive ? -1 : 1;
+        // Retailers du jour en premier (ceux que le cron traite aujourd'hui)
+        var aToday = (a.days || []).includes(today) ? 0 : 1;
+        var bToday = (b.days || []).includes(today) ? 0 : 1;
+        if (aToday !== bToday) return aToday - bToday;
+        // Parmi les retailers du jour : ceux récemment scannés en premier
+        var aTs = lastScanMap[a.name] || 0;
+        var bTs = lastScanMap[b.name] || 0;
+        if (aTs !== bTs) return bTs - aTs;
         return nextScanDaysCount(a.days) - nextScanDaysCount(b.days);
     });
 
