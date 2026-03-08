@@ -77,8 +77,15 @@ const DEFAULT_RETAILERS = [
 ];
 
 // ─── Extraction JSON-LD depuis HTML ─────────────────────────────────────────
+function isProductType(t) {
+    if (!t) return false;
+    if (Array.isArray(t)) return t.some(v => String(v).toLowerCase() === 'product');
+    return String(t).toLowerCase() === 'product';
+}
+
 function extractJsonLD(html) {
     const results = [];
+    const allTypes = []; // pour debug
     const regex = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
     let m;
     while ((m = regex.exec(html)) !== null) {
@@ -86,15 +93,18 @@ function extractJsonLD(html) {
             const data = JSON.parse(m[1].trim());
             const items = Array.isArray(data) ? data : [data];
             for (const item of items) {
-                if (item['@type'] === 'Product') results.push(item);
+                allTypes.push(item['@type']);
+                if (isProductType(item['@type'])) results.push(item);
                 if (item['@graph']) {
                     for (const node of item['@graph']) {
-                        if (node['@type'] === 'Product') results.push(node);
+                        allTypes.push(node['@type']);
+                        if (isProductType(node['@type'])) results.push(node);
                     }
                 }
             }
         } catch {}
     }
+    results._allTypes = allTypes; // pour debug
     return results;
 }
 
@@ -249,9 +259,15 @@ exports.handler = async () => {
         for (const url of batch) {
             const jsonlds = await scrapeProductPage(url);
             if (debugSample) {
-                if (!jsonlds) { console.log(`[Catalog] DEBUG ${url} → null (fetch failed ou HTML vide)`); }
-                else if (jsonlds.length === 0) { console.log(`[Catalog] DEBUG ${url} → 0 JSON-LD Product trouvés`); }
-                else { console.log(`[Catalog] DEBUG ${url} → ${jsonlds.length} JSON-LD, ex: type=${jsonlds[0]['@type']} name=${jsonlds[0].name?.slice(0,40)} price=${jsonlds[0].offers?.price ?? jsonlds[0].offers?.[0]?.price}`); }
+                if (!jsonlds) { console.log(`[Catalog] DEBUG ${url} → null (fetch failed)`); }
+                else if (jsonlds.length === 0) {
+                    const types = (jsonlds._allTypes || []).join(', ') || 'aucun';
+                    console.log(`[Catalog] DEBUG ${url} → 0 Product. @types trouvés: [${types}]`);
+                } else {
+                    const jld = jsonlds[0];
+                    const price = jld.offers?.price ?? (Array.isArray(jld.offers) ? jld.offers[0]?.price : null);
+                    console.log(`[Catalog] DEBUG ${url} → OK type=${JSON.stringify(jld['@type'])} name="${jld.name?.slice(0,40)}" price=${price}`);
+                }
                 debugSample = false;
             }
             if (!jsonlds) continue;
