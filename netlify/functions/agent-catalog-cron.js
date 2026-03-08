@@ -130,9 +130,34 @@ async function fetchXml(url) {
     }
 }
 
+// ─── Extrait l'URL du sitemap depuis robots.txt ─────────────────────────────
+async function getSitemapFromRobots(baseUrl) {
+    try {
+        const resp = await fetch(baseUrl + '/robots.txt', {
+            timeout: 8000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
+        });
+        if (!resp.ok) return [];
+        const text = await resp.text();
+        const urls = [];
+        for (const line of text.split('\n')) {
+            const m = line.match(/^Sitemap:\s*(https?:\/\/\S+)/i);
+            if (m) urls.push(m[1].trim());
+        }
+        if (urls.length) console.log(`[Catalog] robots.txt ${baseUrl} → sitemaps: ${urls.join(', ')}`);
+        return urls;
+    } catch { return []; }
+}
+
 async function fetchSitemapUrls(baseUrl, maxUrls) {
+    // 0. Chercher les sitemaps déclarés dans robots.txt (le plus fiable)
+    const robotsSitemaps = await getSitemapFromRobots(baseUrl);
+
     const candidates = [
+        ...robotsSitemaps,
         baseUrl + '/sitemap.xml',
+        baseUrl + '/sitemap_index.xml',
+        baseUrl + '/sitemap-index.xml',
         baseUrl + '/sitemap_products.xml',
         baseUrl + '/sitemap-products.xml',
         baseUrl + '/fr/sitemap.xml',
