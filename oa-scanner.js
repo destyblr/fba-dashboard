@@ -530,10 +530,7 @@ function getPeriodLabel(period) {
 function getCompletedMonths(period) {
     const now = new Date();
     if (period && period.match(/^\d{4}-\d{2}$/)) {
-        var d = new Date(period + '-01');
-        // Mois passés ET mois courant = charges prélevées, mois futurs = 0
-        var isFutureMonth = d > new Date(now.getFullYear(), now.getMonth(), 1);
-        return isFutureMonth ? 0 : 1;
+        return 1; // Charges fixes présentes sur tous les mois
     }
     if (period === 'month') return 1;
     if (period === 'lastmonth') return 1;
