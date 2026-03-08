@@ -59,15 +59,26 @@ function extractJsonLD(html) {
 }
 
 // ─── Parser produit depuis JSON-LD ─────────────────────────────────────────
-function parseProduct(jsonld, retailerName, retailerUrl) {
+function parseProduct(jsonld, retailerName, retailerUrl, html) {
     try {
-        const offers = jsonld.offers || (Array.isArray(jsonld.offers) ? jsonld.offers[0] : jsonld.offers);
-        const offer  = Array.isArray(jsonld.offers) ? jsonld.offers[0] : jsonld.offers;
+        const offer = Array.isArray(jsonld.offers) ? jsonld.offers[0] : jsonld.offers;
         if (!offer) return null;
 
         const price = parseFloat(String(offer.price || offer.lowPrice || 0).replace(',', '.'));
         if (!price || price <= 0) return null;
         if (price < 8 || price > 150) return null; // hors plage OA
+
+        // ── Détection promo : prix barré > prix actuel ──────────────────────
+        // Source 1 : JSON-LD highPrice / priceSpecification
+        const highRaw = offer.highPrice ?? offer.priceSpecification?.maxPrice ?? null;
+        let originalPrice = highRaw ? parseFloat(String(highRaw).replace(',', '.')) : null;
+        // Source 2 : HTML brut (PrestaShop et autres sans highPrice en JSON-LD)
+        if ((!originalPrice || originalPrice <= price) && html) {
+            originalPrice = extractOriginalPriceFromHtml(html);
+        }
+        if (!originalPrice || originalPrice <= price * 1.05) return null; // pas de vraie promo (< 5%)
+
+        const discount = Math.round(((originalPrice - price) / originalPrice) * 100);
 
         const ean = (jsonld.gtin13 || jsonld.gtin8 || jsonld.gtin || jsonld.isbn ||
                      offer.gtin13 || offer.gtin8 || offer.gtin || '').replace(/[^0-9]/g, '');
@@ -79,7 +90,7 @@ function parseProduct(jsonld, retailerName, retailerUrl) {
         const link  = offer.url || jsonld.url || '';
         const brand = (jsonld.brand?.name || jsonld.brand || '').toString().trim();
 
-        return { title, price, ean: ean.length >= 8 ? ean : null, image, link, brand, retailer: retailerName, retailerUrl };
+        return { title, price, originalPrice, discount, ean: ean.length >= 8 ? ean : null, image, link, brand, retailer: retailerName, retailerUrl };
     } catch { return null; }
 }
 
@@ -99,6 +110,33 @@ function extractEanFromHtml(html) {
     for (const re of patterns) {
         const m = html.match(re);
         if (m?.[1] && m[1].length >= 8) return m[1];
+    }
+    return null;
+}
+
+// ─── Extraction prix original (barré) depuis HTML brut ──────────────────────
+function extractOriginalPriceFromHtml(html) {
+    const patterns = [
+        // PrestaShop — données JSON injectées dans le JS de la page
+        /"price_without_reduction"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"originalPrice"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"regular_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        // Attributs data-*
+        /data-original-price="([\d]+[.,][\d]*)"/,
+        /data-regular-price="([\d]+[.,][\d]*)"/,
+        /data-price-without-reduction="([\d]+[.,][\d]*)"/,
+        // HTML sémantique — balises strikethrough
+        /<del[^>]*>(?:[^<]|<(?!\/del))*?([\d]+[.,][\d]*)\s*€/i,
+        /<s\b[^>]*>(?:[^<]|<(?!\/s))*?([\d]+[.,][\d]*)\s*€/i,
+        // Classes CSS communes pour les prix barrés
+        /<[^>]+class="[^"]*(?:regular-price|old-price|price-old|prix-barre|was-price|crossed-out|strikethrough)[^"]*"[^>]*>(?:[^<]|<(?!\/[a-z]))*?([\d]+[.,][\d]*)\s*€/i,
+    ];
+    for (const re of patterns) {
+        const m = html.match(re);
+        if (m?.[1]) {
+            const p = parseFloat(m[1].replace(',', '.'));
+            if (p > 0) return p;
+        }
     }
     return null;
 }
@@ -399,14 +437,14 @@ exports.handler = async () => {
                     } else {
                         const jld   = jsonlds[0];
                         const price = jld.offers?.price ?? (Array.isArray(jld.offers) ? jld.offers[0]?.price : null);
-                        console.log(`[Catalog] DEBUG ${url} → OK type=${JSON.stringify(jld['@type'])} name="${jld.name?.slice(0,40)}" price=${price}`);
+                        console.log(`[Catalog] DEBUG ${url} → OK type=${JSON.stringify(jld['@type'])} name="${jld.name?.slice(0,40)}" price=${price} highPrice=${jld.offers?.highPrice ?? (Array.isArray(jld.offers)?jld.offers[0]?.highPrice:'?')}`);
                     }
                     debugSample = false;
                 }
                 if (!jsonlds) continue;
 
                 for (const jld of jsonlds) {
-                    const product = parseProduct(jld, retailerToProcess.name, retailerToProcess.url);
+                    const product = parseProduct(jld, retailerToProcess.name, retailerToProcess.url, html);
                     if (!product) continue;
                     totalScraped++;
 
