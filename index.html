@@ -26,7 +26,7 @@
         }
 
         .nav-btn {
-            padding: 6px 14px;
+            padding: 6px 10px;
             border-radius: 6px;
             font-size: 0.875rem;
             font-weight: 500;
@@ -34,6 +34,9 @@
             cursor: pointer;
             transition: all 0.2s;
             white-space: nowrap;
+        }
+        @media (min-width: 640px) {
+            .nav-btn { padding: 6px 14px; }
         }
         .nav-btn:hover {
             background: rgba(255,255,255,0.15);
@@ -223,24 +226,24 @@
                 </div>
 
                 <!-- ====== NAV ONLINE ARBITRAGE ====== -->
-                <nav class="nav-oa hidden flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none" style="flex-wrap:nowrap">
+                <nav class="nav-oa hidden flex items-center gap-0.5 flex-1 flex-wrap">
                     <button class="nav-btn" data-section="oa-accueil" onclick="showSection('oa-accueil')">
-                        <i class="fas fa-home mr-1"></i>Accueil
+                        <i class="fas fa-home sm:mr-1"></i><span class="hidden sm:inline">Accueil</span>
                     </button>
                     <button class="nav-btn" data-section="oa-catalogue" onclick="showSection('oa-catalogue')">
-                        <i class="fas fa-store mr-1"></i>Catalogue
+                        <i class="fas fa-store sm:mr-1"></i><span class="hidden sm:inline">Catalogue</span>
                     </button>
                     <button class="nav-btn" data-section="oa-inventaire" onclick="showSection('oa-inventaire')">
-                        <i class="fas fa-boxes-stacked mr-1"></i>Inventaire
+                        <i class="fas fa-boxes-stacked sm:mr-1"></i><span class="hidden sm:inline">Inventaire</span>
                     </button>
                     <button class="nav-btn" data-section="oa-flux" onclick="showSection('oa-flux')">
-                        <i class="fas fa-stream mr-1"></i>Flux
+                        <i class="fas fa-stream sm:mr-1"></i><span class="hidden sm:inline">Flux</span>
                     </button>
                     <!-- Systeme dropdown -->
                     <div class="relative" id="menu-systeme">
                         <button class="nav-btn flex items-center gap-1" onclick="toggleDropdown('dropdown-systeme')">
-                            <i class="fas fa-cogs mr-1"></i>Systeme
-                            <i class="fas fa-chevron-down text-xs opacity-70"></i>
+                            <i class="fas fa-cogs sm:mr-1"></i><span class="hidden sm:inline">Systeme</span>
+                            <i class="fas fa-chevron-down text-xs opacity-70 hidden sm:inline"></i>
                         </button>
                         <div id="dropdown-systeme" class="hidden absolute top-full left-0 mt-1 bg-white text-gray-700 shadow-xl rounded-lg py-1 z-50">
                             <button class="dropdown-item" data-section="oa-journal" onclick="showSection('oa-journal');closeDropdowns()">
@@ -255,21 +258,21 @@
                 </nav>
 
                 <!-- ====== NAV PRIVATE LABEL ====== -->
-                <nav class="nav-pl flex items-center gap-0.5 flex-1 overflow-x-auto scrollbar-none" style="flex-wrap:nowrap">
+                <nav class="nav-pl flex items-center gap-0.5 flex-1 flex-wrap">
                     <button class="nav-btn" data-section="dashboard" onclick="showSection('dashboard')">
-                        <i class="fas fa-home mr-1"></i>Accueil
+                        <i class="fas fa-home sm:mr-1"></i><span class="hidden sm:inline">Accueil</span>
                     </button>
                     <button class="nav-btn" data-section="suivi-hebdo" onclick="showSection('suivi-hebdo')">
-                        <i class="fas fa-calendar-week mr-1"></i>Hebdomadaire
+                        <i class="fas fa-calendar-week sm:mr-1"></i><span class="hidden sm:inline">Hebdomadaire</span>
                     </button>
                     <button class="nav-btn" data-section="graphiques" onclick="showSection('graphiques')">
-                        <i class="fas fa-chart-line mr-1"></i>Graphiques
+                        <i class="fas fa-chart-line sm:mr-1"></i><span class="hidden sm:inline">Graphiques</span>
                     </button>
                     <!-- Produits dropdown -->
                     <div class="relative" id="menu-produits">
                         <button class="nav-btn flex items-center gap-1" onclick="toggleDropdown('dropdown-produits')">
-                            <i class="fas fa-box mr-1"></i>Produits
-                            <i class="fas fa-chevron-down text-xs opacity-70"></i>
+                            <i class="fas fa-box sm:mr-1"></i><span class="hidden sm:inline">Produits</span>
+                            <i class="fas fa-chevron-down text-xs opacity-70 hidden sm:inline"></i>
                         </button>
                         <div id="dropdown-produits" class="hidden absolute top-full left-0 mt-1 bg-white text-gray-700 shadow-xl rounded-lg py-1 z-50">
                             <button class="dropdown-item" data-section="produits" onclick="showSection('produits');closeDropdowns()">
@@ -287,8 +290,8 @@
                     <!-- Finances dropdown -->
                     <div class="relative" id="menu-finances">
                         <button class="nav-btn flex items-center gap-1" onclick="toggleDropdown('dropdown-finances')">
-                            <i class="fas fa-euro-sign mr-1"></i>Finances
-                            <i class="fas fa-chevron-down text-xs opacity-70"></i>
+                            <i class="fas fa-euro-sign sm:mr-1"></i><span class="hidden sm:inline">Finances</span>
+                            <i class="fas fa-chevron-down text-xs opacity-70 hidden sm:inline"></i>
                         </button>
                         <div id="dropdown-finances" class="hidden absolute top-full left-0 mt-1 bg-white text-gray-700 shadow-xl rounded-lg py-1 z-50">
                             <button class="dropdown-item" data-section="fiscalite" onclick="showSection('fiscalite');closeDropdowns()">
@@ -300,7 +303,7 @@
                         </div>
                     </div>
                     <button class="nav-btn" data-section="parametres" onclick="showSection('parametres')">
-                        <i class="fas fa-cog mr-1"></i>Parametres
+                        <i class="fas fa-cog sm:mr-1"></i><span class="hidden sm:inline">Parametres</span>
                     </button>
                 </nav>
 
