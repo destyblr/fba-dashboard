@@ -117,6 +117,7 @@ function parseProduct(jsonld, retailerName, retailerUrl) {
 
         const price = parseFloat(String(offer.price || offer.lowPrice || 0).replace(',', '.'));
         if (!price || price <= 0) return null;
+        if (price < 8 || price > 150) return null; // hors plage OA
 
         const ean = (jsonld.gtin13 || jsonld.gtin8 || jsonld.gtin || jsonld.isbn ||
                      offer.gtin13 || offer.gtin8 || offer.gtin || '').replace(/[^0-9]/g, '');
@@ -135,7 +136,7 @@ function parseProduct(jsonld, retailerName, retailerUrl) {
 // ─── Scrape sitemap.xml d'un retailer (gère sitemap index) ─────────────────
 function isProductUrl(url) {
     return url.match(/\/(p|produit[s]?|product[s]?|catalogue|shop|artikel|item|fiche)\/|\/[^/]+-\d{3,}(\.html?)?$|\/[^/?]{10,}(\.html?)$/i)
-        && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$/i);
+        && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$|outlet|occasion|reconditionn|destockage|pack-promo/i);
 }
 
 async function fetchXml(url) {
@@ -162,19 +163,51 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
         baseUrl + '/fr/sitemap.xml',
     ];
 
-    const extractLocs = (xml) => {
-        const locs = [];
-        const re = /<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/g;
+    const cutoff = Date.now() - 30 * 24 * 3600 * 1000; // 30 jours
+
+    // Extrait les entrées {url, lastmod} depuis un XML de sitemap
+    const extractEntries = (xml) => {
+        const entries = [];
         let m;
-        while ((m = re.exec(xml)) !== null) locs.push(m[1].trim());
-        return locs;
+        // Format standard <url><loc>...</loc><lastmod>...</lastmod></url>
+        const reUrl = /<url>([\s\S]*?)<\/url>/g;
+        while ((m = reUrl.exec(xml)) !== null) {
+            const locM     = m[1].match(/<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/);
+            if (!locM) continue;
+            const lastmodM = m[1].match(/<lastmod>\s*([^<\s]+)\s*<\/lastmod>/);
+            const lastmod  = lastmodM ? new Date(lastmodM[1]) : null;
+            entries.push({ url: locM[1].trim(), lastmod });
+        }
+        // Fallback : sitemap index ou format simple (pas de <url>)
+        if (entries.length === 0) {
+            const re = /<loc>\s*(https?:\/\/[^<\s]+)\s*<\/loc>/g;
+            while ((m = re.exec(xml)) !== null) entries.push({ url: m[1].trim(), lastmod: null });
+        }
+        return entries;
+    };
+
+    // Applique les filtres lastmod + isProductUrl sur un tableau d'entrées
+    const applyFilters = (entries) => {
+        const withLastmod = entries.filter(e => e.lastmod !== null);
+        let filtered = entries;
+        if (withLastmod.length > 0) {
+            const before = entries.length;
+            filtered = entries.filter(e => !e.lastmod || e.lastmod.getTime() >= cutoff);
+            const skipped = before - filtered.length;
+            if (skipped > 0) console.log(`[Catalog] Filtre lastmod 30j: ${skipped} URLs ignorées, ${filtered.length} récentes`);
+        }
+        const productEntries = filtered.filter(e => isProductUrl(e.url));
+        const rejectedEx = filtered.filter(e => !isProductUrl(e.url) && !e.url.match(/sitemap.*\.xml/i));
+        if (rejectedEx.length > 0) console.log(`[Catalog] URLs rejetées isProductUrl (ex): ${rejectedEx.slice(0,3).map(e => e.url).join(' | ')}`);
+        return productEntries.map(e => e.url);
     };
 
     for (const sitemapUrl of candidates) {
         const xml = await fetchXml(sitemapUrl);
         if (!xml) continue;
 
-        const allLocs = extractLocs(xml);
+        const allEntries = extractEntries(xml);
+        const allLocs    = allEntries.map(e => e.url);
         if (!allLocs.length) { console.log(`[Catalog] sitemap ${sitemapUrl} → 0 <loc> extraites`); continue; }
 
         console.log(`[Catalog] sitemap ${sitemapUrl} → ${allLocs.length} locs. Ex: ${allLocs.slice(0,3).join(' | ')}`);
@@ -183,26 +216,23 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
         const subSitemaps = allLocs.filter(u => u.match(/sitemap/i) && u.match(/\.xml/i));
         if (subSitemaps.length > 0) {
             console.log(`[Catalog] sitemap index → ${subSitemaps.length} sous-sitemaps: ${subSitemaps.slice(0,5).join(', ')}`);
-            // Prioriser les sitemaps avec "product/produit" dans le nom
             const sorted = subSitemaps.sort((a, b) => {
                 const aScore = /product|produit|artikel/i.test(a) ? 1 : 0;
                 const bScore = /product|produit|artikel/i.test(b) ? 1 : 0;
                 return bScore - aScore;
             });
-            for (const sub of sorted.slice(0, 10)) { // augmenté à 10
+            for (const sub of sorted.slice(0, 10)) {
                 const subXml = await fetchXml(sub);
                 if (!subXml) continue;
-                const subLocs = extractLocs(subXml);
-                const urls = subLocs.filter(isProductUrl);
-                console.log(`[Catalog] sous-sitemap ${sub} → ${subLocs.length} locs, ${urls.length} produits. Ex: ${subLocs.slice(0,2).join(' | ')}`);
+                const subEntries = extractEntries(subXml);
+                const urls       = applyFilters(subEntries);
+                console.log(`[Catalog] sous-sitemap ${sub} → ${subEntries.length} locs, ${urls.length} produits après filtres. Ex: ${subEntries.slice(0,2).map(e=>e.url).join(' | ')}`);
                 if (urls.length > 0) return urls.slice(0, maxUrls);
             }
         }
 
         // Sitemap direct
-        const urls = allLocs.filter(isProductUrl);
-        const rejected = allLocs.filter(u => !isProductUrl(u) && !u.match(/sitemap.*\.xml/i));
-        if (rejected.length > 0) console.log(`[Catalog] URLs rejetées par isProductUrl (ex): ${rejected.slice(0,3).join(' | ')}`);
+        const urls = applyFilters(allEntries);
         if (urls.length > 0) return urls.slice(0, maxUrls);
     }
     return [];
@@ -263,18 +293,26 @@ exports.handler = async () => {
     if (!allUrls.length) {
         console.warn(`[Catalog] ${retailerToProcess.name}: pas d'URLs dans le sitemap`);
     } else {
+        // Filtre catégories par chemin URL (si configuré sur le retailer)
+        let filteredUrls = allUrls;
+        if (retailerToProcess.includePaths && retailerToProcess.includePaths.length > 0) {
+            const pathRe = new RegExp(retailerToProcess.includePaths.join('|'), 'i');
+            filteredUrls = allUrls.filter(u => pathRe.test(u));
+            console.log(`[Catalog] ${retailerToProcess.name}: filtre includePaths → ${filteredUrls.length}/${allUrls.length} URLs`);
+        }
+
         // Rotation : reprend là où on s'était arrêté la dernière fois
         const offset  = sitemapOffsets[retailerToProcess.id] || 0;
-        const rotated = [...allUrls.slice(offset), ...allUrls.slice(0, offset)];
+        const rotated = [...filteredUrls.slice(offset), ...filteredUrls.slice(0, offset)];
 
         // Déduplication URL : skip les pages déjà scrapées
         const freshUrls = rotated.filter(u => !seenUrls.has(u));
         const batch     = (freshUrls.length > 0 ? freshUrls : rotated).slice(0, maxP);
 
         // Sauvegarder le nouvel offset pour le prochain run
-        sitemapOffsets[retailerToProcess.id] = (offset + maxP) % Math.max(allUrls.length, 1);
+        sitemapOffsets[retailerToProcess.id] = (offset + maxP) % Math.max(filteredUrls.length, 1);
 
-        console.log(`[Catalog] ${retailerToProcess.name}: ${allUrls.length} URLs total, offset=${offset}, batch=${batch.length} (${freshUrls.length} nouvelles)`);
+        console.log(`[Catalog] ${retailerToProcess.name}: ${allUrls.length} URLs total, ${filteredUrls.length} après filtres, offset=${offset}, batch=${batch.length} (${freshUrls.length} nouvelles)`);
 
         let debugSample = true;
         for (const url of batch) {
