@@ -158,13 +158,9 @@ async function fetchXml(url, allowScraperFallback = false) {
 
 // ─── Extrait l'URL du sitemap depuis robots.txt ─────────────────────────────
 async function getSitemapFromRobots(baseUrl) {
-    try {
-        const resp = await fetch(baseUrl + '/robots.txt', {
-            timeout: 8000,
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
-        });
-        if (!resp.ok) return [];
-        const text = await resp.text();
+    const scraperKey = process.env.SCRAPER_API_KEY;
+    const robotsUrl  = baseUrl + '/robots.txt';
+    const parseRobots = (text) => {
         const urls = [];
         for (const line of text.split('\n')) {
             const m = line.match(/^Sitemap:\s*(https?:\/\/\S+)/i);
@@ -172,6 +168,21 @@ async function getSitemapFromRobots(baseUrl) {
         }
         if (urls.length) console.log(`[Catalog] robots.txt ${baseUrl} → sitemaps: ${urls.join(', ')}`);
         return urls;
+    };
+    try {
+        const resp = await fetch(robotsUrl, {
+            timeout: 8000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' }
+        });
+        if (resp.ok) return parseRobots(await resp.text());
+
+        // 403/502/503 → retry via ScraperAPI (1 seul crédit pour découvrir le sitemap)
+        if (scraperKey && [403, 502, 503].includes(resp.status)) {
+            console.log(`[Catalog] robots.txt ${baseUrl} → ${resp.status}, retry via ScraperAPI`);
+            const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(robotsUrl)}`, { timeout: 12000 });
+            if (resp2.ok) return parseRobots(await resp2.text());
+        }
+        return [];
     } catch { return []; }
 }
 

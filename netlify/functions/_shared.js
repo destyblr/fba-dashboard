@@ -44,7 +44,7 @@ function calcProfit(buyPrice, sellPrice, category, weightGrams, marketplace) {
 const DEFAULT_RETAILERS = [
     // ── BEAUTÉ / PARAPHARMACIE ──────────────────────────────────────────────
     { id: 'easypara',           name: 'Easypara',          url: 'https://www.easypara.fr',             type: 'prestashop', category: 'beaute',       days: [1,4],   maxProducts: 30, active: true },
-    { id: 'sante-discount',     name: 'Santé Discount',    url: 'https://www.sante-discount.fr',       type: 'generic',    category: 'beaute',       days: [0,3],   maxProducts: 30, active: true, sitemapUrl: 'https://www.sante-discount.fr/product-sitemap.xml' },
+    { id: 'sante-discount',     name: 'Santé Discount',    url: 'https://www.sante-discount.fr',       type: 'generic',    category: 'beaute',       days: [0,3],   maxProducts: 30, active: false }, // pas de sitemap produit
     { id: 'aroma-zone',         name: 'Aroma Zone',        url: 'https://www.aroma-zone.com',          type: 'generic',    category: 'beaute',       days: [2,5],   maxProducts: 30, active: true },
     { id: 'pharma-gdd',         name: 'Pharma GDD',        url: 'https://www.pharma-gdd.com',          type: 'prestashop', category: 'beaute',       days: [1,6],   maxProducts: 30, active: true },
     // ── JOUETS / LOISIRS ────────────────────────────────────────────────────
