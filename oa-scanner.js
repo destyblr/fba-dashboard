@@ -470,18 +470,20 @@ function initMonthSelector() {
     var sel = document.getElementById('oa-month-select');
     if (!sel) return;
     var now = new Date();
+    var currentMonth = now.getMonth(); // 0-based (mars = 2)
+    var currentYear  = now.getFullYear();
     var options = '';
-    for (var i = 0; i < 12; i++) {
-        var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        var val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-        var label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+    // De décembre à mois courant (ordre décroissant) sur l'année en cours
+    for (var m = 11; m >= currentMonth; m--) {
+        var val   = currentYear + '-' + String(m + 1).padStart(2, '0');
+        var label = new Date(currentYear, m, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
         label = label.charAt(0).toUpperCase() + label.slice(1);
         options += '<option value="' + val + '">' + label + '</option>';
     }
     options += '<option value="all">Tout</option>';
     sel.innerHTML = options;
     // Selectionner le mois courant par defaut
-    var currentYM = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    var currentYM = currentYear + '-' + String(currentMonth + 1).padStart(2, '0');
     sel.value = currentYM;
     oaCurrentPeriod = currentYM;
 }
