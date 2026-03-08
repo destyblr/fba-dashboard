@@ -278,7 +278,9 @@ exports.handler = async () => {
     await writeBlob(catalogStore, 'raw-products', updatedRaw);
     await writeBlob(catalogStore, 'catalog-last-run', {
         ts: Date.now(), retailer: retailerToProcess.name,
-        scraped: totalScraped, withEan: totalWithEan
+        scraped: totalScraped, withEan: totalWithEan,
+        nextCursor: (cursor + 1) % activeToday.length,
+        todayRetailerNames: activeToday.map(r => r.name)
     });
 
     // ── 5. Journal d'activité ──────────────────────────────────────────────

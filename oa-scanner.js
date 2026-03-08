@@ -6146,7 +6146,7 @@ async function loadFlux() {
                 lastScanMap[ev.retailer] = ev.ts;
             }
         });
-        loadRetailersWithScan(lastScanMap);
+        loadRetailersWithScan(lastScanMap, catData.lastRun);
 
         // Log recent
         if (fluxLog) {
@@ -6187,11 +6187,11 @@ async function loadFlux() {
     }
 }
 
-function loadRetailersWithScan(lastScanMap) {
+function loadRetailersWithScan(lastScanMap, lastRun) {
     fetch('/.netlify/functions/retailers-save')
         .then(function(r) { return r.json(); })
-        .then(function(data) { renderRetailersList(data.retailers || [], lastScanMap); })
-        .catch(function() { renderRetailersList([], {}); });
+        .then(function(data) { renderRetailersList(data.retailers || [], lastScanMap, lastRun); })
+        .catch(function() { renderRetailersList([], {}, null); });
 }
 
 function renderJournal(events) {
@@ -6919,24 +6919,31 @@ function nextScanDaysCount(days) {
     return (next - today + 7) % 7 || 7;
 }
 
-function renderRetailersList(retailers, lastScanMap) {
+function renderRetailersList(retailers, lastScanMap, lastRun) {
     lastScanMap = lastScanMap || {};
     var el = document.getElementById('retailers-list');
     var countEl = document.getElementById('retailers-count');
     var active = retailers.filter(function(r) { return r.active !== false; }).length;
     if (countEl) countEl.textContent = active + ' actifs · ' + retailers.length + ' total';
-    var today = new Date().getDay();
+
+    // File d'attente du cron : ordre exact de passage basé sur lastRun
+    var todayNames = (lastRun && lastRun.todayRetailerNames) || [];
+    var nextCursor = (lastRun && lastRun.nextCursor != null) ? lastRun.nextCursor : 0;
+    var orderedToday = todayNames.slice(nextCursor).concat(todayNames.slice(0, nextCursor));
+    var queueMap = {}; // name → position (0 = prochain)
+    orderedToday.forEach(function(name, i) { queueMap[name] = i; });
+
+    // Prochain run cron : prochaine heure pile (schedule "0 * * * *")
+    var nextHour = new Date(); nextHour.setMinutes(0, 0, 0); nextHour.setHours(nextHour.getHours() + 1);
+    var nextRunTs = nextHour.getTime();
+
     retailers = retailers.slice().sort(function(a, b) {
         var aActive = a.active !== false, bActive = b.active !== false;
         if (aActive !== bActive) return aActive ? -1 : 1;
-        // Retailers du jour en premier (ceux que le cron traite aujourd'hui)
-        var aToday = (a.days || []).includes(today) ? 0 : 1;
-        var bToday = (b.days || []).includes(today) ? 0 : 1;
-        if (aToday !== bToday) return aToday - bToday;
-        // Parmi les retailers du jour : ceux récemment scannés en premier
-        var aTs = lastScanMap[a.name] || 0;
-        var bTs = lastScanMap[b.name] || 0;
-        if (aTs !== bTs) return bTs - aTs;
+        var aQ = queueMap[a.name] != null, bQ = queueMap[b.name] != null;
+        if (aQ && bQ) return queueMap[a.name] - queueMap[b.name];
+        if (aQ) return -1;
+        if (bQ) return 1;
         return nextScanDaysCount(a.days) - nextScanDaysCount(b.days);
     });
 
@@ -6956,17 +6963,32 @@ function renderRetailersList(retailers, lastScanMap) {
     el.innerHTML = retailers.map(function(r) {
         var days = (r.days || []).sort(function(a,b){return a-b;}).map(function(d) { return DAY_NAMES[d]; }).join(' · ');
         var lastTs  = lastScanMap[r.name];
-        var nextDay = r.active !== false ? nextScanDay(r.days) : '—';
-        return '<div class="flex items-center gap-4 p-4 hover:bg-gray-50 transition">' +
+        var queuePos = queueMap[r.name];
+        var nextLabel;
+        if (r.active === false) {
+            nextLabel = '—';
+        } else if (queuePos != null) {
+            var runAt = nextRunTs + queuePos * 3600000;
+            var diffMin = Math.round((runAt - Date.now()) / 60000);
+            if (diffMin <= 0) nextLabel = 'très bientôt';
+            else if (diffMin < 60) nextLabel = 'dans ' + diffMin + 'min';
+            else { var h = Math.floor(diffMin / 60), m = diffMin % 60; nextLabel = 'dans ' + h + 'h' + (m ? m + '' : ''); }
+            if (queuePos === 0) nextLabel = '<b class="text-blue-600">' + nextLabel + '</b>';
+        } else {
+            nextLabel = nextScanDay(r.days);
+        }
+        var isNext = queuePos === 0;
+        return '<div class="flex items-center gap-4 p-4 ' + (isNext ? 'bg-blue-50 border-l-2 border-blue-400' : 'hover:bg-gray-50') + ' transition">' +
             '<div class="flex-1 min-w-0">' +
                 '<div class="flex items-center gap-2 flex-wrap mb-1">' +
                     '<span class="font-semibold text-gray-800">' + r.name + '</span>' +
+                    (isNext ? '<span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Prochain</span>' : '') +
                     '<span class="text-xs px-2 py-0.5 rounded-full ' + (r.active !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500') + '">' + (r.active !== false ? 'Actif' : 'Inactif') + '</span>' +
                     (r.category ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">' + r.category + '</span>' : '') +
                 '</div>' +
                 '<div class="flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400">' +
                     '<span><i class="fas fa-calendar-alt mr-1 text-gray-300"></i>' + (days || 'quotidien') + '</span>' +
-                    '<span><i class="fas fa-forward mr-1 text-blue-300"></i>Prochain : <b class="text-gray-600">' + nextDay + '</b></span>' +
+                    '<span><i class="fas fa-forward mr-1 text-blue-300"></i>Prochain : ' + nextLabel + '</span>' +
                     '<span><i class="fas fa-clock mr-1 text-gray-300"></i>Dernier : ' + (lastTs ? timeAgo(lastTs) : 'jamais') + '</span>' +
                     '<span><i class="fas fa-box mr-1 text-gray-300"></i>max ' + (r.maxProducts || 200) + '</span>' +
                 '</div>' +
