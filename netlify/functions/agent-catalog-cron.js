@@ -300,9 +300,15 @@ exports.handler = async () => {
     // ── 1. Charger la liste des retailers + rotation (1 retailer par run) ──
     // Merge blob (état runtime) + DEFAULT_RETAILERS (config statique : sitemapUrl, includePaths…)
     const blobRetailers = await readBlob(catalogStore, 'retailers', DEFAULT_RETAILERS);
-    const retailers = blobRetailers.map(r => {
-        const def = DEFAULT_RETAILERS.find(d => d.id === r.id);
-        return def ? { ...r, sitemapUrl: def.sitemapUrl, includePaths: def.includePaths } : r;
+    // Merge : blob = état runtime (sitemapError, lastSitemapError…)
+    //         DEFAULT_RETAILERS = source de vérité pour active, days, sitemapUrl, includePaths
+    const retailers = DEFAULT_RETAILERS.map(def => {
+        const blob = blobRetailers.find(r => r.id === def.id) || {};
+        return {
+            ...def,                          // config statique (active, days, sitemapUrl…)
+            sitemapError:     blob.sitemapError     ?? 0,
+            lastSitemapError: blob.lastSitemapError ?? undefined,
+        };
     });
     const today     = new Date().getDay();
 
