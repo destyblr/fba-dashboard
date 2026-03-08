@@ -42,9 +42,22 @@ const DEFAULT_RETAILERS = SHARED_DEFAULT_RETAILERS;
 
 const DAY_NAMES = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
+async function getThresholds(portfolioStore) {
+    try {
+        const s = await portfolioStore.get('user-settings', { type: 'json' }) || {};
+        return {
+            minProfit: s.strictMinProfit ?? MIN_PROFIT,
+            minRoi:    s.strictMinRoi    ?? MIN_ROI,
+        };
+    } catch { return { minProfit: MIN_PROFIT, minRoi: MIN_ROI }; }
+}
+
 exports.handler = async () => {
-    const catalogStore  = getStore('oa-catalog');
-    const activityStore = getStore('oa-activity');
+    const catalogStore   = getStore('oa-catalog');
+    const activityStore  = getStore('oa-activity');
+    const portfolioStore = getStore('oa-portfolio');
+    const { minProfit, minRoi } = await getThresholds(portfolioStore);
+    console.log(`[Team Leader] Seuils : profit ≥ ${minProfit}€, ROI ≥ ${minRoi}%`);
     const SITE_URL      = process.env.URL || 'https://fba-dashboard.netlify.app';
 
     // ── 1. Lire toutes les données ─────────────────────────────────────────
@@ -75,7 +88,7 @@ exports.handler = async () => {
         if (!matchByRetailer[p.retailer]) matchByRetailer[p.retailer] = { total: 0, matched: 0, profitable: 0 };
         matchByRetailer[p.retailer].total++;
         if (p.asin) matchByRetailer[p.retailer].matched++;
-        if (p.netProfit >= MIN_PROFIT && p.roi >= MIN_ROI) matchByRetailer[p.retailer].profitable++;
+        if (p.netProfit >= minProfit && p.roi >= minRoi) matchByRetailer[p.retailer].profitable++;
     });
     dealHistory.filter(d => (now - d.ts) < 30 * 86400000).forEach(d => {
         const r = d.retailer || 'Inconnu';
@@ -149,7 +162,7 @@ exports.handler = async () => {
     const matchRate    = totalScraped > 0 ? Math.round(totalMatched / totalScraped * 100) : 0;
 
     const last30days   = dealHistory.filter(d => (now - d.ts) < 30 * 86400000);
-    const profitable   = last30days.filter(d => d.netProfit >= MIN_PROFIT && d.roi >= MIN_ROI);
+    const profitable   = last30days.filter(d => d.netProfit >= minProfit && d.roi >= minRoi);
     const topRetailer  = Object.entries(profitByRetailer).sort((a, b) => b[1].total - a[1].total)[0];
 
     // ── 7. Recommandations ────────────────────────────────────────────────
@@ -159,7 +172,7 @@ exports.handler = async () => {
         recommendations.push(`🚀 Premier lancement — ${updatedRetailers.length} retailers configurés automatiquement. L'Agent Catalog va commencer à scraper à la prochaine heure.`);
     }
 
-    const profitableInCatalog = catalogProducts.filter(p => p.netProfit >= MIN_PROFIT && p.roi >= MIN_ROI).length;
+    const profitableInCatalog = catalogProducts.filter(p => p.netProfit >= minProfit && p.roi >= minRoi).length;
     if (catalogProducts.length === 0) {
         recommendations.push(`📭 Catalogue vide — Agent Catalog n'a pas encore tourné. Prochain run à la prochaine heure.`);
     } else {

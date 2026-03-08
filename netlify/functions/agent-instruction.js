@@ -78,8 +78,8 @@ async function tool_get_catalog({ limit = 10 }) {
     const catalogStore = getStore('oa-catalog');
     try {
         const products = await catalogStore.get('enriched-products', { type: 'json' }) || [];
-        const top = products.filter(p => p.profit > 0).sort((a, b) => (b.profit || 0) - (a.profit || 0)).slice(0, limit);
-        return { count: products.length, top: top.map(p => ({ title: p.title, profit: p.profit, roi: p.roi, retailer: p.retailer, price: p.price })) };
+        const top = products.filter(p => p.netProfit > 0).sort((a, b) => (b.netProfit || 0) - (a.netProfit || 0)).slice(0, limit);
+        return { count: products.length, top: top.map(p => ({ title: p.title, profit: p.netProfit, roi: p.roi, retailer: p.retailer, price: p.price })) };
     } catch (e) { return { error: e.message }; }
 }
 
@@ -161,12 +161,6 @@ Réponds de façon concise et professionnelle à la consigne de l'utilisateur. C
 Tu surveilles les produits en pipeline FBA : délais dépassés, ruptures de stock, capital immobilisé par étape.
 Réponds de façon concise et professionnelle à la consigne de l'utilisateur. Confirme ce que tu vas surveiller ou alerter. Max 3 phrases.`
     },
-    deals: {
-        name: 'Agent Sourcing',
-        system: `Tu es l'Agent Sourcing d'un dashboard Amazon FBA OA (Online Arbitrage).
-Tu analyses les produits enrichis du pipeline, calcules la rentabilité (profit, ROI, FBA fees) et envoies des alertes Telegram pour les deals avec profit > 2€ et ROI > 25%.
-Réponds de façon concise et professionnelle à la consigne de l'utilisateur. Confirme ce que tu vas appliquer comme critères ou priorités. Max 3 phrases.`
-    }
 };
 
 exports.handler = async (event) => {

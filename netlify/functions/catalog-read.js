@@ -89,7 +89,7 @@ exports.handler = async (event) => {
                 retailers:      retailerNames,
                 retailerConfig: retailers,
                 lastRun,
-                lastActivity:   activity.filter(e => ['catalog', 'enricher'].includes(e.agent)).slice(0, 5)
+                lastActivity:   activity.filter(e => ['catalog', 'enricher', 'sourcing'].includes(e.agent)).slice(0, 5)
             })
         };
     } catch (err) {

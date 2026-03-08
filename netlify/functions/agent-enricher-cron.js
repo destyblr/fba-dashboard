@@ -106,13 +106,26 @@ async function keepaEANLookup(ean, keepaKey) {
 
 // calcProfit importé depuis _shared.js
 
+async function getThresholds(portfolioStore) {
+    try {
+        const s = await portfolioStore.get('user-settings', { type: 'json' }) || {};
+        return {
+            minProfit: s.strictMinProfit ?? MIN_PROFIT,
+            minRoi:    s.strictMinRoi    ?? MIN_ROI,
+        };
+    } catch { return { minProfit: MIN_PROFIT, minRoi: MIN_ROI }; }
+}
+
 // ─── Handler principal ────────────────────────────────────────────────────
 exports.handler = async () => {
     const KEEPA_KEY = process.env.KEEPA_API_KEY;
     if (!KEEPA_KEY) { console.error('[Enricher] KEEPA_API_KEY manquant'); return { statusCode: 500 }; }
 
-    const catalogStore  = getStore('oa-catalog');
-    const activityStore = getStore('oa-activity');
+    const catalogStore   = getStore('oa-catalog');
+    const activityStore  = getStore('oa-activity');
+    const portfolioStore = getStore('oa-portfolio');
+    const { minProfit, minRoi } = await getThresholds(portfolioStore);
+    console.log(`[Enricher] Seuils : profit ≥ ${minProfit}€, ROI ≥ ${minRoi}%`);
 
     // ── 1. Charger les produits bruts avec EAN ─────────────────────────────
     const [rawProducts, enrichedProducts, activityLog] = await Promise.all([
@@ -175,7 +188,7 @@ exports.handler = async () => {
 
         enrichedCount++;
 
-        if (profit && profit.netProfit >= MIN_PROFIT && profit.roi >= MIN_ROI) {
+        if (profit && profit.netProfit >= minProfit && profit.roi >= minRoi) {
             profitableItems.push(enriched);
         }
 

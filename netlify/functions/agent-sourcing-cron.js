@@ -26,9 +26,22 @@ async function sendTelegram(msg) {
 
 const MP_DOMAIN = { DE: 'amazon.de', FR: 'amazon.fr', IT: 'amazon.it', ES: 'amazon.es' };
 
+async function getThresholds(portfolioStore) {
+    try {
+        const s = await portfolioStore.get('user-settings', { type: 'json' }) || {};
+        return {
+            minProfit: s.strictMinProfit ?? MIN_PROFIT,
+            minRoi:    s.strictMinRoi    ?? MIN_ROI,
+        };
+    } catch { return { minProfit: MIN_PROFIT, minRoi: MIN_ROI }; }
+}
+
 exports.handler = async () => {
     const catalogStore   = getStore('oa-catalog');
     const activityStore  = getStore('oa-activity');
+    const portfolioStore = getStore('oa-portfolio');
+    const { minProfit, minRoi } = await getThresholds(portfolioStore);
+    console.log(`[Sourcing] Seuils : profit ≥ ${minProfit}€, ROI ≥ ${minRoi}%`);
 
     // ── 1. Lire les produits enrichis (avec prix Amazon) ──────────────────
     const enriched = await readBlob(catalogStore, 'enriched-products', []);
@@ -67,7 +80,7 @@ exports.handler = async () => {
         const profit = calcProfit(p.price, p.amazonPrice, p.category, p.packageWeight);
         if (!profit) continue;
 
-        if (profit.netProfit >= MIN_PROFIT && profit.roi >= MIN_ROI) {
+        if (profit.netProfit >= minProfit && profit.roi >= minRoi) {
             const mp = p.bestMarketplace || 'DE';
             profitable.push({
                 asin:       p.asin,
@@ -116,7 +129,7 @@ exports.handler = async () => {
         ts:      Date.now(),
         agent:   'sourcing',
         summary: `${analyzed} produits analysés · ${profitable.length} rentable(s) trouvé(s)`,
-        stats:   { analyzed, profitable: profitable.length, deals: analyzed }
+        stats:   { analyzed, profitable: profitable.length }
     });
     await writeBlob(activityStore, 'log', activity.slice(0, 100));
 

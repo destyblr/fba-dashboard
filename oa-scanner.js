@@ -6268,7 +6268,7 @@ function renderJournal(events) {
         return;
     }
     var agentIcons = { catalog: '🏪', enricher: '💎', sourcing: '⚡', leader: '🧠', decision: '💰', inventory: '📦' };
-    var agentIdMap = { catalog: 'catalog', enricher: 'enricher', sourcing: 'deals', leader: 'leader', inventory: 'inventory' };
+    var agentIdMap = { catalog: 'catalog', enricher: 'enricher', sourcing: 'sourcing', leader: 'leader', inventory: 'inventory' };
     var statusColors = {
         recent: 'bg-green-100 text-green-700',
         active: 'bg-blue-100 text-blue-700',
