@@ -175,27 +175,34 @@ async function fetchSitemapUrls(baseUrl, maxUrls) {
         if (!xml) continue;
 
         const allLocs = extractLocs(xml);
-        if (!allLocs.length) continue;
+        if (!allLocs.length) { console.log(`[Catalog] sitemap ${sitemapUrl} → 0 <loc> extraites`); continue; }
+
+        console.log(`[Catalog] sitemap ${sitemapUrl} → ${allLocs.length} locs. Ex: ${allLocs.slice(0,3).join(' | ')}`);
 
         // Sitemap index ? → chercher les sous-sitemaps produits
         const subSitemaps = allLocs.filter(u => u.match(/sitemap/i) && u.match(/\.xml/i));
         if (subSitemaps.length > 0) {
-            // Prioriser les sitemaps avec "product" dans le nom
+            console.log(`[Catalog] sitemap index → ${subSitemaps.length} sous-sitemaps: ${subSitemaps.slice(0,5).join(', ')}`);
+            // Prioriser les sitemaps avec "product/produit" dans le nom
             const sorted = subSitemaps.sort((a, b) => {
                 const aScore = /product|produit|artikel/i.test(a) ? 1 : 0;
                 const bScore = /product|produit|artikel/i.test(b) ? 1 : 0;
                 return bScore - aScore;
             });
-            for (const sub of sorted.slice(0, 3)) {
+            for (const sub of sorted.slice(0, 10)) { // augmenté à 10
                 const subXml = await fetchXml(sub);
                 if (!subXml) continue;
-                const urls = extractLocs(subXml).filter(isProductUrl);
+                const subLocs = extractLocs(subXml);
+                const urls = subLocs.filter(isProductUrl);
+                console.log(`[Catalog] sous-sitemap ${sub} → ${subLocs.length} locs, ${urls.length} produits. Ex: ${subLocs.slice(0,2).join(' | ')}`);
                 if (urls.length > 0) return urls.slice(0, maxUrls);
             }
         }
 
         // Sitemap direct
         const urls = allLocs.filter(isProductUrl);
+        const rejected = allLocs.filter(u => !isProductUrl(u) && !u.match(/sitemap.*\.xml/i));
+        if (rejected.length > 0) console.log(`[Catalog] URLs rejetées par isProductUrl (ex): ${rejected.slice(0,3).join(' | ')}`);
         if (urls.length > 0) return urls.slice(0, maxUrls);
     }
     return [];
