@@ -531,9 +531,9 @@ function getCompletedMonths(period) {
     const now = new Date();
     if (period && period.match(/^\d{4}-\d{2}$/)) {
         var d = new Date(period + '-01');
-        // Mois en cours = pas encore preleve
-        var isCurrentMonth = (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth());
-        return isCurrentMonth ? 0 : 1;
+        // Seuls les mois strictement passés sont prélevés
+        var isPastMonth = d < new Date(now.getFullYear(), now.getMonth(), 1);
+        return isPastMonth ? 1 : 0;
     }
     if (period === 'month') return 0;
     if (period === 'lastmonth') return 1;
