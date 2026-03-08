@@ -473,8 +473,8 @@ function initMonthSelector() {
     var currentMonth = now.getMonth(); // 0-based (mars = 2)
     var currentYear  = now.getFullYear();
     var options = '';
-    // De décembre à mois courant (ordre décroissant) sur l'année en cours
-    for (var m = 11; m >= currentMonth; m--) {
+    // Du mois courant à décembre (ordre croissant) sur l'année en cours
+    for (var m = currentMonth; m <= 11; m++) {
         var val   = currentYear + '-' + String(m + 1).padStart(2, '0');
         var label = new Date(currentYear, m, 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
         label = label.charAt(0).toUpperCase() + label.slice(1);
