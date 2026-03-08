@@ -188,6 +188,7 @@ exports.handler = async () => {
         const enriched = {
             ...product,
             ...keepa,
+            retailerLink: product.link,   // préserver le lien retailer (keepa.link = Amazon)
             netProfit:  profit?.netProfit ?? null,
             roi:        profit?.roi ?? null,
             enrichedAt: Date.now(),

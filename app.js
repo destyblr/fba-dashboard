@@ -717,8 +717,8 @@ function switchMode(mode) {
 
     if (mode === 'oa') {
         // Mode Online Arbitrage
-        navPL.classList.add('hidden');
-        navOA.classList.remove('hidden');
+        navPL.style.display = 'none';
+        navOA.style.display = 'flex';
 
         // Afficher la page d'accueil OA
         const oaSection = document.getElementById('section-oa-accueil');
@@ -735,8 +735,8 @@ function switchMode(mode) {
         if (typeof updateFixedChargesDashboard === 'function') updateFixedChargesDashboard();
     } else {
         // Mode Private Label
-        navPL.classList.remove('hidden');
-        navOA.classList.add('hidden');
+        navPL.style.display = 'flex';
+        navOA.style.display = 'none';
 
         // Afficher le dashboard PL
         const dashboard = document.getElementById('section-dashboard');

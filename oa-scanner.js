@@ -6788,7 +6788,7 @@ function updateCatalogFilters() {
 
 function renderCatalogEmpty(msg) {
     var tbody = document.getElementById('catalog-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="11" class="p-8 text-center text-gray-400"><i class="fas fa-store text-4xl mb-3 block text-gray-300"></i><p>' + msg + '</p></td></tr>';
 }
 
 function toggleCatalogAdvanced() {
@@ -6911,42 +6911,32 @@ function renderCatalogTable() {
                 (mpPrices ? '<div class="text-xs text-gray-400 leading-tight">' + mpPrices + '</div>' : '');
         }
 
-        // Colonne Rendement
+        // Colonnes Profit / ROI / Marge (séparées)
         var profitColor = profitable ? 'text-green-600' : (p.netProfit > 0 ? 'text-amber-600' : 'text-red-500');
-        var rendementCol;
-        if (p.netProfit != null) {
-            rendementCol = '<div class="font-bold ' + profitColor + ' text-sm">' + (p.netProfit >= 0 ? '+' : '') + p.netProfit.toFixed(2) + '€</div>' +
-                '<div class="text-xs text-gray-500">ROI ' + (p.roi != null ? p.roi.toFixed(0) : '—') + '%' +
-                (marge != null ? ' · ' + marge.toFixed(0) + '%' : '') + '</div>';
-        } else {
-            rendementCol = '<span class="text-gray-300 text-xs">—</span>';
-        }
+        var profitCol = p.netProfit != null
+            ? '<span class="font-bold ' + profitColor + ' text-sm">' + (p.netProfit >= 0 ? '+' : '') + p.netProfit.toFixed(2) + '€</span>'
+            : '<span class="text-gray-300 text-xs">—</span>';
+        var roiCol = p.roi != null
+            ? '<span class="font-semibold text-xs ' + profitColor + '">' + p.roi.toFixed(0) + '%</span>'
+            : '<span class="text-gray-300 text-xs">—</span>';
+        var margeCol = marge != null
+            ? '<span class="font-semibold text-xs ' + profitColor + '">' + marge.toFixed(0) + '%</span>'
+            : '<span class="text-gray-300 text-xs">—</span>';
 
-        // Colonne BSR / Ventes
-        var bsrCol = (p.bsr ? '<div class="text-xs font-mono text-gray-600">' + Number(p.bsr).toLocaleString('fr') + '</div>' : '<div class="text-gray-300 text-xs">—</div>') +
-            (p.monthlySold != null ? '<div class="text-xs text-blue-600 font-semibold">~' + p.monthlySold + '/m</div>' : '');
+        // Colonnes BSR / Ventes (séparées)
+        var bsrCol   = p.bsr ? '<span class="text-xs font-mono text-gray-600">' + Number(p.bsr).toLocaleString('fr') + '</span>' : '<span class="text-gray-300 text-xs">—</span>';
+        var ventesCol = p.monthlySold != null ? '<span class="text-xs text-blue-600 font-semibold">~' + p.monthlySold + '</span>' : '<span class="text-gray-300 text-xs">—</span>';
 
-        // Colonne Vendeurs / Amazon
-        var amzSellerBadge = !p.asin ? '' : (p.amazonIsSeller
-            ? '<div class="text-xs bg-red-100 text-red-600 rounded px-1 inline-block">AMZ ⚠</div>'
-            : '<div class="text-xs bg-green-100 text-green-600 rounded px-1 inline-block">AMZ ✓</div>');
-        var vendCol = '<div class="font-semibold text-sm text-gray-700">' + (p.offerCountNew != null ? p.offerCountNew : '—') + '</div>' + amzSellerBadge;
-
-        // Colonne Statut marque
-        var statutCol;
-        if (!p.asin) {
-            statutCol = '<span class="text-gray-300 text-xs">—</span>';
-        } else if (p.offerCountNew > 1 && !p.amazonIsSeller) {
-            statutCol = '<span class="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded-full font-semibold">Libre ✓</span>';
-        } else if (p.offerCountNew === 1 || p.offerCountNew === 0) {
-            statutCol = '<span class="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded-full">À vérifier</span>';
-        } else {
-            statutCol = '<span class="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full">À vérifier</span>';
-        }
+        // Colonnes Vendeurs / AMZ (séparées)
+        var vendCol = '<span class="font-semibold text-sm text-gray-700" title="Nombre de vendeurs sur cette fiche Amazon">' + (p.offerCountNew != null ? p.offerCountNew : '?') + '</span>';
+        var amzCol  = !p.asin ? '<span class="text-gray-300 text-xs">—</span>' : (p.amazonIsSeller
+            ? '<span class="text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5 font-semibold" title="Amazon est vendeur lui-même → Buy Box très difficile à gagner">AMZ concu</span>'
+            : '<span class="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 font-semibold" title="Amazon n\'est pas vendeur → tu peux gagner la Buy Box">Libre</span>');
 
         // Colonne Actions
+        var retailerLink = p.retailerLink || p.link;
         var actionsCol = '<div class="flex flex-col gap-1 items-center">' +
-            (p.link ? '<a href="' + p.link + '" target="_blank" class="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs w-full text-center">Retailer ↗</a>' : '') +
+            (retailerLink ? '<a href="' + retailerLink + '" target="_blank" class="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs w-full text-center">Retailer ↗</a>' : '') +
             (amzUrl  ? '<a href="' + amzUrl  + '" target="_blank" class="px-2 py-0.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs w-full text-center">Amazon ↗</a>' : '') +
             (profitable ? '<button onclick="catalogToChecklist(' + JSON.stringify(p).replace(/"/g, '&quot;') + ')" class="px-2 py-0.5 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 rounded text-xs w-full">Checklist</button>' : '') +
             '</div>';
@@ -6961,10 +6951,13 @@ function renderCatalogTable() {
             '</td>' +
             '<td class="p-2">' + achatCol + '</td>' +
             '<td class="p-2">' + amazonCol + '</td>' +
-            '<td class="p-2 text-right">' + rendementCol + '</td>' +
+            '<td class="p-2 text-right">' + profitCol + '</td>' +
+            '<td class="p-2 text-right">' + roiCol + '</td>' +
+            '<td class="p-2 text-right">' + margeCol + '</td>' +
             '<td class="p-2 text-center">' + bsrCol + '</td>' +
+            '<td class="p-2 text-center">' + ventesCol + '</td>' +
             '<td class="p-2 text-center">' + vendCol + '</td>' +
-            '<td class="p-2 text-center">' + statutCol + '</td>' +
+            '<td class="p-2 text-center">' + amzCol + '</td>' +
             '<td class="p-2">' + actionsCol + '</td>' +
         '</tr>';
     }).join('');
