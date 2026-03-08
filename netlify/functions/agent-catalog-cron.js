@@ -236,40 +236,55 @@ exports.handler = async () => {
     await writeBlob(catalogStore, 'catalog-cursor', cursor + 1);
     console.log(`[Catalog] Run ${cursor + 1}/${activeToday.length} → ${retailerToProcess.name}`);
 
-    // ── 2. Charger les produits bruts existants ────────────────────────────
-    const rawProducts = await readBlob(catalogStore, 'raw-products', []);
-    const seenEANs    = new Set(rawProducts.map(p => p.ean).filter(Boolean));
+    // ── 2. Charger état scraping (EANs vus, URLs vues, offsets sitemap) ──────
+    const rawProducts     = await readBlob(catalogStore, 'raw-products', []);
+    const seenEANs        = new Set(rawProducts.map(p => p.ean).filter(Boolean));
+    const seenUrlsArr     = await readBlob(catalogStore, 'scraped-urls', []);
+    const seenUrls        = new Set(seenUrlsArr);
+    const sitemapOffsets  = await readBlob(catalogStore, 'sitemap-offsets', {});
 
-    const newProducts = [];
-    let totalScraped = 0, totalWithEan = 0;
+    const newProducts    = [];
+    const noEanProducts  = [];
+    let totalScraped = 0, totalWithEan = 0, totalNoEan = 0;
 
     // ── 3. Scraper le retailer du run ─────────────────────────────────────
     console.log(`[Catalog] Scraping ${retailerToProcess.name}...`);
     const maxP = retailerToProcess.maxProducts || 200;
 
-    const urls = await fetchSitemapUrls(retailerToProcess.url, maxP);
-    if (!urls.length) {
+    // Récupère toutes les URLs du sitemap (jusqu'à 5000 pour la rotation)
+    const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000);
+    if (!allUrls.length) {
         console.warn(`[Catalog] ${retailerToProcess.name}: pas d'URLs dans le sitemap`);
     } else {
-        console.log(`[Catalog] ${retailerToProcess.name}: ${urls.length} URLs`);
+        // Rotation : reprend là où on s'était arrêté la dernière fois
+        const offset  = sitemapOffsets[retailerToProcess.id] || 0;
+        const rotated = [...allUrls.slice(offset), ...allUrls.slice(0, offset)];
 
-        // Scraper les pages en batch (max 15 via ScraperAPI pour tenir dans les 60s)
-        const batch = urls.slice(0, 15);
-        let debugSample = true; // log le 1er résultat pour diagnostic
+        // Déduplication URL : skip les pages déjà scrapées
+        const freshUrls = rotated.filter(u => !seenUrls.has(u));
+        const batch     = (freshUrls.length > 0 ? freshUrls : rotated).slice(0, maxP);
+
+        // Sauvegarder le nouvel offset pour le prochain run
+        sitemapOffsets[retailerToProcess.id] = (offset + maxP) % Math.max(allUrls.length, 1);
+
+        console.log(`[Catalog] ${retailerToProcess.name}: ${allUrls.length} URLs total, offset=${offset}, batch=${batch.length} (${freshUrls.length} nouvelles)`);
+
+        let debugSample = true;
         for (const url of batch) {
             const jsonlds = await scrapeProductPage(url);
             if (debugSample) {
                 if (!jsonlds) { console.log(`[Catalog] DEBUG ${url} → null (fetch failed)`); }
                 else if (jsonlds.length === 0) {
                     const types = (jsonlds._allTypes || []).join(', ') || 'aucun';
-                    console.log(`[Catalog] DEBUG ${url} → 0 Product. @types trouvés: [${types}]`);
+                    console.log(`[Catalog] DEBUG ${url} → 0 Product. @types: [${types}]`);
                 } else {
-                    const jld = jsonlds[0];
+                    const jld   = jsonlds[0];
                     const price = jld.offers?.price ?? (Array.isArray(jld.offers) ? jld.offers[0]?.price : null);
                     console.log(`[Catalog] DEBUG ${url} → OK type=${JSON.stringify(jld['@type'])} name="${jld.name?.slice(0,40)}" price=${price}`);
                 }
                 debugSample = false;
             }
+            seenUrls.add(url); // marquer comme vu même si 0 produit
             if (!jsonlds) continue;
 
             for (const jld of jsonlds) {
@@ -277,21 +292,37 @@ exports.handler = async () => {
                 if (!product) continue;
                 totalScraped++;
 
-                // Déduplications par EAN
-                if (product.ean && seenEANs.has(product.ean)) continue;
-                if (product.ean) {
-                    seenEANs.add(product.ean);
-                    totalWithEan++;
+                if (!product.ean) {
+                    // Produit sans EAN → tableau séparé pour décision manuelle
+                    noEanProducts.push({ ...product, scrapedAt: Date.now() });
+                    totalNoEan++;
+                    continue;
                 }
 
+                // Déduplications par EAN
+                if (seenEANs.has(product.ean)) continue;
+                seenEANs.add(product.ean);
+                totalWithEan++;
                 newProducts.push({ ...product, scrapedAt: Date.now() });
             }
         }
+
+        // Sauvegarder URLs vues + offsets
+        await writeBlob(catalogStore, 'scraped-urls', [...seenUrls].slice(-15000));
+        await writeBlob(catalogStore, 'sitemap-offsets', sitemapOffsets);
     }
 
-    // ── 4. Sauvegarder les produits bruts ─────────────────────────────────
+    // ── 4a. Sauvegarder les produits bruts AVEC EAN ────────────────────────
     const updatedRaw = [...newProducts, ...rawProducts].slice(0, 5000);
     await writeBlob(catalogStore, 'raw-products', updatedRaw);
+
+    // ── 4b. Sauvegarder les produits SANS EAN ─────────────────────────────
+    if (noEanProducts.length > 0) {
+        const existingNoEan   = await readBlob(catalogStore, 'raw-products-no-ean', []);
+        const seenNoEanTitles = new Set(existingNoEan.map(p => p.title + '|' + p.retailer));
+        const freshNoEan      = noEanProducts.filter(p => !seenNoEanTitles.has(p.title + '|' + p.retailer));
+        await writeBlob(catalogStore, 'raw-products-no-ean', [...freshNoEan, ...existingNoEan].slice(0, 2000));
+    }
     await writeBlob(catalogStore, 'catalog-last-run', {
         ts: Date.now(), retailer: retailerToProcess.name,
         scraped: totalScraped, withEan: totalWithEan,
@@ -305,11 +336,11 @@ exports.handler = async () => {
         ts:      Date.now(),
         agent:   'catalog',
         retailer: retailerToProcess.name,
-        summary: `${totalScraped} produits scrapés · ${totalWithEan} avec EAN`,
-        stats:   { scraped: totalScraped, withEan: totalWithEan }
+        summary: `${totalScraped} produits scrapés · ${totalWithEan} avec EAN · ${totalNoEan} sans EAN`,
+        stats:   { scraped: totalScraped, withEan: totalWithEan, noEan: totalNoEan }
     });
     await writeBlob(activityStore, 'log', activity.slice(0, 100));
 
-    console.log(`[Catalog] Terminé — ${totalScraped} scrapés, ${totalWithEan} avec EAN`);
+    console.log(`[Catalog] Terminé — ${totalScraped} scrapés, ${totalWithEan} avec EAN, ${totalNoEan} sans EAN`);
     return { statusCode: 200 };
 };

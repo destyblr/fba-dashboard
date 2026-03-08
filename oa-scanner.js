@@ -6146,6 +6146,10 @@ async function loadFlux() {
                 lastScanMap[ev.retailer] = ev.ts;
             }
         });
+        // Compteur no-EAN
+        var noEanCountEl = document.getElementById('flux-no-ean-count');
+        if (noEanCountEl) noEanCountEl.textContent = catData.noEanCount || 0;
+
         loadRetailersWithScan(lastScanMap, catData.lastRun);
 
         // Log recent
@@ -6192,6 +6196,43 @@ function loadRetailersWithScan(lastScanMap, lastRun) {
         .then(function(r) { return r.json(); })
         .then(function(data) { renderRetailersList(data.retailers || [], lastScanMap, lastRun); })
         .catch(function() { renderRetailersList([], {}, null); });
+}
+
+function toggleFluxNoEan() {
+    var body    = document.getElementById('flux-no-ean-body');
+    var chevron = document.getElementById('flux-no-ean-chevron');
+    if (!body) return;
+    var opening = body.classList.toggle('hidden');
+    if (chevron) chevron.className = 'fas fa-chevron-' + (opening ? 'down' : 'up') + ' text-xs text-gray-400';
+    if (!opening) loadFluxNoEan(); // charge au premier ouverture
+}
+
+function loadFluxNoEan() {
+    var list = document.getElementById('flux-no-ean-list');
+    if (!list) return;
+    list.innerHTML = '<div class="text-center text-gray-400 text-sm py-8"><i class="fas fa-spinner fa-spin mr-2"></i>Chargement…</div>';
+    fetch('/.netlify/functions/catalog-read?mode=no-ean')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var products = data.products || [];
+            if (!products.length) {
+                list.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucun produit sans EAN pour l\'instant.</div>';
+                return;
+            }
+            list.innerHTML = products.map(function(p) {
+                var img = p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded border border-gray-100 flex-shrink-0" onerror="this.style.display=\'none\'">' : '<div class="w-10 h-10 bg-gray-100 rounded flex-shrink-0"></div>';
+                return '<div class="flex items-center gap-3 p-3 hover:bg-gray-50">' +
+                    img +
+                    '<div class="flex-1 min-w-0">' +
+                        '<div class="text-sm font-medium text-gray-800 truncate">' + (p.title || '—') + '</div>' +
+                        '<div class="text-xs text-gray-400">' + (p.retailer || '') + (p.brand ? ' · ' + p.brand : '') + '</div>' +
+                    '</div>' +
+                    '<div class="text-sm font-semibold text-gray-700 flex-shrink-0">' + (p.price ? p.price.toFixed(2) + ' €' : '—') + '</div>' +
+                    (p.link ? '<a href="' + p.link + '" target="_blank" class="text-xs text-blue-500 hover:underline flex-shrink-0">Voir</a>' : '') +
+                '</div>';
+            }).join('');
+        })
+        .catch(function() { list.innerHTML = '<div class="text-center text-red-400 text-sm py-8">Erreur de chargement.</div>'; });
 }
 
 function renderJournal(events) {

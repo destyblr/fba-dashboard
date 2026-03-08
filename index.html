@@ -3536,6 +3536,23 @@
                         <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
                     </div>
                 </div>
+
+                <!-- Produits sans EAN (accordéon) -->
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <button onclick="toggleFluxNoEan()" class="w-full flex items-center justify-between p-4 border-b border-gray-100 hover:bg-gray-50 transition text-left">
+                        <h3 class="font-bold text-gray-700">
+                            <i class="fas fa-tag-slash text-amber-400 mr-2"></i>
+                            Produits sans EAN
+                            <span id="flux-no-ean-count" class="ml-2 text-xs font-normal bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">0</span>
+                        </h3>
+                        <i id="flux-no-ean-chevron" class="fas fa-chevron-down text-xs text-gray-400"></i>
+                    </button>
+                    <div id="flux-no-ean-body" class="hidden">
+                        <div id="flux-no-ean-list" class="divide-y divide-gray-50 max-h-96 overflow-y-auto">
+                            <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <!-- Section OA Inventaire -->

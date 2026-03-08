@@ -24,12 +24,13 @@ exports.handler = async (event) => {
         const catalogStore  = getStore('oa-catalog');
         const activityStore = getStore('oa-activity');
 
-        const [rawProducts, enrichedProducts, retailers, lastRun, activity] = await Promise.all([
-            readBlob(catalogStore,  'raw-products',      []),
-            readBlob(catalogStore,  'enriched-products', []),
-            readBlob(catalogStore,  'retailers',         []),
-            readBlob(catalogStore,  'catalog-last-run',  null),
-            readBlob(activityStore, 'log',               []),
+        const [rawProducts, enrichedProducts, noEanProducts, retailers, lastRun, activity] = await Promise.all([
+            readBlob(catalogStore,  'raw-products',        []),
+            readBlob(catalogStore,  'enriched-products',   []),
+            readBlob(catalogStore,  'raw-products-no-ean', []),
+            readBlob(catalogStore,  'retailers',           []),
+            readBlob(catalogStore,  'catalog-last-run',    null),
+            readBlob(activityStore, 'log',                 []),
         ]);
 
         // Stats pipeline
@@ -47,7 +48,15 @@ exports.handler = async (event) => {
             return {
                 statusCode: 200,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-                body: JSON.stringify({ stats, lastRun })
+                body: JSON.stringify({ stats, lastRun, noEanCount: noEanProducts.length })
+            };
+        }
+
+        if (mode === 'no-ean') {
+            return {
+                statusCode: 200,
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+                body: JSON.stringify({ products: noEanProducts, total: noEanProducts.length })
             };
         }
 
