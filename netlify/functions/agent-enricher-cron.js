@@ -40,8 +40,12 @@ async function keepaDomainLookup(ean, keepaKey, domain) {
         const url = `https://api.keepa.com/product?key=${keepaKey}&domain=${domain}&ean=${ean}&stats=1&history=0`;
         const resp = await fetch(url, { timeout: 12000 });
         const data = await resp.json();
+        if (data.error) console.warn(`[Enricher] Keepa error domain=${domain} ean=${ean}:`, JSON.stringify(data.error));
         const p    = (data.products || [])[0];
-        if (!p) return { price: null, tokensLeft: data.tokensLeft ?? null };
+        if (!p) {
+            console.log(`[Enricher] Keepa domain=${domain} ean=${ean} → aucun produit (tokens=${data.tokensLeft ?? '?'})`);
+            return { price: null, tokensLeft: data.tokensLeft ?? null };
+        }
 
         const current        = (p.stats || {}).current || [];
         const newPrice       = current[1] ?? -1;
@@ -174,7 +178,7 @@ exports.handler = async () => {
 
     for (const product of batch) {
         const keepa = await keepaEANLookup(product.ean, KEEPA_KEY);
-        if (!keepa) continue;
+        if (!keepa) { console.log(`[Enricher] ${product.ean} → pas sur Amazon (aucune MP avec prix)`); continue; }
         if (keepa.tokensLeft !== null) lastTokens = keepa.tokensLeft;
 
         const profit = keepa.amazonPrice
