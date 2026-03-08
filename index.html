@@ -2908,120 +2908,138 @@
             <!-- Dashboard OA Recap — visible sur toutes les sections OA -->
             <!-- OA Accueil — section propre avec recap + stats pipeline -->
             <section id="section-oa-accueil" class="content-section hidden">
-                <div class="mb-6">
-                    <h2 class="text-3xl font-bold text-gray-800">
-                        <i class="fas fa-tachometer-alt text-indigo-600 mr-2"></i>Online Arbitrage
-                    </h2>
-                    <p class="text-gray-500">Tableau de bord — activité agents, résultats, pipeline</p>
+
+                <!-- Header + Sélecteur de mois -->
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">
+                            <i class="fas fa-tachometer-alt text-indigo-600 mr-2"></i>Online Arbitrage
+                        </h2>
+                        <p class="text-gray-500 text-sm mt-0.5">Tableau de bord — activité agents, résultats, pipeline</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-gray-500 font-medium whitespace-nowrap">Période :</label>
+                        <select id="oa-month-select" onchange="setOAPeriodMonth(this.value)"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 cursor-pointer">
+                            <!-- Options injectées par initMonthSelector() -->
+                        </select>
+                    </div>
                 </div>
 
-                <!-- OA Recap block -->
+                <!-- KPI cards (6) -->
                 <div id="oa-dashboard-recap" class="mb-6">
-                    <div class="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
-                        <div class="flex items-center justify-between mb-4">
-                            <h3 class="text-gray-800 font-bold text-base"><i class="fas fa-chart-line mr-2 text-indigo-500"></i>Recap</h3>
-                            <div class="flex bg-gray-100 rounded-lg p-0.5" id="oa-period-selector">
-                                <button onclick="setOAPeriod('month')" class="oa-period-btn active px-3 py-1 rounded-md text-xs font-semibold transition" data-period="month">Ce mois</button>
-                                <button onclick="setOAPeriod('lastmonth')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="lastmonth">Mois dernier</button>
-                                <button onclick="setOAPeriod('year')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="year">Annee</button>
-                                <button onclick="setOAPeriod('all')" class="oa-period-btn px-3 py-1 rounded-md text-xs font-semibold transition" data-period="all">Tout</button>
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                        <div class="bg-white rounded-xl p-4 text-center border border-red-100 shadow-sm">
+                            <div class="text-xs text-red-500 font-semibold mb-1 uppercase tracking-wide"><i class="fas fa-tools mr-1"></i>Charges</div>
+                            <div id="oa-fixed-total" class="text-2xl font-bold text-red-600">48&euro;</div>
+                            <div id="oa-fixed-period-label" class="text-xs text-gray-400 mt-0.5">ce mois</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 text-center border border-blue-100 shadow-sm">
+                            <div class="text-xs text-blue-500 font-semibold mb-1 uppercase tracking-wide"><i class="fas fa-shopping-bag mr-1"></i>Achetes</div>
+                            <div id="oa-fixed-bought" class="text-2xl font-bold text-blue-600">0</div>
+                            <div class="text-xs text-gray-400 mt-0.5">produits</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 text-center border border-cyan-100 shadow-sm">
+                            <div class="text-xs text-cyan-600 font-semibold mb-1 uppercase tracking-wide"><i class="fas fa-check-circle mr-1"></i>Vendus</div>
+                            <div id="oa-fixed-sales" class="text-2xl font-bold text-cyan-700">0</div>
+                            <div class="text-xs text-gray-400 mt-0.5">produits</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 text-center border border-green-100 shadow-sm">
+                            <div class="text-xs text-green-600 font-semibold mb-1 uppercase tracking-wide"><i class="fas fa-hand-holding-usd mr-1"></i>Profit brut</div>
+                            <div id="oa-fixed-profit" class="text-2xl font-bold text-green-700">0&euro;</div>
+                            <div class="text-xs text-gray-400 mt-0.5">ventes</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 text-center border border-amber-100 shadow-sm">
+                            <div class="text-xs text-amber-600 font-semibold mb-1 uppercase tracking-wide"><i class="fas fa-calculator mr-1"></i>Cout/vente</div>
+                            <div id="oa-fixed-per-sale" class="text-2xl font-bold text-amber-700">—&euro;</div>
+                            <div class="text-xs text-gray-400 mt-0.5">charges / vente</div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 text-center border-2 border-indigo-200 shadow-sm" id="oa-fixed-net-card">
+                            <div class="text-xs text-indigo-600 font-semibold mb-1 uppercase tracking-wide"><i class="fas fa-chart-line mr-1"></i>Résultat net</div>
+                            <div id="oa-fixed-net" class="text-2xl font-bold text-indigo-700">0&euro;</div>
+                            <div id="oa-fixed-net-label" class="text-xs text-gray-400 mt-0.5">profit − charges</div>
+                        </div>
+                    </div>
+                    <div id="oa-recap-deals" class="mt-4 hidden"></div>
+                </div>
+
+                <!-- Pipeline + Agents (2 colonnes) -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+                    <!-- Pipeline de scraping -->
+                    <div class="bg-white rounded-xl shadow-sm p-5">
+                        <h3 class="font-bold text-gray-700 text-sm mb-4"><i class="fas fa-sitemap mr-2 text-orange-400"></i>Pipeline de scraping</h3>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-orange-50 rounded-xl p-3 text-center border border-orange-100 cursor-pointer hover:bg-orange-100 transition" onclick="showSection('oa-catalogue')">
+                                <div id="accueil-stat-raw" class="text-2xl font-bold text-orange-500">—</div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">Produits bruts</div>
+                                <div class="text-xs text-gray-400">Scrapés</div>
+                            </div>
+                            <div class="bg-blue-50 rounded-xl p-3 text-center border border-blue-100 cursor-pointer hover:bg-blue-100 transition" onclick="showSection('oa-catalogue')">
+                                <div id="accueil-stat-ean" class="text-2xl font-bold text-blue-500">—</div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">Avec EAN</div>
+                                <div class="text-xs text-gray-400">Prêts pour Keepa</div>
+                            </div>
+                            <div class="bg-indigo-50 rounded-xl p-3 text-center border border-indigo-100 cursor-pointer hover:bg-indigo-100 transition" onclick="showSection('oa-catalogue')">
+                                <div id="accueil-stat-enriched" class="text-2xl font-bold text-indigo-500">—</div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">Enrichis</div>
+                                <div class="text-xs text-gray-400">Données Amazon</div>
+                            </div>
+                            <div class="bg-green-50 rounded-xl p-3 text-center border border-green-100 cursor-pointer hover:bg-green-100 transition" onclick="showSection('oa-catalogue')">
+                                <div id="accueil-stat-profitable" class="text-2xl font-bold text-green-600">—</div>
+                                <div class="text-xs font-medium text-gray-600 mt-1">Rentables</div>
+                                <div class="text-xs text-gray-400">Profit &ge;2€ · ROI &ge;25%</div>
                             </div>
                         </div>
-                        <div class="grid grid-cols-2 md:grid-cols-6 gap-3">
-                            <div class="bg-red-50 rounded-xl p-3 text-center border border-red-100">
-                                <div class="text-xs text-red-500 font-semibold mb-1"><i class="fas fa-tools mr-1"></i>Charges fixes</div>
-                                <div id="oa-fixed-total" class="text-lg font-bold text-red-600">48 &euro;</div>
-                                <div id="oa-fixed-period-label" class="text-xs text-gray-400">ce mois</div>
+                    </div>
+
+                    <!-- Statut des agents -->
+                    <div class="bg-white rounded-xl shadow-sm p-5">
+                        <h3 class="font-bold text-gray-700 text-sm mb-4"><i class="fas fa-robot mr-2 text-purple-400"></i>Statut des agents</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <div>
+                                    <span class="font-medium text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-400"></i>Agent Scraper</span>
+                                    <div class="text-xs text-gray-400 mt-0.5" id="accueil-catalog-last">Chargement…</div>
+                                </div>
+                                <span id="accueil-catalog-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">—</span>
                             </div>
-                            <div class="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-                                <div class="text-xs text-blue-500 font-semibold mb-1"><i class="fas fa-shopping-bag mr-1"></i>Achetes</div>
-                                <div id="oa-fixed-bought" class="text-lg font-bold text-blue-600">0</div>
-                                <div class="text-xs text-gray-400">produits</div>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <div>
+                                    <span class="font-medium text-sm text-gray-700"><i class="fas fa-gem mr-2 text-blue-400"></i>Agent Enricher</span>
+                                    <div class="text-xs text-gray-400 mt-0.5" id="accueil-enricher-last">Chargement…</div>
+                                </div>
+                                <span id="accueil-enricher-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">—</span>
                             </div>
-                            <div class="bg-cyan-50 rounded-xl p-3 text-center border border-cyan-100">
-                                <div class="text-xs text-cyan-600 font-semibold mb-1"><i class="fas fa-check-circle mr-1"></i>Vendus</div>
-                                <div id="oa-fixed-sales" class="text-lg font-bold text-cyan-700">0</div>
-                                <div class="text-xs text-gray-400">produits</div>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <div>
+                                    <span class="font-medium text-sm text-gray-700"><i class="fas fa-bolt mr-2 text-green-400"></i>Agent Sourcing</span>
+                                    <div class="text-xs text-gray-400 mt-0.5" id="accueil-sourcing-last">Chargement…</div>
+                                </div>
+                                <span id="accueil-sourcing-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">—</span>
                             </div>
-                            <div class="bg-green-50 rounded-xl p-3 text-center border border-green-100">
-                                <div class="text-xs text-green-600 font-semibold mb-1"><i class="fas fa-hand-holding-usd mr-1"></i>Profit brut</div>
-                                <div id="oa-fixed-profit" class="text-lg font-bold text-green-700">0 &euro;</div>
-                                <div class="text-xs text-gray-400">ventes</div>
-                            </div>
-                            <div class="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-                                <div class="text-xs text-amber-600 font-semibold mb-1"><i class="fas fa-calculator mr-1"></i>Cout/vente</div>
-                                <div id="oa-fixed-per-sale" class="text-lg font-bold text-amber-700">- &euro;</div>
-                                <div class="text-xs text-gray-400">charges / vente</div>
-                            </div>
-                            <div class="rounded-xl p-3 text-center border-2 border-indigo-200 bg-indigo-50" id="oa-fixed-net-card">
-                                <div class="text-xs text-indigo-600 font-semibold mb-1"><i class="fas fa-chart-line mr-1"></i>Resultat net</div>
-                                <div id="oa-fixed-net" class="text-lg font-bold text-indigo-700">0 &euro;</div>
-                                <div id="oa-fixed-net-label" class="text-xs text-gray-400">profit - charges</div>
+                            <div class="flex items-center justify-between py-2">
+                                <div>
+                                    <span class="font-medium text-sm text-gray-700"><i class="fas fa-brain mr-2 text-purple-400"></i>Team Leader</span>
+                                    <div class="text-xs text-gray-400 mt-0.5" id="accueil-leader-last">Chargement…</div>
+                                </div>
+                                <span id="accueil-leader-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400 shrink-0">—</span>
                             </div>
                         </div>
-                        <div id="oa-recap-deals" class="mt-4 hidden"></div>
                     </div>
                 </div>
 
-                <!-- Stats pipeline -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-orange-300 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
-                        <div id="accueil-stat-raw" class="text-3xl font-bold text-orange-500">—</div>
-                        <div class="text-sm font-medium text-gray-600 mt-1">Produits bruts</div>
-                        <div class="text-xs text-gray-400">Scrapes</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-blue-300 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
-                        <div id="accueil-stat-ean" class="text-3xl font-bold text-blue-500">—</div>
-                        <div class="text-sm font-medium text-gray-600 mt-1">Avec EAN</div>
-                        <div class="text-xs text-gray-400">Prets pour Keepa</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-indigo-300 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
-                        <div id="accueil-stat-enriched" class="text-3xl font-bold text-indigo-500">—</div>
-                        <div class="text-sm font-medium text-gray-600 mt-1">Enrichis</div>
-                        <div class="text-xs text-gray-400">Avec donnees Amazon</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-5 text-center border-t-4 border-green-400 cursor-pointer hover:shadow-md transition" onclick="showSection('oa-catalogue')">
-                        <div id="accueil-stat-profitable" class="text-3xl font-bold text-green-600">—</div>
-                        <div class="text-sm font-medium text-gray-600 mt-1">Rentables</div>
-                        <div class="text-xs text-gray-400">Profit &ge;5€ · ROI &ge;30%</div>
-                    </div>
-                </div>
-
-                <!-- Agents status -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div class="bg-white rounded-xl shadow-sm p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-spider mr-2 text-orange-500"></i>Agent Scraper</span>
-                            <span id="accueil-catalog-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
-                        </div>
-                        <div class="text-xs text-gray-400" id="accueil-catalog-last">Chargement…</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-gem mr-2 text-blue-500"></i>Agent Enricher</span>
-                            <span id="accueil-enricher-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
-                        </div>
-                        <div class="text-xs text-gray-400" id="accueil-enricher-last">Chargement…</div>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="font-semibold text-sm text-gray-700"><i class="fas fa-brain mr-2 text-purple-500"></i>Team Leader</span>
-                            <span id="accueil-leader-status" class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">—</span>
-                        </div>
-                        <div class="text-xs text-gray-400" id="accueil-leader-last">Chargement…</div>
-                    </div>
-                </div>
-
-                <!-- Top 5 produits rentables -->
+                <!-- Top deals du catalogue -->
                 <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div class="flex items-center justify-between p-4 border-b border-gray-100">
-                        <h3 class="font-bold text-gray-700"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Meilleurs deals du catalogue</h3>
+                    <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                        <h3 class="font-bold text-gray-700 text-sm"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Meilleurs deals du catalogue</h3>
                         <button onclick="showSection('oa-catalogue')" class="text-xs text-indigo-500 hover:underline">Voir tout →</button>
                     </div>
                     <div id="accueil-top-deals" class="divide-y divide-gray-50">
                         <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
                     </div>
                 </div>
+
             </section>
 
             <!-- Section OA Scanner (supprimé — remplacé par Agent Scraper) -->

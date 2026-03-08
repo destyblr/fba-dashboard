@@ -80,7 +80,7 @@ exports.handler = async () => {
                 bsr:        p.bsr,
                 marketplace: mp,
                 amazonLink: `https://www.${MP_DOMAIN[mp] || 'amazon.de'}/dp/${p.asin}`,
-                retailLink: p.link || '',
+                retailLink: p.retailerUrl || p.link || '',
                 ts:         Date.now()
             });
             seenKeys.add(p.asin);
@@ -106,7 +106,7 @@ exports.handler = async () => {
             `📈 Profit net : <b>${d.netProfit}€</b> | ROI : <b>${d.roi}%</b>\n` +
             (d.bsr ? `📊 BSR : ${Number(d.bsr).toLocaleString('fr')}\n` : '') +
             (d.retailLink ? `\n🔗 <a href="${d.retailLink}">Voir le deal</a> | ` : '\n') +
-            `<a href="${d.amazonLink}">Amazon.de</a>`;
+            `<a href="${d.amazonLink}">${MP_DOMAIN[d.marketplace] || 'amazon.de'}</a>`;
         await sendTelegram(msg);
     }
 

@@ -466,16 +466,40 @@ function updateMarketplaceLabels() {
 // Dashboard charges fixes (bandeau persistant en haut de toutes les sections OA)
 let oaCurrentPeriod = 'month';
 
+function initMonthSelector() {
+    var sel = document.getElementById('oa-month-select');
+    if (!sel) return;
+    var now = new Date();
+    var options = '';
+    for (var i = 0; i < 12; i++) {
+        var d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        var val = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+        var label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+        options += '<option value="' + val + '">' + label + '</option>';
+    }
+    options += '<option value="all">Tout</option>';
+    sel.innerHTML = options;
+    // Selectionner le mois courant par defaut
+    var currentYM = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    sel.value = currentYM;
+    oaCurrentPeriod = currentYM;
+}
+
+function setOAPeriodMonth(value) {
+    oaCurrentPeriod = value;
+    updateFixedChargesDashboard();
+}
+
+// Garde la compatibilité avec l'ancien setOAPeriod (appele depuis d'autres endroits)
 function setOAPeriod(period) {
     oaCurrentPeriod = period;
-    // Mettre a jour les boutons actifs
-    document.querySelectorAll('.oa-period-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.period === period);
-    });
     updateFixedChargesDashboard();
 }
 
 function getDateFilter(period) {
+    // YYYY-MM direct (selecteur de mois)
+    if (period && period.match(/^\d{4}-\d{2}$/)) return period;
     const now = new Date();
     if (period === 'month') {
         return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
@@ -489,6 +513,11 @@ function getDateFilter(period) {
 }
 
 function getPeriodLabel(period) {
+    if (period && period.match(/^\d{4}-\d{2}$/)) {
+        var d = new Date(period + '-01');
+        var label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+        return label.charAt(0).toUpperCase() + label.slice(1);
+    }
     if (period === 'month') return 'ce mois';
     if (period === 'lastmonth') return 'mois dernier';
     if (period === 'year') return 'cette annee';
@@ -498,10 +527,16 @@ function getPeriodLabel(period) {
 // Retourne le nombre de mois TERMINES (charges prelevees fin de mois)
 function getCompletedMonths(period) {
     const now = new Date();
-    if (period === 'month') return 0;       // mois en cours = pas encore preleve
-    if (period === 'lastmonth') return 1;    // mois dernier = deja preleve
-    if (period === 'year') return now.getMonth(); // mois termines cette annee (jan=0 si on est en jan, etc.)
-    return 0; // 'all' — on calcule ci-dessous
+    if (period && period.match(/^\d{4}-\d{2}$/)) {
+        var d = new Date(period + '-01');
+        // Mois en cours = pas encore preleve
+        var isCurrentMonth = (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth());
+        return isCurrentMonth ? 0 : 1;
+    }
+    if (period === 'month') return 0;
+    if (period === 'lastmonth') return 1;
+    if (period === 'year') return now.getMonth();
+    return 0; // 'all' — calcule ci-dessous
 }
 
 function updateFixedChargesDashboard() {
@@ -5866,6 +5901,8 @@ function renderBlobList(listId, emptyId, countId, items) {
 // ============================================================
 
 async function loadOAAccueil() {
+    initMonthSelector();
+
     // Stats pipeline
     try {
         var resp = await fetch('/.netlify/functions/catalog-read?mode=stats');
@@ -5883,7 +5920,7 @@ async function loadOAAccueil() {
         var actResp = await fetch('/.netlify/functions/portfolio-read?include=activity');
         var actData = actResp.ok ? await actResp.json() : {};
         var activity = actData.activity || [];
-        ['catalog', 'enricher', 'leader'].forEach(function(agent) {
+        ['catalog', 'enricher', 'sourcing', 'leader'].forEach(function(agent) {
             var last = activity.find(function(e) { return e.agent === agent; });
             var lastEl   = document.getElementById('accueil-' + agent + '-last');
             var statusEl = document.getElementById('accueil-' + agent + '-status');
@@ -5900,7 +5937,7 @@ async function loadOAAccueil() {
         var catResp = await fetch('/.netlify/functions/catalog-read?mode=enriched');
         var catData = catResp.ok ? await catResp.json() : {};
         var deals = (catData.products || [])
-            .filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; })
+            .filter(function(p) { return p.netProfit >= 2 && p.roi >= 25; })
             .sort(function(a, b) { return (b.netProfit || 0) - (a.netProfit || 0); })
             .slice(0, 5);
         var container = document.getElementById('accueil-top-deals');

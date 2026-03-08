@@ -341,7 +341,7 @@ exports.handler = async () => {
         agent:   'catalog',
         retailer: retailerToProcess.name,
         summary: `${totalScraped} produits scrapés · ${totalWithEan} avec EAN · ${totalNoEan} sans EAN`,
-        stats:   { scraped: totalScraped, withEan: totalWithEan, noEan: totalNoEan }
+        stats:   { scraped: totalScraped, withEan: totalWithEan, noEan: totalNoEan, matched: totalWithEan }
     });
     await writeBlob(activityStore, 'log', activity.slice(0, 100));
 
