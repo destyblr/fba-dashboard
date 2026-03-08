@@ -61,7 +61,8 @@ exports.handler = async (event) => {
         }
 
         // Source selon le mode
-        const source = mode === 'raw' ? rawProducts : enrichedProducts;
+        // 'raw' = tous les produits scrapés (avec EAN + sans EAN) — le frontend filtre p.ean pour le mode 'ean'
+        const source = mode === 'raw' ? [...rawProducts, ...noEanProducts] : enrichedProducts;
 
         // Filtrer
         let filtered = source.filter(p => {
