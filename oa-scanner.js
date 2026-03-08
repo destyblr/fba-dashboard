@@ -6788,7 +6788,7 @@ function catalogPage(dir) {
 
 function updateCatalogFilters() {
     var all          = catalogData.length;
-    var profitable   = catalogData.filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; }).length;
+    var profitable   = catalogData.filter(function(p) { return p.netProfit >= 2 && p.roi >= 25; }).length;
     var amazonAbsent = catalogData.filter(function(p) { return p.asin && !p.amazonIsSeller; }).length;
     var setBtn = function(id, label, count) {
         var btn = document.getElementById(id);
@@ -6843,7 +6843,7 @@ function renderCatalogTable() {
 
     // Filtre mode
     if (catalogFilterMode === 'profitable') {
-        data = data.filter(function(p) { return p.netProfit >= 5 && p.roi >= 30; });
+        data = data.filter(function(p) { return p.netProfit >= 2 && p.roi >= 25; });
     } else if (catalogFilterMode === 'amazon-absent') {
         data = data.filter(function(p) { return p.asin && !p.amazonIsSeller; });
     }
@@ -6891,7 +6891,7 @@ function renderCatalogTable() {
 
     tbody.innerHTML = data.map(function(p) {
         var marge       = (p.amazonPrice && p.netProfit != null) ? (p.netProfit / p.amazonPrice * 100) : null;
-        var profitable  = p.netProfit >= 5 && p.roi >= 30;
+        var profitable  = p.netProfit >= 2 && p.roi >= 25;
         var profitClass = profitable ? 'text-green-600 font-bold' : (p.netProfit > 0 ? 'text-gray-600' : 'text-red-500');
         var img = p.image ? '<img src="' + p.image + '" class="w-10 h-10 object-contain rounded mr-2 flex-shrink-0" onerror="this.style.display=\'none\'">' : '';
 

@@ -112,7 +112,7 @@ async function tool_get_pipeline_stats() {
         const raw = await catalogStore.get('raw-products', { type: 'json' }) || [];
         const enriched = await catalogStore.get('enriched-products', { type: 'json' }) || [];
         const withEan = raw.filter(p => p.ean).length;
-        return { rawTotal: raw.length, withEan, enrichedTotal: enriched.length, profitable: enriched.filter(p => p.profit > 5).length };
+        return { rawTotal: raw.length, withEan, enrichedTotal: enriched.length, profitable: enriched.filter(p => p.netProfit >= 2 && p.roi >= 25).length };
     } catch (e) { return { error: e.message }; }
 }
 
@@ -188,7 +188,7 @@ Réponds de façon concise et professionnelle à la consigne de l'utilisateur. C
     sourcing: {
         name: 'Agent Sourcing',
         system: `Tu es l'Agent Sourcing d'un dashboard Amazon FBA OA (Online Arbitrage).
-Tu analyses les produits enrichis du pipeline, calcules la rentabilité (profit, ROI, FBA fees) et envoies des alertes Telegram pour les deals avec profit > 5€ et ROI > 35%.
+Tu analyses les produits enrichis du pipeline, calcules la rentabilité (profit, ROI, FBA fees) et envoies des alertes Telegram pour les deals avec profit > 2€ et ROI > 25%.
 Réponds de façon concise et professionnelle à la consigne de l'utilisateur. Confirme ce que tu vas appliquer comme critères ou priorités. Max 3 phrases.`
     },
     leader: {
@@ -206,7 +206,7 @@ Réponds de façon concise et professionnelle à la consigne de l'utilisateur. C
     deals: {
         name: 'Agent Sourcing',
         system: `Tu es l'Agent Sourcing d'un dashboard Amazon FBA OA (Online Arbitrage).
-Tu analyses les produits enrichis du pipeline, calcules la rentabilité (profit, ROI, FBA fees) et envoies des alertes Telegram pour les deals avec profit > 5€ et ROI > 35%.
+Tu analyses les produits enrichis du pipeline, calcules la rentabilité (profit, ROI, FBA fees) et envoies des alertes Telegram pour les deals avec profit > 2€ et ROI > 25%.
 Réponds de façon concise et professionnelle à la consigne de l'utilisateur. Confirme ce que tu vas appliquer comme critères ou priorités. Max 3 phrases.`
     }
 };

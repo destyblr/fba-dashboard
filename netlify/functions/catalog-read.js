@@ -38,7 +38,7 @@ exports.handler = async (event) => {
             rawTotal:       rawProducts.length,
             withEan:        rawProducts.filter(p => p.ean).length,
             enrichedTotal:  enrichedProducts.length,
-            profitable:     enrichedProducts.filter(p => p.netProfit >= 5 && p.roi >= 30).length,
+            profitable:     enrichedProducts.filter(p => p.netProfit >= 2 && p.roi >= 25).length,
             // Compat ancien format
             total:          enrichedProducts.length,
             matched:        enrichedProducts.filter(p => p.asin).length,
