@@ -186,21 +186,21 @@ async function getSitemapFromRobots(baseUrl) {
     } catch { return []; }
 }
 
-async function fetchSitemapUrls(baseUrl, maxUrls, overrideSitemapUrl) {
+async function fetchSitemapUrls(baseUrl, maxUrls, overrideSitemapUrl, scraperSitemap = false) {
     // 0. Chercher les sitemaps déclarés dans robots.txt (le plus fiable)
     const robotsSitemaps = await getSitemapFromRobots(baseUrl);
 
     // URLs depuis robots.txt = connues valides → ScraperAPI autorisé si 403/502
-    // Candidats hardcodés = guesses → direct seulement (ScraperAPI sur URL inexistante = crédit gaspillé)
+    // Candidats hardcodés = guesses → ScraperAPI seulement si scraperSitemap=true (gros retailers anti-bot)
     const candidates = [
         ...(overrideSitemapUrl ? [{ url: overrideSitemapUrl, scraperFallback: true }] : []),
         ...robotsSitemaps.map(u => ({ url: u, scraperFallback: true })),
-        { url: baseUrl + '/sitemap.xml' },
-        { url: baseUrl + '/sitemap_index.xml' },
-        { url: baseUrl + '/sitemap-index.xml' },
-        { url: baseUrl + '/sitemap_products.xml' },
-        { url: baseUrl + '/sitemap-products.xml' },
-        { url: baseUrl + '/fr/sitemap.xml' },
+        { url: baseUrl + '/sitemap.xml',          scraperFallback: scraperSitemap },
+        { url: baseUrl + '/sitemap_index.xml',    scraperFallback: scraperSitemap },
+        { url: baseUrl + '/sitemap-index.xml',    scraperFallback: scraperSitemap },
+        { url: baseUrl + '/sitemap_products.xml', scraperFallback: scraperSitemap },
+        { url: baseUrl + '/sitemap-products.xml', scraperFallback: scraperSitemap },
+        { url: baseUrl + '/fr/sitemap.xml',       scraperFallback: scraperSitemap },
     ];
 
     // Extrait les entrées {url, lastmod} depuis un XML de sitemap
@@ -340,7 +340,7 @@ exports.handler = async () => {
     const maxP = Math.min(retailerToProcess.maxProducts || 30, 30); // plafonné à 30 pour respecter le timeout 60s
 
     // Récupère toutes les URLs du sitemap (jusqu'à 5000 pour la rotation)
-    const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000, retailerToProcess.sitemapUrl);
+    const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000, retailerToProcess.sitemapUrl, retailerToProcess.scraperSitemap === true);
 
     // ── Mettre à jour le statut sitemap du retailer dans le blob ───────────
     const rIdx = retailers.findIndex(r => r.id === retailerToProcess.id);

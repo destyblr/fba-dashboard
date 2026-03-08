@@ -64,10 +64,10 @@ const DEFAULT_RETAILERS = [
     { id: 'topachat',           name: 'Top Achat',         url: 'https://www.topachat.com',            type: 'generic',    category: 'informatique', days: [0,4],   maxProducts: 30, active: true },
     { id: 'materielnet',        name: 'Materiel.net',      url: 'https://www.materiel.net',            type: 'generic',    category: 'informatique', days: [3,6],   maxProducts: 30, active: true },
     { id: 'ldlc',               name: 'LDLC',              url: 'https://www.ldlc.com',                type: 'generic',    category: 'informatique', days: [1,5],   maxProducts: 30, active: true },
-    { id: 'fnac',               name: 'Fnac',              url: 'https://www.fnac.com',                type: 'generic',    category: 'informatique', days: [2,5],   maxProducts: 30, active: true },
-    { id: 'darty',              name: 'Darty',             url: 'https://www.darty.com',               type: 'generic',    category: 'informatique', days: [0,3],   maxProducts: 30, active: true },
-    { id: 'boulanger',          name: 'Boulanger',         url: 'https://www.boulanger.com',           type: 'generic',    category: 'informatique', days: [1,4],   maxProducts: 30, active: true },
-    { id: 'rueducommerce',      name: 'Rue du Commerce',   url: 'https://www.rueducommerce.fr',        type: 'generic',    category: 'informatique', days: [0,4],   maxProducts: 30, active: true },
+    { id: 'fnac',               name: 'Fnac',              url: 'https://www.fnac.com',                type: 'generic',    category: 'informatique', days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'darty',              name: 'Darty',             url: 'https://www.darty.com',               type: 'generic',    category: 'informatique', days: [0,3],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'boulanger',          name: 'Boulanger',         url: 'https://www.boulanger.com',           type: 'generic',    category: 'informatique', days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'rueducommerce',      name: 'Rue du Commerce',   url: 'https://www.rueducommerce.fr',        type: 'generic',    category: 'informatique', days: [0,4],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── ANIMALERIE — Royal Canin, Hill's, Purina rentables ──────────────────
     { id: 'zoomalia',           name: 'Zoomalia',          url: 'https://www.zoomalia.com',            type: 'prestashop', category: 'animalerie',   days: [0,3],   maxProducts: 30, active: true, sitemapUrl: 'https://www.zoomalia.com/1_index_sitemap.xml' },
@@ -96,11 +96,11 @@ const DEFAULT_RETAILERS = [
     { id: 'plantes-et-jardins', name: 'Plantes & Jardins', url: 'https://www.plantes-et-jardins.com', type: 'prestashop', category: 'jardin',       days: [3,6],   maxProducts: 30, active: true },
 
     // ── GRANDS RETAILERS MULTI-CATÉGORIES ───────────────────────────────────
-    { id: 'leclerc',            name: 'E.Leclerc',         url: 'https://www.e.leclerc',               type: 'generic',    category: 'multi',        days: [3,6],   maxProducts: 30, active: true },
-    { id: 'cdiscount',          name: 'Cdiscount',         url: 'https://www.cdiscount.com',           type: 'generic',    category: 'multi',        days: [2,6],   maxProducts: 30, active: true },
-    { id: 'carrefour',          name: 'Carrefour',         url: 'https://www.carrefour.fr',            type: 'generic',    category: 'multi',        days: [1,4],   maxProducts: 30, active: true },
-    { id: 'conforama',          name: 'Conforama',         url: 'https://www.conforama.fr',            type: 'generic',    category: 'maison',       days: [0,5],   maxProducts: 30, active: true },
-    { id: 'manomano',           name: 'ManoMano',          url: 'https://www.manomano.fr',             type: 'generic',    category: 'bricolage',    days: [0,6],   maxProducts: 30, active: true },
+    { id: 'leclerc',            name: 'E.Leclerc',         url: 'https://www.e.leclerc',               type: 'generic',    category: 'multi',        days: [3,6],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'cdiscount',          name: 'Cdiscount',         url: 'https://www.cdiscount.com',           type: 'generic',    category: 'multi',        days: [2,6],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'carrefour',          name: 'Carrefour',         url: 'https://www.carrefour.fr',            type: 'generic',    category: 'multi',        days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'conforama',          name: 'Conforama',         url: 'https://www.conforama.fr',            type: 'generic',    category: 'maison',       days: [0,5],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'manomano',           name: 'ManoMano',          url: 'https://www.manomano.fr',             type: 'generic',    category: 'bricolage',    days: [0,6],   maxProducts: 30, active: true, scraperSitemap: true },
     // decathlon: marque propre (Quechua, Domyos…) — non-revendable
     // maisonsdumonde: marque propre — non-revendable
     // natureetdecouvertes: marque propre — non-revendable
