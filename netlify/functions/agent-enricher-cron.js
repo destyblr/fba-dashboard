@@ -37,7 +37,7 @@ const DOMAIN_LINKS = { 3: 'amazon.de', 4: 'amazon.fr', 8: 'amazon.it', 9: 'amazo
 // ─── Keepa lookup pour un domaine ────────────────────────────────────────
 async function keepaDomainLookup(ean, keepaKey, domain) {
     try {
-        const url = `https://api.keepa.com/product?key=${keepaKey}&domain=${domain}&ean=${ean}&stats=1&history=0`;
+        const url = `https://api.keepa.com/product?key=${keepaKey}&domain=${domain}&code=${ean}&stats=1&history=0`;
         const resp = await fetch(url, { timeout: 12000 });
         const data = await resp.json();
         if (data.error) console.warn(`[Enricher] Keepa error domain=${domain} ean=${ean}:`, JSON.stringify(data.error));
