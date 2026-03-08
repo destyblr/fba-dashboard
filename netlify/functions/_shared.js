@@ -13,19 +13,31 @@ function getInboundCost(weightGrams) {
     return 4.50;
 }
 
+// ─── Surcharge EFN (European Fulfillment Network) depuis FR vers autre MP ─────
+// Source : grille tarifaire Amazon EFN 2024 (envoi depuis France)
+function getEfnCost(weightGrams) {
+    if (!weightGrams || weightGrams <= 0) return 2.17; // fallback sans données poids
+    if (weightGrams < 500)  return 1.58;
+    if (weightGrams < 3000) return 2.17;
+    if (weightGrams < 5000) return 3.86;
+    return 6.00;
+}
+
 // ─── Calcul profit FBA (micro-entreprise BIC, URSSAF 12.2% du CA) ────────────
-function calcProfit(buyPrice, sellPrice, category, weightGrams) {
+// marketplace : 'FR' | 'DE' | 'IT' | 'ES' — si != 'FR', ajoute frais EFN
+function calcProfit(buyPrice, sellPrice, category, weightGrams, marketplace) {
     if (!buyPrice || !sellPrice || sellPrice <= 0) return null;
     const commissionRate = (category || '').toLowerCase().match(/electron|informatiq|high.tech/) ? 0.08 : 0.15;
     const commission     = sellPrice * commissionRate;
     const fbaFees        = sellPrice < 10 ? 2.50 : sellPrice < 30 ? 3.50 : 4.80;
     const inbound        = getInboundCost(weightGrams);
+    const efn            = (marketplace && marketplace !== 'FR') ? getEfnCost(weightGrams) : 0;
     const prep           = 0.25;
     const urssaf         = sellPrice * 0.122; // 12.2% du CA (micro-BIC achat-revente)
-    const totalCosts     = buyPrice + commission + fbaFees + inbound + prep + urssaf;
+    const totalCosts     = buyPrice + commission + fbaFees + inbound + efn + prep + urssaf;
     const netProfit      = sellPrice - totalCosts;
     const roi            = buyPrice > 0 ? (netProfit / buyPrice) * 100 : 0;
-    return { netProfit: +netProfit.toFixed(2), roi: +roi.toFixed(1) };
+    return { netProfit: +netProfit.toFixed(2), roi: +roi.toFixed(1), efn: +efn.toFixed(2) };
 }
 
 // ─── Retailers par défaut ─────────────────────────────────────────────────
@@ -81,4 +93,4 @@ const DEFAULT_RETAILERS = [
     { id: 'natureetdecouvertes',name: 'Nature & Découvertes', url: 'https://www.natureetdecouvertes.com', type: 'generic', category: 'culture',     days: [3,6],   maxProducts: 30, active: true },
 ];
 
-module.exports = { calcProfit, getInboundCost, MIN_PROFIT, MIN_ROI, DEFAULT_RETAILERS };
+module.exports = { calcProfit, getInboundCost, getEfnCost, MIN_PROFIT, MIN_ROI, DEFAULT_RETAILERS };

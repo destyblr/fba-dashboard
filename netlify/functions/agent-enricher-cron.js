@@ -182,7 +182,7 @@ exports.handler = async () => {
         if (keepa.tokensLeft !== null) lastTokens = keepa.tokensLeft;
 
         const profit = keepa.amazonPrice
-            ? calcProfit(product.price, keepa.amazonPrice, keepa.category, keepa.packageWeight)
+            ? calcProfit(product.price, keepa.amazonPrice, keepa.category, keepa.packageWeight, keepa.bestMarketplace)
             : null;
 
         const enriched = {
