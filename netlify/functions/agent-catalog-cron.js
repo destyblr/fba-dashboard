@@ -83,10 +83,35 @@ function parseProduct(jsonld, retailerName, retailerUrl) {
     } catch { return null; }
 }
 
+// ─── Extraction EAN depuis HTML brut (fallback si JSON-LD sans EAN) ─────────
+function extractEanFromHtml(html) {
+    const patterns = [
+        /"gtin13"\s*:\s*"(\d{8,14})"/,
+        /"gtin8"\s*:\s*"(\d{8,14})"/,
+        /"gtin"\s*:\s*"(\d{8,14})"/,
+        /"ean"\s*:\s*"(\d{8,14})"/,
+        /"barcode"\s*:\s*"(\d{8,14})"/,
+        /data-ean="(\d{8,14})"/,
+        /data-barcode="(\d{8,14})"/,
+        /itemprop="gtin13"[^>]*content="(\d{8,14})"/,
+        /content="(\d{13})"[^>]*itemprop="gtin13"/,
+    ];
+    for (const re of patterns) {
+        const m = html.match(re);
+        if (m?.[1] && m[1].length >= 8) return m[1];
+    }
+    return null;
+}
+
 // ─── Scrape sitemap.xml d'un retailer (gère sitemap index) ─────────────────
 function isProductUrl(url) {
-    return url.match(/\/(p|produit[s]?|product[s]?|catalogue|shop|artikel|item|fiche)\/|\/[^/]+-\d{3,}(\.html?)?$|\/[^/?]{10,}(\.html?)$/i)
-        && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$|outlet|occasion|reconditionn|destockage|pack-promo/i);
+    return url.match(
+        /\/(p|produit[s]?|product[s]?|catalogue|shop|artikel|item|fiche)\// // segment /produit/ etc.
+        + /|\/[^/]+-\d{3,}(\.html?)?$/.source                               // slug-123 ou slug-123.html
+        + /|\/[^/?]{10,}\.html?$/.source                                     // anything.html (10+ chars)
+        + /|\/[^/]+\/[^/?]{20,}$/.source                                     // categorie/nom-produit-long
+    , 'i')
+    && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$|outlet|occasion|reconditionn|destockage|pack-promo/i);
 }
 
 async function fetchXml(url, allowScraperFallback = false) {
@@ -252,7 +277,7 @@ async function scrapeProductPage(url) {
         const resp = await fetch(fetchUrl, { timeout: 15000 });
         if (!resp.ok) return null;
         const html = await resp.text();
-        return extractJsonLD(html);
+        return { jsonlds: extractJsonLD(html), html };
     } catch { return null; }
 }
 
@@ -343,12 +368,12 @@ exports.handler = async () => {
         for (let i = 0; i < batch.length; i += CHUNK_SIZE) {
             const chunk   = batch.slice(i, i + CHUNK_SIZE);
             const results = await Promise.all(chunk.map(async (url) => {
-                const jsonlds = await scrapeProductPage(url);
+                const result = await scrapeProductPage(url);
                 seenUrls.add(url);
-                return { url, jsonlds };
+                return { url, jsonlds: result?.jsonlds ?? null, html: result?.html ?? null };
             }));
 
-            for (const { url, jsonlds } of results) {
+            for (const { url, jsonlds, html } of results) {
                 if (debugSample) {
                     if (!jsonlds) { console.log(`[Catalog] DEBUG ${url} → null (fetch failed)`); }
                     else if (jsonlds.length === 0) {
@@ -367,6 +392,11 @@ exports.handler = async () => {
                     const product = parseProduct(jld, retailerToProcess.name, retailerToProcess.url);
                     if (!product) continue;
                     totalScraped++;
+
+                    // Fallback EAN : cherche dans le HTML brut si JSON-LD n'a pas d'EAN
+                    if (!product.ean && html) {
+                        product.ean = extractEanFromHtml(html);
+                    }
 
                     if (!product.ean) {
                         noEanProducts.push({ ...product, scrapedAt: Date.now() });
