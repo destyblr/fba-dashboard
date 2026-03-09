@@ -53,7 +53,7 @@ const DEFAULT_RETAILERS = [
     // ── JOUETS / LOISIRS — meilleure catégorie OA FR→DE/IT ──────────────────
     { id: '1001hobbies',        name: '1001Hobbies',       url: 'https://www.1001hobbies.fr',          type: 'prestashop', category: 'jouets',       days: [0,3,5], maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.1001hobbies.fr/sitemap_indexFR.xml' },
     { id: 'joueclub',           name: 'Joué Club',         url: 'https://www.joueclub.fr',             type: 'prestashop', category: 'jouets',       days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true },
-    { id: 'kingjouet',          name: 'King Jouet',        url: 'https://www.king-jouet.com',          type: 'generic',    category: 'jouets',       days: [0,3],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'kingjouet',          name: 'King Jouet',        url: 'https://www.king-jouet.com',          type: 'generic',    category: 'jouets',       days: [0,6],   maxProducts: 30, active: true, scraperSitemap: true },
     { id: 'lagranderecre',      name: 'La Grande Récré',   url: 'https://www.lagranderecre.fr',        type: 'generic',    category: 'jouets',       days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
     { id: 'maxitoys',           name: 'Maxi Toys',         url: 'https://www.maxitoys.fr',             type: 'prestashop', category: 'jouets',       days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.maxitoys.fr/1_index_sitemap.xml' },
     { id: 'picwictoys',         name: 'Picwic Toys',       url: 'https://www.picwictoys.com',          type: 'prestashop', category: 'jouets',       days: [2,6],   maxProducts: 30, active: true, scraperSitemap: true },
@@ -92,7 +92,7 @@ const DEFAULT_RETAILERS = [
     { id: 'bambinou',           name: 'Bambinou',          url: 'https://www.bambinou.com',            type: 'prestashop', category: 'bebe',         days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── JARDINAGE ───────────────────────────────────────────────────────────
-    { id: 'jardindeco',         name: 'Jardindeco',        url: 'https://www.jardindeco.com',          type: 'prestashop', category: 'jardin',       days: [1,5],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'jardindeco',         name: 'Jardindeco',        url: 'https://www.jardindeco.com',          type: 'prestashop', category: 'jardin',       days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true },
     { id: 'plantes-et-jardins', name: 'Plantes & Jardins', url: 'https://www.plantes-et-jardins.com', type: 'prestashop', category: 'jardin',       days: [3,6],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── GRANDS RETAILERS MULTI-CATÉGORIES ───────────────────────────────────
@@ -100,7 +100,7 @@ const DEFAULT_RETAILERS = [
     // carrefour: timeout TCP complet (bloqué au niveau réseau)
     // manomano: sitemap 403 + ScraperAPI 404
     { id: 'leclerc',            name: 'E.Leclerc',         url: 'https://www.e.leclerc',               type: 'generic',    category: 'multi',        days: [3,6],   maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.e.leclerc/sitemap/sitemap-index.xml' },
-    { id: 'conforama',          name: 'Conforama',         url: 'https://www.conforama.fr',            type: 'generic',    category: 'maison',       days: [0,5],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'conforama',          name: 'Conforama',         url: 'https://www.conforama.fr',            type: 'generic',    category: 'maison',       days: [0,4],   maxProducts: 30, active: true, scraperSitemap: true },
     // decathlon: marque propre (Quechua, Domyos…) — non-revendable
     // maisonsdumonde: marque propre — non-revendable
     // natureetdecouvertes: marque propre — non-revendable
