@@ -6895,8 +6895,9 @@ function renderCatalogTable() {
         var img = p.image ? '<img src="' + p.image + '" class="w-8 h-8 object-contain rounded flex-shrink-0" onerror="this.style.display=\'none\'">' : '<div class="w-8 h-8 bg-gray-100 rounded flex-shrink-0"></div>';
         var discountBadge = p.discount ? '<span class="bg-orange-100 text-orange-600 text-xs font-bold px-1.5 rounded-full ml-1">-' + p.discount + '%</span>' : '';
         var titleText = (p.amazonTitle || p.title || '').slice(0, 52);
-        var titleLink = p.retailerLink
-            ? '<a href="' + p.retailerLink + '" target="_blank" class="font-medium text-gray-800 hover:text-indigo-600 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</a>'
+        var rLink = p.retailerLink || (p.link && !String(p.link).includes('amazon.') ? p.link : null) || p.retailerUrl;
+        var titleLink = rLink
+            ? '<a href="' + rLink + '" target="_blank" class="font-medium text-gray-800 hover:text-indigo-600 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</a>'
             : '<span class="font-medium text-gray-800 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</span>';
 
         // Colonne Achat
@@ -6948,8 +6949,8 @@ function renderCatalogTable() {
                 ? '<span class="text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5 font-semibold">✗ Restreint</span>'
                 : '<span class="text-xs text-gray-300" title="Connexion SP-API requise — à configurer dans Paramètres">À vérif.</span>';
 
-        // Colonne Actions
-        var retailerLink = p.retailerLink || p.retailerUrl;
+        // Colonne Actions — retailerLink avec fallbacks pour anciens produits
+        var retailerLink = p.retailerLink || (p.link && !String(p.link).includes('amazon.') ? p.link : null) || p.retailerUrl;
         var actionsCol = '<div class="flex flex-col gap-1 items-center">' +
             (retailerLink ? '<a href="' + retailerLink + '" target="_blank" class="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs w-full text-center">Retailer ↗</a>' : '') +
             (amzUrl  ? '<a href="' + amzUrl  + '" target="_blank" class="px-2 py-0.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs w-full text-center">Amazon ↗</a>' : '') +

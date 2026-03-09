@@ -68,10 +68,10 @@ async function keepaDomainLookup(ean, keepaKey, domain) {
             buyBoxSellerId,
             amazonIsSeller,
             packageWeight:   p.packageWeight > 0 ? p.packageWeight : null, // grammes
-            link:            `https://www.${DOMAIN_LINKS[domain]}/dp/${p.asin}`,
+            amazonLink:      `https://www.${DOMAIN_LINKS[domain]}/dp/${p.asin}`,
             tokensLeft:      data.tokensLeft ?? null,
         };
-    } catch { return { price: null, tokensLeft: null }; }
+    } catch { return { amazonPrice: null, tokensLeft: null }; }
 }
 
 // ─── Keepa multi-marketplace : retourne la meilleure MP parmi DE/FR/IT/ES ─
@@ -145,9 +145,16 @@ exports.handler = async () => {
     }
 
     // Filtrer : produits avec EAN non encore enrichis OU enrichis il y a > 7 jours
+    // OU enrichis sans retailerLink (ancien bug price overwrite → forcer recalcul)
     const SEVEN_DAYS = 7 * 24 * 3600 * 1000;
+    const enrichedMap = {};
+    for (const p of enrichedProducts) { if (p.ean) enrichedMap[p.ean] = p; }
     const toEnrich = rawProducts.filter(p =>
-        p.ean && (!enrichedIndex[p.ean] || Date.now() - enrichedIndex[p.ean] > SEVEN_DAYS)
+        p.ean && (
+            !enrichedIndex[p.ean] ||
+            Date.now() - enrichedIndex[p.ean] > SEVEN_DAYS ||
+            !enrichedMap[p.ean]?.retailerLink  // pas de retailerLink = ancien bug
+        )
     );
 
     // Batch dynamique selon les tokens Keepa disponibles (4 appels/produit × DE+FR+IT+ES)
