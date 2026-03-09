@@ -182,7 +182,7 @@ function isProductUrl(url) {
         + /|\/[^/?]{10,}\.html?$/.source                                     // anything.html (10+ chars)
         + /|\/[^/]+\/[^/?]{20,}$/.source                                     // categorie/nom-produit-long
     , 'i')
-    && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$|outlet|occasion|reconditionn|destockage|pack-promo/i);
+    && !url.match(/\/categori|\/category|\/tag|\/marque|\/brand|\/blog|\/news|\/page\/|sitemap|\.xml$|outlet|\/occasion|reconditionn|destockage|pack-promo/i);
 }
 
 async function fetchXml(url, allowScraperFallback = false) {
