@@ -177,7 +177,7 @@ function extractOriginalPriceFromHtml(html) {
 // ─── Scrape sitemap.xml d'un retailer (gère sitemap index) ─────────────────
 function isProductUrl(url) {
     return url.match(
-        /\/(p|produit[s]?|product[s]?|catalogue|shop|artikel|item|fiche)\// // segment /produit/ etc.
+        /\/(p|fp|produit[s]?|product[s]?|catalogue|shop|artikel|item|fiche)\// // segment /produit/ etc. + /fp/ pour E.Leclerc
         + /|\/[^/]+-\d{3,}(\.html?)?$/.source                               // slug-123 ou slug-123.html
         + /|\/[^/?]{10,}\.html?$/.source                                     // anything.html (10+ chars)
         + /|\/[^/]+\/[^/?]{20,}$/.source                                     // categorie/nom-produit-long
@@ -213,7 +213,7 @@ async function fetchXml(url, allowScraperFallback = false) {
         // (URLs connues via robots.txt — pas les candidats hardcodés qui peuvent ne pas exister)
         if (allowScraperFallback && [403, 502, 503].includes(status) && scraperKey) {
             console.log(`[Catalog] fetchXml ${url} → ${status}, retry via ScraperAPI`);
-            const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 25000 });
+            const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 12000 });
             console.log(`[Catalog] fetchXml (ScraperAPI) ${url} → ${resp2.status}`);
             if (!resp2.ok) return null;
             const text2 = await resp2.text();
