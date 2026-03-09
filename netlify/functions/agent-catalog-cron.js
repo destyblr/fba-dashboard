@@ -98,19 +98,37 @@ function parseProduct(jsonld, retailerName, retailerUrl, html) {
 // ─── Extraction EAN depuis HTML brut (fallback si JSON-LD sans EAN) ─────────
 function extractEanFromHtml(html) {
     const patterns = [
+        // JSON-LD inline
         /"gtin13"\s*:\s*"(\d{8,14})"/,
         /"gtin8"\s*:\s*"(\d{8,14})"/,
         /"gtin"\s*:\s*"(\d{8,14})"/,
         /"ean"\s*:\s*"(\d{8,14})"/,
         /"barcode"\s*:\s*"(\d{8,14})"/,
+        /"isbn"\s*:\s*"(\d{8,14})"/,
+        // PrestaShop reference quand c'est un EAN13 (13 chiffres)
+        /"reference"\s*:\s*"(\d{13})"/,
+        // Attributs data-*
         /data-ean="(\d{8,14})"/,
         /data-barcode="(\d{8,14})"/,
+        /data-product-ean="(\d{8,14})"/,
+        /data-gtin="(\d{8,14})"/,
+        /data-isbn="(\d{8,14})"/,
+        // Microdata / itemprop
         /itemprop="gtin13"[^>]*content="(\d{8,14})"/,
         /content="(\d{13})"[^>]*itemprop="gtin13"/,
+        // Meta tags
+        /<meta[^>]+name="[^"]*ean[^"]*"[^>]+content="(\d{8,14})"/i,
+        /<meta[^>]+content="(\d{13})"[^>]+name="[^"]*ean[^"]*"/i,
+        // Variables JS / window.dataLayer
+        /['"](ean|EAN|gtin|GTIN)['"]\s*:\s*['"](\d{8,14})['"]/,
+        // Aubert / sites custom
+        /"product_ean"\s*:\s*"(\d{8,14})"/,
+        /"ean_code"\s*:\s*"(\d{8,14})"/,
     ];
     for (const re of patterns) {
         const m = html.match(re);
-        if (m?.[1] && m[1].length >= 8) return m[1];
+        const val = m?.[2] || m?.[1]; // group 2 pour le pattern avec clé variable
+        if (val && val.length >= 8) return val;
     }
     return null;
 }
@@ -122,20 +140,34 @@ function extractOriginalPriceFromHtml(html) {
         /"price_without_reduction"\s*:\s*"?([\d]+[.,][\d]*)"?/,
         /"originalPrice"\s*:\s*"?([\d]+[.,][\d]*)"?/,
         /"regular_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"priceBeforeDiscount"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"initial_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"list_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"base_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"old_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"normal_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"full_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        /"crossed_price"\s*:\s*"?([\d]+[.,][\d]*)"?/,
+        // Shopify compare_at_price (en centimes → diviser par 100)
+        /"compare_at_price"\s*:\s*(\d{4,6})[^.]/,
         // Attributs data-*
         /data-original-price="([\d]+[.,][\d]*)"/,
         /data-regular-price="([\d]+[.,][\d]*)"/,
         /data-price-without-reduction="([\d]+[.,][\d]*)"/,
+        /data-compare-price="([\d]+[.,][\d]*)"/,
+        /data-base-price="([\d]+[.,][\d]*)"/,
         // HTML sémantique — balises strikethrough
         /<del[^>]*>(?:[^<]|<(?!\/del))*?([\d]+[.,][\d]*)\s*€/i,
         /<s\b[^>]*>(?:[^<]|<(?!\/s))*?([\d]+[.,][\d]*)\s*€/i,
         // Classes CSS communes pour les prix barrés
-        /<[^>]+class="[^"]*(?:regular-price|old-price|price-old|prix-barre|was-price|crossed-out|strikethrough)[^"]*"[^>]*>(?:[^<]|<(?!\/[a-z]))*?([\d]+[.,][\d]*)\s*€/i,
+        /<[^>]+class="[^"]*(?:regular-price|old-price|price-old|prix-barre|was-price|crossed-out|strikethrough|price-before)[^"]*"[^>]*>(?:[^<]|<(?!\/[a-z]))*?([\d]+[.,][\d]*)\s*€/i,
     ];
     for (const re of patterns) {
         const m = html.match(re);
         if (m?.[1]) {
-            const p = parseFloat(m[1].replace(',', '.'));
+            let p = parseFloat(m[1].replace(',', '.'));
+            // Shopify compare_at_price est en centimes
+            if (re.source.includes('compare_at_price') && p > 1000) p = p / 100;
             if (p > 0) return p;
         }
     }
@@ -436,9 +468,13 @@ exports.handler = async () => {
                         const types = (jsonlds._allTypes || []).join(', ') || 'aucun';
                         console.log(`[Catalog] DEBUG ${url} → 0 Product. @types: [${types}]`);
                     } else {
-                        const jld   = jsonlds[0];
-                        const price = jld.offers?.price ?? (Array.isArray(jld.offers) ? jld.offers[0]?.price : null);
-                        console.log(`[Catalog] DEBUG ${url} → OK type=${JSON.stringify(jld['@type'])} name="${jld.name?.slice(0,40)}" price=${price} highPrice=${jld.offers?.highPrice ?? (Array.isArray(jld.offers)?jld.offers[0]?.highPrice:'?')}`);
+                        const jld    = jsonlds[0];
+                        const offer  = Array.isArray(jld.offers) ? jld.offers[0] : jld.offers;
+                        const price  = offer?.price ?? offer?.lowPrice ?? null;
+                        const high   = offer?.highPrice ?? offer?.priceSpecification?.maxPrice ?? null;
+                        const ean    = jld.gtin13 || jld.gtin8 || jld.gtin || offer?.gtin13 || offer?.gtin || null;
+                        const htmlOriginal = html ? extractOriginalPriceFromHtml(html) : null;
+                        console.log(`[Catalog] DEBUG ${url} → type=${JSON.stringify(jld['@type'])} name="${(jld.name||'').slice(0,40)}" price=${price} highPrice=${high} htmlOriginal=${htmlOriginal} ean=${ean}`);
                     }
                     debugSample = false;
                 }
