@@ -157,11 +157,11 @@ exports.handler = async () => {
         )
     );
 
-    // Batch dynamique selon les tokens Keepa disponibles (4 appels/produit × DE+FR+IT+ES)
+    // Batch fixe : 10 produits max par run (4 appels Keepa/produit × DE+FR+IT+ES)
+    // Le tokensLeft stocké dans les logs est souvent stale → on ne s'en sert plus pour le batch
     const lastEnricherLog = activityLog.find(e => e.agent === 'enricher');
-    const tokensLeft  = lastEnricherLog?.tokensLeft ?? 60;
-    const safeTokens  = Math.max(0, tokensLeft - 20); // garder 20 tokens de réserve
-    const batchSize   = Math.min(Math.floor(safeTokens / 4), 10); // max 10/run
+    const tokensLeft  = lastEnricherLog?.tokensLeft ?? null;
+    const batchSize   = 10;
     const batch       = toEnrich.slice(0, batchSize);
     console.log(`[Enricher] ${rawProducts.length} produits bruts · ${toEnrich.length} à enrichir · tokens=${tokensLeft} → batch de ${batch.length}`);
 
