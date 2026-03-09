@@ -179,7 +179,7 @@ async function fetchXml(url, allowScraperFallback = false) {
         // (URLs connues via robots.txt — pas les candidats hardcodés qui peuvent ne pas exister)
         if (allowScraperFallback && [403, 502, 503].includes(status) && scraperKey) {
             console.log(`[Catalog] fetchXml ${url} → ${status}, retry via ScraperAPI`);
-            const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 15000 });
+            const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 25000 });
             console.log(`[Catalog] fetchXml (ScraperAPI) ${url} → ${resp2.status}`);
             if (!resp2.ok) return null;
             const text2 = await resp2.text();

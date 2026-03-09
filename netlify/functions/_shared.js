@@ -45,7 +45,7 @@ function calcProfit(buyPrice, sellPrice, category, weightGrams, marketplace) {
 // Charge par jour cible : ~10 retailers → 2-3 runs chacun (24 runs/jour)
 const DEFAULT_RETAILERS = [
     // ── BEAUTÉ / PARAPHARMACIE — marges correctes sur grandes marques ────────
-    { id: 'easypara',           name: 'Easypara',          url: 'https://www.easypara.fr',             type: 'prestashop', category: 'beaute',       days: [1,3,5], maxProducts: 30, active: true },
+    { id: 'easypara',           name: 'Easypara',          url: 'https://www.easypara.fr',             type: 'prestashop', category: 'beaute',       days: [1,3,5], maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.easypara.fr/media/google_sitemap_1_index.xml' },
     { id: 'pharma-gdd',         name: 'Pharma GDD',        url: 'https://www.pharma-gdd.com',          type: 'prestashop', category: 'beaute',       days: [0,2,4], maxProducts: 30, active: true },
     // sante-discount: pas de sitemap produit (site WordPress blog uniquement)
     // aroma-zone: marque propre, non-revendable
