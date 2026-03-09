@@ -188,6 +188,12 @@ exports.handler = async () => {
         if (!keepa) { console.log(`[Enricher] ${product.ean} → pas sur Amazon (aucune MP avec prix)`); continue; }
         if (keepa.tokensLeft !== null) lastTokens = keepa.tokensLeft;
 
+        // Stop si tokens Keepa trop bas (< 8 = risque de passer négatif au prochain batch 4×MP)
+        if (lastTokens !== null && lastTokens < 8) {
+            console.log(`[Enricher] tokens=${lastTokens} < 8 → arrêt anticipé du batch`);
+            break;
+        }
+
         const profit = keepa.amazonPrice
             ? calcProfit(product.price, keepa.amazonPrice, keepa.category, keepa.packageWeight, keepa.bestMarketplace)
             : null;

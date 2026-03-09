@@ -201,8 +201,9 @@ async function fetchXml(url, allowScraperFallback = false) {
 
         if (resp.ok) {
             const text = await resp.text();
-            if (!text.includes('<') && text.length > 0) {
-                console.log(`[Catalog] fetchXml ${url} → réponse non-XML (${text.length} chars, début: ${text.slice(0,50)})`);
+            // Valider que c'est bien un sitemap XML (pas une page HTML d'erreur/bot-detection)
+            if (!text.includes('<urlset') && !text.includes('<sitemapindex')) {
+                console.log(`[Catalog] fetchXml ${url} → pas un sitemap valide (${text.length} chars, début: ${text.slice(0,80)})`);
                 return null;
             }
             return text;
@@ -216,7 +217,11 @@ async function fetchXml(url, allowScraperFallback = false) {
             console.log(`[Catalog] fetchXml (ScraperAPI) ${url} → ${resp2.status}`);
             if (!resp2.ok) return null;
             const text2 = await resp2.text();
-            if (!text2.includes('<') && text2.length > 0) return null;
+            // Valider que c'est bien un sitemap XML (ScraperAPI peut retourner une page HTML anti-bot)
+            if (!text2.includes('<urlset') && !text2.includes('<sitemapindex')) {
+                console.log(`[Catalog] fetchXml (ScraperAPI) ${url} → pas un sitemap valide (${text2.length} chars)`);
+                return null;
+            }
             return text2;
         }
 
