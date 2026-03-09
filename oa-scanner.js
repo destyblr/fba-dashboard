@@ -6883,14 +6883,21 @@ function renderCatalogTable() {
         var marge      = (p.amazonPrice && p.netProfit != null) ? (p.netProfit / p.amazonPrice * 100) : null;
         var profitable = p.netProfit >= 2 && p.roi >= 25;
         var borderline = !profitable && p.netProfit > 0;
-        var rowClass   = profitable ? 'bg-green-50/50 border-green-100' : (borderline ? 'bg-yellow-50/40 border-yellow-50' : (p.netProfit < 0 ? 'bg-red-50/30 border-red-50' : 'border-gray-50'));
+        var rowClass   = profitable
+            ? 'bg-green-50 border-l-4 border-l-green-400'
+            : (borderline
+                ? 'bg-amber-50 border-l-4 border-l-amber-300'
+                : (p.netProfit < 0
+                    ? 'bg-red-50/50 border-l-4 border-l-red-300'
+                    : 'border-l-4 border-l-transparent'));
 
         // Colonne Produit
         var img = p.image ? '<img src="' + p.image + '" class="w-8 h-8 object-contain rounded flex-shrink-0" onerror="this.style.display=\'none\'">' : '<div class="w-8 h-8 bg-gray-100 rounded flex-shrink-0"></div>';
-        var discountBadge = p.discount ? '<span class="bg-red-100 text-red-600 text-xs font-bold px-1 rounded ml-1">-' + p.discount + '%</span>' : '';
+        var discountBadge = p.discount ? '<span class="bg-orange-100 text-orange-600 text-xs font-bold px-1.5 rounded-full ml-1">-' + p.discount + '%</span>' : '';
         var titleText = (p.amazonTitle || p.title || '').slice(0, 52);
-        var titleLink = p.link ? '<a href="' + p.link + '" target="_blank" class="font-medium text-gray-800 hover:text-indigo-600 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</a>'
-                                : '<span class="font-medium text-gray-800 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</span>';
+        var titleLink = p.retailerLink
+            ? '<a href="' + p.retailerLink + '" target="_blank" class="font-medium text-gray-800 hover:text-indigo-600 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</a>'
+            : '<span class="font-medium text-gray-800 truncate block" title="' + (p.amazonTitle || p.title || '') + '">' + titleText + discountBadge + '</span>';
 
         // Colonne Achat
         var achatCol = '<div class="text-xs text-gray-400 truncate">' + (p.retailer || '—') + '</div>' +
@@ -6923,18 +6930,26 @@ function renderCatalogTable() {
             ? '<span class="font-semibold text-xs ' + profitColor + '">' + marge.toFixed(0) + '%</span>'
             : '<span class="text-gray-300 text-xs">—</span>';
 
-        // Colonnes BSR / Ventes (séparées)
-        var bsrCol   = p.bsr ? '<span class="text-xs font-mono text-gray-600">' + Number(p.bsr).toLocaleString('fr') + '</span>' : '<span class="text-gray-300 text-xs">—</span>';
-        var ventesCol = p.monthlySold != null ? '<span class="text-xs text-blue-600 font-semibold">~' + p.monthlySold + '</span>' : '<span class="text-gray-300 text-xs">—</span>';
+        // Colonne BSR
+        var bsrCol = p.bsr ? '<span class="text-xs font-mono text-gray-600">' + Number(p.bsr).toLocaleString('fr') + '</span>' : '<span class="text-gray-300 text-xs">—</span>';
 
-        // Colonnes Vendeurs / AMZ (séparées)
-        var vendCol = '<span class="font-semibold text-sm text-gray-700" title="Nombre de vendeurs sur cette fiche Amazon">' + (p.offerCountNew != null ? p.offerCountNew : '?') + '</span>';
-        var amzCol  = !p.asin ? '<span class="text-gray-300 text-xs">—</span>' : (p.amazonIsSeller
-            ? '<span class="text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5 font-semibold" title="Amazon est vendeur lui-même → Buy Box très difficile à gagner">AMZ concu</span>'
+        // Colonne Vendeurs
+        var vendCol = '<span class="font-semibold text-sm text-gray-700">' + (p.offerCountNew != null ? p.offerCountNew : '?') + '</span>';
+
+        // Colonne AMZ
+        var amzCol = !p.asin ? '<span class="text-gray-300 text-xs">—</span>' : (p.amazonIsSeller
+            ? '<span class="text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5 font-semibold" title="Amazon est vendeur lui-même → Buy Box très difficile">AMZ concu</span>'
             : '<span class="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 font-semibold" title="Amazon n\'est pas vendeur → tu peux gagner la Buy Box">Libre</span>');
 
+        // Colonne Éligibilité SP-API
+        var eligibleCol = p.spApiEligible === true
+            ? '<span class="text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 font-semibold">✓ Éligible</span>'
+            : p.spApiEligible === false
+                ? '<span class="text-xs bg-red-100 text-red-700 rounded px-1.5 py-0.5 font-semibold">✗ Restreint</span>'
+                : '<span class="text-xs text-gray-300" title="Connexion SP-API requise — à configurer dans Paramètres">À vérif.</span>';
+
         // Colonne Actions
-        var retailerLink = p.retailerLink || p.link;
+        var retailerLink = p.retailerLink || p.retailerUrl;
         var actionsCol = '<div class="flex flex-col gap-1 items-center">' +
             (retailerLink ? '<a href="' + retailerLink + '" target="_blank" class="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded text-xs w-full text-center">Retailer ↗</a>' : '') +
             (amzUrl  ? '<a href="' + amzUrl  + '" target="_blank" class="px-2 py-0.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded text-xs w-full text-center">Amazon ↗</a>' : '') +
@@ -6955,9 +6970,9 @@ function renderCatalogTable() {
             '<td class="p-2 text-right">' + roiCol + '</td>' +
             '<td class="p-2 text-right">' + margeCol + '</td>' +
             '<td class="p-2 text-center">' + bsrCol + '</td>' +
-            '<td class="p-2 text-center">' + ventesCol + '</td>' +
             '<td class="p-2 text-center">' + vendCol + '</td>' +
             '<td class="p-2 text-center">' + amzCol + '</td>' +
+            '<td class="p-2 text-center">' + eligibleCol + '</td>' +
             '<td class="p-2">' + actionsCol + '</td>' +
         '</tr>';
     }).join('');

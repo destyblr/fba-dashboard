@@ -86,11 +86,11 @@ function parseProduct(jsonld, retailerName, retailerUrl, html) {
         const title = (jsonld.name || '').trim();
         if (!title) return null;
 
-        const image = Array.isArray(jsonld.image) ? jsonld.image[0] : (jsonld.image || '');
-        const link  = offer.url || jsonld.url || '';
-        const brand = (jsonld.brand?.name || jsonld.brand || '').toString().trim();
+        const image       = Array.isArray(jsonld.image) ? jsonld.image[0] : (jsonld.image || '');
+        const retailerLink = offer.url || jsonld.url || '';  // URL produit chez le retailer
+        const brand        = (jsonld.brand?.name || jsonld.brand || '').toString().trim();
 
-        return { title, price, originalPrice, discount, ean: ean.length >= 8 ? ean : null, image, link, brand, retailer: retailerName, retailerUrl };
+        return { title, price, originalPrice, discount, ean: ean.length >= 8 ? ean : null, image, retailerLink, brand, retailer: retailerName, retailerUrl };
     } catch { return null; }
 }
 

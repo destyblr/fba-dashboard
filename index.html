@@ -3268,16 +3268,16 @@
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide">
                                     <th class="p-2 font-semibold text-gray-500 w-[22%]" title="Titre du produit · Marque · EAN. Cliquez sur le titre pour ouvrir la page retailer.">Produit</th>
-                                    <th class="p-2 font-semibold text-gray-500 w-[10%]" title="Prix d'achat chez le retailer (ex: Alice Délice). Prix barré = prix normal avant promo.">Achat</th>
-                                    <th class="p-2 font-semibold text-gray-500 w-[11%]" title="Prix de vente Amazon sur la meilleure marketplace. Lignes secondaires = prix sur les autres pays (DE/FR/IT/ES).">Amazon</th>
+                                    <th class="p-2 font-semibold text-gray-500 w-[10%]" title="Prix d'achat chez le retailer. Prix barré = prix normal avant promo.">Achat</th>
+                                    <th class="p-2 font-semibold text-gray-500 w-[11%]" title="Prix de vente Amazon sur la meilleure marketplace (celle où tu gagnes le plus). Lignes secondaires = prix sur les autres pays.">Amazon</th>
                                     <th class="p-2 font-semibold text-gray-500 text-right w-[7%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('profit')" title="Profit net en € après toutes les charges : commission Amazon, frais FBA, inbound, EFN, préparation, URSSAF. Cliquez pour trier.">Profit ↕</th>
                                     <th class="p-2 font-semibold text-gray-500 text-right w-[6%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('roi')" title="ROI = Profit / Prix d'achat × 100. Ex: achat 10€, profit 3€ = ROI 30%. Seuil recommandé : 25%+. Cliquez pour trier.">ROI ↕</th>
                                     <th class="p-2 font-semibold text-gray-500 text-right w-[6%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('marge')" title="Marge = Profit / Prix de vente Amazon × 100. Indique la part du prix de vente qui est du profit.">Marge ↕</th>
                                     <th class="p-2 font-semibold text-gray-500 text-center w-[7%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('bsr')" title="BSR = classement ventes dans la catégorie Amazon. Plus petit = mieux vendu. &lt;1 000 = top, &lt;10 000 = très bon, &lt;50 000 = correct, &gt;100 000 = lent. Cliquez pour trier.">BSR ↕</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[5%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('sales')" title="Ventes estimées par mois selon Keepa (basé sur les variations de BSR). Cliquez pour trier.">Ventes ↕</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[7%]" title="Nombre de vendeurs sur la fiche Amazon · Amazon est-il lui-même vendeur ?">Vend.</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[7%]" title="Amazon vendeur ? Libre = Amazon n'est pas vendeur, tu peux gagner la Buy Box. AMZ concu = Amazon vend lui-même, très difficile de concurrencer.">AMZ</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Ouvrir la page produit chez le retailer ou sur Amazon, ou envoyer en Checklist pour analyse complète.">Actions</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[6%]" title="Nombre de vendeurs tiers sur cette fiche Amazon (données Keepa). ? = non disponible.">Vend.</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[7%]" title="Amazon est-il vendeur ? Libre = tu peux gagner la Buy Box. AMZ concu = Amazon vend lui-même.">AMZ</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Éligibilité à la vente vérifiée via SP-API Seller Central. Sera disponible dès la connexion SP-API.">Éligible</th>
+                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Ouvrir la page produit chez le retailer ou sur Amazon, ou envoyer en Checklist.">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="catalog-tbody">
