@@ -328,8 +328,12 @@ async function fetchSitemapUrls(baseUrl, maxUrls, overrideSitemapUrl, scraperSit
 
         console.log(`[Catalog] sitemap ${sitemapUrl} → ${allLocs.length} locs. Ex: ${allLocs.slice(0,3).join(' | ')}`);
 
-        // Sitemap index ? → chercher les sous-sitemaps produits
-        const subSitemaps = allLocs.filter(u => u.match(/sitemap/i) && u.match(/\.xml/i));
+        // Sitemap index ? Détection via balise XML (plus fiable que heuristique URL)
+        // Ex: Joué Club a des sous-sitemaps "Rbs_Catalog_Product.1.xml" sans "sitemap" dans l'URL
+        const isSitemapIndex = xml.includes('<sitemapindex');
+        const subSitemaps = isSitemapIndex
+            ? allLocs  // sitemap index officiel → toutes les locs sont des sous-sitemaps
+            : allLocs.filter(u => u.match(/sitemap/i) && u.match(/\.xml/i)); // fallback heuristique
         if (subSitemaps.length > 0) {
             console.log(`[Catalog] sitemap index → ${subSitemaps.length} sous-sitemaps: ${subSitemaps.slice(0,5).join(', ')}`);
             const sorted = subSitemaps.sort((a, b) => {
