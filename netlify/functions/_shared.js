@@ -88,7 +88,7 @@ const DEFAULT_RETAILERS = [
     { id: 'cultura',            name: 'Cultura',           url: 'https://www.cultura.com',             type: 'generic',    category: 'culture',      days: [1,5],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── BÉBÉ / PUÉRICULTURE ─────────────────────────────────────────────────
-    { id: 'aubert',             name: 'Aubert',            url: 'https://www.aubert.com',              type: 'generic',    category: 'bebe',         days: [0,4],   maxProducts: 30, active: true, scraperSitemap: true },
+    // aubert: plateforme Hybris/SAP — pas d'EAN dans les pages produit, non-enrichissable
     { id: 'bambinou',           name: 'Bambinou',          url: 'https://www.bambinou.com',            type: 'prestashop', category: 'bebe',         days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── JARDINAGE ───────────────────────────────────────────────────────────
