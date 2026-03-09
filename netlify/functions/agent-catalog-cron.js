@@ -446,6 +446,10 @@ exports.handler = async () => {
                 for (const jld of jsonlds) {
                     const product = parseProduct(jld, retailerToProcess.name, retailerToProcess.url, html);
                     if (!product) continue;
+                    // Garantir retailerLink = URL du produit (l'URL scrapée est toujours exacte)
+                    if (!product.retailerLink || product.retailerLink === retailerToProcess.url) {
+                        product.retailerLink = url;
+                    }
                     totalScraped++;
 
                     // Fallback EAN : cherche dans le HTML brut si JSON-LD n'a pas d'EAN

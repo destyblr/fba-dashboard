@@ -54,14 +54,14 @@ async function keepaDomainLookup(ean, keepaKey, domain) {
         const offerCountNew  = p.stats?.offerCountNew ?? null;
         const buyBoxSellerId = p.stats?.buyBoxSellerId ?? null;
         const amazonIsSeller = buyBoxSellerId === AMAZON_SELLER_IDS[domain];
-        const price          = newPrice > 0 ? +(newPrice / 100).toFixed(2) : null;
+        const amazonPrice    = newPrice > 0 ? +(newPrice / 100).toFixed(2) : null;
 
         return {
             asin:            p.asin || '',
             amazonTitle:     p.title || '',
             brand:           p.brand || '',
             category:        p.categoryTree?.slice(-1)[0]?.name || '',
-            price,
+            amazonPrice,                          // renommé : n'écrase plus product.price (prix retailer)
             bsr:             bsr > 0 ? bsr : null,
             monthlySold,
             offerCountNew,
@@ -88,22 +88,22 @@ async function keepaEANLookup(ean, keepaKey) {
         { mp: 'FR', data: fr },
         { mp: 'IT', data: it },
         { mp: 'ES', data: es },
-    ].filter(c => c.data.price && c.data.asin);
+    ].filter(c => c.data.amazonPrice && c.data.asin);
 
     if (!candidates.length) return null;
 
     // Choisir la marketplace avec le prix le plus élevé (meilleure marge)
-    const best = candidates.reduce((a, b) => a.data.price >= b.data.price ? a : b);
+    const best = candidates.reduce((a, b) => a.data.amazonPrice >= b.data.amazonPrice ? a : b);
 
     return {
         ...best.data,
-        amazonPrice:     best.data.price,
+        amazonPrice:     best.data.amazonPrice,
         bestMarketplace: best.mp,
-        bestPrice:       best.data.price,
-        priceDE:         de.price,
-        priceFR:         fr.price,
-        priceIT:         it.price,
-        priceES:         es.price,
+        bestPrice:       best.data.amazonPrice,
+        priceDE:         de.amazonPrice,
+        priceFR:         fr.amazonPrice,
+        priceIT:         it.amazonPrice,
+        priceES:         es.amazonPrice,
         tokensLeft:      de.tokensLeft ?? fr.tokensLeft ?? it.tokensLeft ?? es.tokensLeft ?? null,
     };
 }
