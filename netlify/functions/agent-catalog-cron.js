@@ -29,8 +29,9 @@ async function sendTelegram(msg) {
 // ─── Extraction JSON-LD depuis HTML ─────────────────────────────────────────
 function isProductType(t) {
     if (!t) return false;
-    if (Array.isArray(t)) return t.some(v => String(v).toLowerCase() === 'product');
-    return String(t).toLowerCase() === 'product';
+    const accepted = ['product', 'productgroup'];
+    if (Array.isArray(t)) return t.some(v => accepted.includes(String(v).toLowerCase()));
+    return accepted.includes(String(t).toLowerCase());
 }
 
 function extractJsonLD(html) {
