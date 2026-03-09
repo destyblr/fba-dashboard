@@ -359,16 +359,24 @@ async function fetchSitemapUrls(baseUrl, maxUrls, overrideSitemapUrl, scraperSit
 }
 
 // ─── Scrape une page produit ────────────────────────────────────────────────
+// Essaie direct d'abord (~200ms), ScraperAPI seulement si 403/429 (retailers anti-bot)
 async function scrapeProductPage(url) {
     const scraperKey = process.env.SCRAPER_API_KEY;
-    const fetchUrl = scraperKey
-        ? `https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`
-        : url;
+    const headers = { 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' };
     try {
-        const resp = await fetch(fetchUrl, { timeout: 15000 });
-        if (!resp.ok) return null;
-        const html = await resp.text();
-        return { jsonlds: extractJsonLD(html), html };
+        const resp = await fetch(url, { timeout: 8000, headers });
+        if (resp.ok) {
+            const html = await resp.text();
+            return { jsonlds: extractJsonLD(html), html };
+        }
+        // 403/429 → fallback ScraperAPI
+        if (scraperKey && [403, 429].includes(resp.status)) {
+            const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 15000 });
+            if (!resp2.ok) return null;
+            const html2 = await resp2.text();
+            return { jsonlds: extractJsonLD(html2), html: html2 };
+        }
+        return null;
     } catch { return null; }
 }
 
@@ -417,7 +425,7 @@ exports.handler = async () => {
 
     // ── 3. Scraper le retailer du run ─────────────────────────────────────
     console.log(`[Catalog] Scraping ${retailerToProcess.name}...`);
-    const maxP = Math.min(retailerToProcess.maxProducts || 30, 30); // plafonné à 30 pour respecter le timeout 60s
+    const maxP = Math.min(retailerToProcess.maxProducts || 80, 80); // plafonné à 80 (direct ~200ms/page = 16s, ScraperAPI = 30 en pratique car timeout)
 
     // Récupère toutes les URLs du sitemap (jusqu'à 5000 pour la rotation)
     const allUrls = await fetchSitemapUrls(retailerToProcess.url, 5000, retailerToProcess.sitemapUrl, retailerToProcess.scraperSitemap === true);

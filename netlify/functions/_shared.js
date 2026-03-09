@@ -52,7 +52,7 @@ const DEFAULT_RETAILERS = [
 
     // ── JOUETS / LOISIRS — meilleure catégorie OA FR→DE/IT ──────────────────
     { id: '1001hobbies',        name: '1001Hobbies',       url: 'https://www.1001hobbies.fr',          type: 'prestashop', category: 'jouets',       days: [0,3,5], maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.1001hobbies.fr/sitemap_indexFR.xml' },
-    { id: 'joueclub',           name: 'Joué Club',         url: 'https://www.joueclub.fr',             type: 'prestashop', category: 'jouets',       days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true },
+    { id: 'joueclub',           name: 'Joué Club',         url: 'https://www.joueclub.fr',             type: 'prestashop', category: 'jouets',       days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.joueclub.fr/Assets/Rbs/Seo/sitemap-index.xml' },
     { id: 'kingjouet',          name: 'King Jouet',        url: 'https://www.king-jouet.com',          type: 'generic',    category: 'jouets',       days: [0,6],   maxProducts: 30, active: true, scraperSitemap: true },
     { id: 'lagranderecre',      name: 'La Grande Récré',   url: 'https://www.lagranderecre.fr',        type: 'generic',    category: 'jouets',       days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
     { id: 'maxitoys',           name: 'Maxi Toys',         url: 'https://www.maxitoys.fr',             type: 'prestashop', category: 'jouets',       days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.maxitoys.fr/1_index_sitemap.xml' },
@@ -77,7 +77,7 @@ const DEFAULT_RETAILERS = [
     // ── CUISINE / USTENSILES — Tefal, WMF, Zwilling rentables ───────────────
     { id: 'alicedelice',        name: 'Alice Délice',      url: 'https://www.alicedelice.com',         type: 'prestashop', category: 'cuisine',      days: [0,3],   maxProducts: 30, active: true, scraperSitemap: true },
     { id: 'mathon',             name: 'Mathon',            url: 'https://www.mathon.fr',               type: 'prestashop', category: 'cuisine',      days: [2,6],   maxProducts: 30, active: true, scraperSitemap: true },
-    { id: 'cuisineaddict',      name: 'Cuisine Addict',    url: 'https://www.cuisineaddict.com',       type: 'prestashop', category: 'cuisine',      days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true, sitemapUrl: 'https://www.cuisineaddict.com/1_index_sitemap.xml' },
+    // cuisineaddict: infrastructure sitemap entièrement cassée (robots.txt → 404, tous les sous-sitemaps 404)
     { id: 'meilleurduchef',     name: 'Meilleur du Chef',  url: 'https://www.meilleurduchef.com',      type: 'prestashop', category: 'cuisine',      days: [3,6],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── SPORT / VÉLO ────────────────────────────────────────────────────────
@@ -92,7 +92,7 @@ const DEFAULT_RETAILERS = [
     { id: 'bambinou',           name: 'Bambinou',          url: 'https://www.bambinou.com',            type: 'prestashop', category: 'bebe',         days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── JARDINAGE ───────────────────────────────────────────────────────────
-    { id: 'jardindeco',         name: 'Jardindeco',        url: 'https://www.jardindeco.com',          type: 'prestashop', category: 'jardin',       days: [1,4],   maxProducts: 30, active: true, scraperSitemap: true },
+    // jardindeco: sitemap.xml contient uniquement des catégories (C3-xxx), aucun sitemap produits accessible
     { id: 'plantes-et-jardins', name: 'Plantes & Jardins', url: 'https://www.plantes-et-jardins.com', type: 'prestashop', category: 'jardin',       days: [3,6],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── GRANDS RETAILERS MULTI-CATÉGORIES ───────────────────────────────────
