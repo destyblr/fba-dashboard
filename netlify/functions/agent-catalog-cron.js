@@ -69,17 +69,15 @@ function parseProduct(jsonld, retailerName, retailerUrl, html) {
         if (!price || price <= 0) return null;
         if (price < 8 || price > 150) return null; // hors plage OA
 
-        // ── Détection promo : prix barré > prix actuel ──────────────────────
-        // Source 1 : JSON-LD highPrice / priceSpecification
+        // ── Prix barré (optionnel — pas un filtre, juste une info) ────────────
         const highRaw = offer.highPrice ?? offer.priceSpecification?.maxPrice ?? null;
         let originalPrice = highRaw ? parseFloat(String(highRaw).replace(',', '.')) : null;
-        // Source 2 : HTML brut (PrestaShop et autres sans highPrice en JSON-LD)
         if ((!originalPrice || originalPrice <= price) && html) {
             originalPrice = extractOriginalPriceFromHtml(html);
         }
-        if (!originalPrice || originalPrice <= price * 1.05) return null; // pas de vraie promo (< 5%)
+        if (originalPrice && originalPrice <= price) originalPrice = null; // ignorer si incohérent
 
-        const discount = Math.round(((originalPrice - price) / originalPrice) * 100);
+        const discount = originalPrice ? Math.round(((originalPrice - price) / originalPrice) * 100) : 0;
 
         const ean = (jsonld.gtin13 || jsonld.gtin8 || jsonld.gtin || jsonld.isbn ||
                      offer.gtin13 || offer.gtin8 || offer.gtin || '').replace(/[^0-9]/g, '');
@@ -204,14 +202,23 @@ async function fetchXml(url, allowScraperFallback = false) {
             // Valider que c'est bien un sitemap XML (pas une page HTML d'erreur/bot-detection)
             if (!text.includes('<urlset') && !text.includes('<sitemapindex')) {
                 console.log(`[Catalog] fetchXml ${url} → pas un sitemap valide (${text.length} chars, début: ${text.slice(0,80)})`);
+                // 200 + HTML = bot-detection → retry ScraperAPI si autorisé (ex: Picwic Toys)
+                if (allowScraperFallback && scraperKey) {
+                    console.log(`[Catalog] fetchXml ${url} → 200+HTML, retry via ScraperAPI`);
+                    const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 12000 });
+                    if (!resp2.ok) return null;
+                    const text2 = await resp2.text();
+                    if (!text2.includes('<urlset') && !text2.includes('<sitemapindex')) return null;
+                    return text2;
+                }
                 return null;
             }
             return text;
         }
 
-        // 403/502/503 → fallback ScraperAPI uniquement si explicitement autorisé
+        // 403/500/502/503 → fallback ScraperAPI uniquement si explicitement autorisé
         // (URLs connues via robots.txt — pas les candidats hardcodés qui peuvent ne pas exister)
-        if (allowScraperFallback && [403, 502, 503].includes(status) && scraperKey) {
+        if (allowScraperFallback && [403, 500, 502, 503].includes(status) && scraperKey) {
             console.log(`[Catalog] fetchXml ${url} → ${status}, retry via ScraperAPI`);
             const resp2 = await fetch(`https://api.scraperapi.com?api_key=${scraperKey}&url=${encodeURIComponent(url)}`, { timeout: 12000 });
             console.log(`[Catalog] fetchXml (ScraperAPI) ${url} → ${resp2.status}`);

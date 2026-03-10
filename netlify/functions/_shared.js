@@ -82,14 +82,14 @@ const DEFAULT_RETAILERS = [
 
     // ── SPORT / VÉLO ────────────────────────────────────────────────────────
     { id: 'probikeshop',        name: 'Probikeshop',       url: 'https://www.probikeshop.fr',          type: 'prestashop', category: 'sport',        days: [0,3],   maxProducts: 30, active: true, scraperSitemap: true },
-    { id: 'alltricks',          name: 'Alltricks',         url: 'https://www.alltricks.fr',            type: 'generic',    category: 'sport',        days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
+    // alltricks: sitemap 403 direct + ScraperAPI 404 — complètement bloqué, irrécupérable
 
     // ── CULTURE / LOISIRS ───────────────────────────────────────────────────
     { id: 'cultura',            name: 'Cultura',           url: 'https://www.cultura.com',             type: 'generic',    category: 'culture',      days: [1,5],   maxProducts: 30, active: true, scraperSitemap: true },
 
     // ── BÉBÉ / PUÉRICULTURE ─────────────────────────────────────────────────
     // aubert: plateforme Hybris/SAP — pas d'EAN dans les pages produit, non-enrichissable
-    { id: 'bambinou',           name: 'Bambinou',          url: 'https://www.bambinou.com',            type: 'prestashop', category: 'bebe',         days: [2,5],   maxProducts: 30, active: true, scraperSitemap: true },
+    // bambinou: pas de JSON-LD Product sur les pages produits — irrécupérable avec notre méthode
 
     // ── JARDINAGE ───────────────────────────────────────────────────────────
     // jardindeco: sitemap.xml contient uniquement des catégories (C3-xxx), aucun sitemap produits accessible
