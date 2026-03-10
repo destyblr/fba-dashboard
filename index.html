@@ -3146,158 +3146,130 @@
 
             <!-- Section Catalogue (Agent Scraper) -->
             <section id="section-oa-catalogue" class="content-section hidden">
-                <div class="mb-6 flex items-start justify-between flex-wrap gap-4">
+                <!-- Header -->
+                <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
                     <div>
-                        <h2 class="text-3xl font-bold text-gray-800">
-                            <i class="fas fa-store text-indigo-600 mr-2"></i>Catalogue
-                            <span class="text-lg font-normal text-gray-400 ml-2">(Agent Scraper)</span>
+                        <h2 class="text-2xl font-bold text-gray-800">
+                            <i class="fas fa-chart-bar text-indigo-600 mr-2"></i>Sourcing OA
                         </h2>
-                        <p class="text-gray-500">Pipeline : Scrape → EAN → Keepa enrichment → Catalogue prêt</p>
+                        <p class="text-gray-500 text-sm">Données Keepa · Analyse multi-marketplace FR / DE / IT / ES</p>
                     </div>
-                    <div class="bg-gray-100 rounded-xl px-4 py-2 text-sm flex items-center gap-3">
-                        <span class="text-gray-500">Dernier run :</span>
-                        <span id="catalog-last-run" class="font-bold text-gray-700">—</span>
-                        <span id="catalog-next-run" class="text-gray-400 text-xs"></span>
-                    </div>
-                </div>
-
-                <!-- Filtres style Flippix -->
-                <div class="bg-white rounded-xl shadow-sm mb-6 overflow-hidden">
-                    <!-- Ligne 1 -->
-                    <div class="p-4 flex flex-wrap items-center gap-2 border-b border-gray-100">
-                        <select id="catalog-retailer-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
-                            <option value="all">Tous les retailers</option>
-                        </select>
-                        <select id="catalog-category-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
-                            <option value="all">Toutes catégories</option>
-                            <option value="beaute">Beauté</option>
-                            <option value="jouets">Jouets</option>
-                            <option value="informatique">Informatique</option>
-                            <option value="animalerie">Animalerie</option>
-                            <option value="cuisine">Cuisine</option>
-                            <option value="sport">Sport</option>
-                            <option value="bebe">Bébé</option>
-                            <option value="culture">Culture</option>
-                            <option value="jardin">Jardin</option>
-                        </select>
-                        <div class="h-5 w-px bg-gray-200 mx-1"></div>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">Ventes &gt;</span>
-                            <input type="number" id="catalog-min-sales" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                        </div>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">Marge &gt;</span>
-                            <input type="number" id="catalog-min-roi" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                            <span class="text-gray-400 text-xs">%</span>
-                        </div>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">Profit &gt;</span>
-                            <input type="number" id="catalog-min-profit" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                            <span class="text-gray-400 text-xs">€</span>
-                        </div>
-                        <div class="h-5 w-px bg-gray-200 mx-1"></div>
-                        <select id="catalog-sort-select" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white" onchange="catalogSortKey=this.value; renderCatalogTable()">
-                            <option value="profit">Trier ↕ Profit</option>
-                            <option value="roi">Trier ↕ Marge</option>
-                            <option value="bsr">Trier ↕ BSR</option>
-                            <option value="sales">Trier ↕ Ventes</option>
-                        </select>
-                        <div class="h-5 w-px bg-gray-200 mx-1"></div>
-                        <label id="preset-strict-wrap" class="flex items-center gap-1.5 border-2 border-indigo-200 rounded-lg px-3 py-1.5 text-sm text-indigo-700 font-semibold cursor-pointer hover:bg-indigo-50 transition select-none bg-white">
-                            <input type="checkbox" id="preset-strict" class="rounded border-indigo-300 text-indigo-600" onchange="applyCatalogPreset('strict', this.checked)">
-                            Strict
-                        </label>
-                        <label id="preset-souple-wrap" class="flex items-center gap-1.5 border-2 border-amber-200 rounded-lg px-3 py-1.5 text-sm text-amber-700 font-semibold cursor-pointer hover:bg-amber-50 transition select-none bg-white">
-                            <input type="checkbox" id="preset-souple" class="rounded border-amber-300 text-amber-500" onchange="applyCatalogPreset('souple', this.checked)">
-                            Souple
-                        </label>
-                        <div class="flex-1"></div>
-                        <button onclick="toggleCatalogAdvanced()" id="catalog-advanced-btn" class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 transition">
-                            <i class="fas fa-sliders-h text-xs"></i>Filtres avancés
-                            <span id="catalog-advanced-badge" class="hidden bg-indigo-600 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center leading-none"></span>
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-gray-400">Dernier scan : <span id="catalog-last-run" class="font-semibold text-gray-600">—</span></span>
+                        <button onclick="loadCatalog()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">
+                            <i class="fas fa-sync-alt mr-1"></i>Actualiser
                         </button>
                     </div>
-                    <!-- Ligne 2 (avancée, masquée par défaut) -->
-                    <div id="catalog-advanced-row" class="hidden px-4 py-3 flex flex-wrap items-center gap-2 bg-gray-50 border-b border-gray-100">
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">ROI &gt;</span>
-                            <input type="number" id="catalog-min-roi-adv" value="0" min="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                            <span class="text-gray-400 text-xs">%</span>
-                        </div>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">BSR &lt;</span>
-                            <input type="number" id="catalog-max-bsr" min="0" placeholder="∞" class="w-16 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                        </div>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">Vend. &lt;</span>
-                            <input type="number" id="catalog-max-sellers" min="0" placeholder="∞" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                        </div>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">Prix &gt;</span>
-                            <input type="number" id="catalog-min-price" min="0" placeholder="0" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                            <span class="text-gray-400 text-xs">€</span>
-                        </div>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                            <span class="text-gray-500 text-xs whitespace-nowrap">Prix &lt;</span>
-                            <input type="number" id="catalog-max-price" min="0" placeholder="∞" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
-                            <span class="text-gray-400 text-xs">€</span>
-                        </div>
-                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 bg-white select-none">
-                            <input type="checkbox" id="catalog-no-amazon" class="rounded">
-                            Sans Amazon
-                        </label>
+                </div>
+
+                <!-- KPIs -->
+                <div class="grid grid-cols-4 gap-3 mb-5">
+                    <div class="bg-white rounded-xl p-3 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-indigo-600" id="kpi-oa-total">0</div>
+                        <div class="text-xs text-gray-400 mt-1">Produits scannés</div>
                     </div>
-                    <!-- Ligne actions + tags -->
-                    <div class="px-4 py-3 flex items-center justify-between gap-3">
-                        <div id="catalog-filter-tags" class="flex flex-wrap gap-2 flex-1"></div>
-                        <div class="flex gap-2 flex-shrink-0">
-                            <button onclick="resetCatalogFilters()" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-500 hover:bg-gray-50 transition">
-                                <i class="fas fa-undo mr-1 text-xs"></i>Réinitialiser
-                            </button>
-                            <button onclick="filterCatalog()" class="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-semibold transition">
-                                <i class="fas fa-search mr-1"></i>Rechercher
-                            </button>
-                        </div>
+                    <div class="bg-white rounded-xl p-3 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-green-600" id="kpi-oa-score70">0</div>
+                        <div class="text-xs text-gray-400 mt-1">Score ≥ 70</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-3 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-amber-600" id="kpi-oa-eligible">0</div>
+                        <div class="text-xs text-gray-400 mt-1">Éligibles FBA</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-3 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-blue-600" id="kpi-oa-avec-prix">0</div>
+                        <div class="text-xs text-gray-400 mt-1">Avec prix achat</div>
                     </div>
                 </div>
 
-                <!-- Tableau résultats -->
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                    <div>
-                        <table class="w-full text-sm table-fixed">
+                <!-- Onglets -->
+                <div class="flex gap-0 mb-5 border-b border-gray-200">
+                    <button id="oa-tab-btn-raw" onclick="switchOATab('raw')"
+                        class="px-5 py-2.5 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 -mb-px bg-white">
+                        📊 Données brutes
+                    </button>
+                    <button id="oa-tab-btn-deals" onclick="switchOATab('deals')"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        💼 Deals
+                    </button>
+                </div>
+
+                <!-- TAB : Données brutes -->
+                <div id="oa-tab-raw">
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <table class="w-full text-xs">
                             <thead>
-                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide">
-                                    <th class="p-2 font-semibold text-gray-500 w-[22%]" title="Titre du produit · Marque · EAN. Cliquez sur le titre pour ouvrir la page retailer.">Produit</th>
-                                    <th class="p-2 font-semibold text-gray-500 w-[10%]" title="Prix d'achat chez le retailer. Prix barré = prix normal avant promo.">Achat</th>
-                                    <th class="p-2 font-semibold text-gray-500 w-[11%]" title="Prix de vente Amazon sur la meilleure marketplace (celle où tu gagnes le plus). Lignes secondaires = prix sur les autres pays.">Amazon</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-right w-[7%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('profit')" title="Profit net en € après toutes les charges : commission Amazon, frais FBA, inbound, EFN, préparation, URSSAF. Cliquez pour trier.">Profit ↕</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-right w-[6%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('roi')" title="ROI = Profit / Prix d'achat × 100. Ex: achat 10€, profit 3€ = ROI 30%. Seuil recommandé : 25%+. Cliquez pour trier.">ROI ↕</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-right w-[6%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('marge')" title="Marge = Profit / Prix de vente Amazon × 100. Indique la part du prix de vente qui est du profit.">Marge ↕</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[7%] cursor-pointer hover:text-indigo-600" onclick="sortCatalog('bsr')" title="BSR = classement ventes dans la catégorie Amazon. Plus petit = mieux vendu. &lt;1 000 = top, &lt;10 000 = très bon, &lt;50 000 = correct, &gt;100 000 = lent. Cliquez pour trier.">BSR ↕</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[6%]" title="Nombre de vendeurs tiers sur cette fiche Amazon (données Keepa). ? = non disponible.">Vend.</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[7%]" title="Amazon est-il vendeur ? Libre = tu peux gagner la Buy Box. AMZ concu = Amazon vend lui-même.">AMZ</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Éligibilité à la vente vérifiée via SP-API Seller Central. Sera disponible dès la connexion SP-API.">Éligible</th>
-                                    <th class="p-2 font-semibold text-gray-500 text-center w-[8%]" title="Ouvrir la page produit chez le retailer ou sur Amazon, ou envoyer en Checklist.">Actions</th>
+                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">
+                                    <th class="p-2 font-semibold">Score</th>
+                                    <th class="p-2 font-semibold">Produit</th>
+                                    <th class="p-2 font-semibold text-center">BSR</th>
+                                    <th class="p-2 font-semibold text-center">Vend. FBA</th>
+                                    <th class="p-2 font-semibold text-center">Buy Box FR</th>
+                                    <th class="p-2 font-semibold text-center">Moy 90j</th>
+                                    <th class="p-2 font-semibold text-center">DE / IT / ES</th>
+                                    <th class="p-2 font-semibold text-center">Frais</th>
+                                    <th class="p-2 font-semibold text-center">Statut</th>
+                                    <th class="p-2 font-semibold text-center">Amazon</th>
                                 </tr>
                             </thead>
-                            <tbody id="catalog-tbody">
-                                <tr>
-                                    <td colspan="11" class="p-8 text-center text-gray-400">
-                                        <i class="fas fa-store text-4xl mb-3 block text-gray-300"></i>
-                                        <p>Chargement du catalogue…</p>
-                                        <p class="text-xs mt-1">Agent Scraper (scrape) + Agent Enricher (Keepa) tournent toutes les heures</p>
-                                    </td>
-                                </tr>
+                            <tbody id="raw-tbody">
+                                <tr><td colspan="10" class="p-10 text-center text-gray-400">
+                                    <i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>
+                                    <p class="font-medium">Aucune donnée</p>
+                                    <p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> sur ton PC pour démarrer le sourcing</p>
+                                </td></tr>
                             </tbody>
                         </table>
                     </div>
-                    <div id="catalog-pagination" class="p-4 border-t border-gray-100 flex items-center justify-between hidden">
-                        <span id="catalog-count" class="text-sm text-gray-500"></span>
-                        <div class="flex gap-2">
-                            <button onclick="catalogPage(-1)" class="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50">← Préc.</button>
-                            <span id="catalog-page-label" class="px-3 py-1 text-sm text-gray-600"></span>
-                            <button onclick="catalogPage(1)" class="px-3 py-1 border border-gray-200 rounded text-sm hover:bg-gray-50">Suiv. →</button>
+                </div>
+
+                <!-- TAB : Deals -->
+                <div id="oa-tab-deals" class="hidden">
+                    <!-- Filtres -->
+                    <div class="bg-white rounded-xl shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2 border border-gray-100">
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">Score ≥</span>
+                            <input type="number" id="deal-min-score" value="40" min="0" max="100" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                         </div>
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
+                            <span class="text-gray-500 text-xs whitespace-nowrap">BSR &lt;</span>
+                            <input type="number" id="deal-max-bsr" placeholder="∞" class="w-16 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
+                        </div>
+                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 bg-white select-none">
+                            <input type="checkbox" id="deal-eligible-only" class="rounded">
+                            <span class="text-xs">Éligibles seulement</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 bg-white select-none">
+                            <input type="checkbox" id="deal-no-amz" class="rounded">
+                            <span class="text-xs">Sans Amazon</span>
+                        </label>
+                        <button onclick="renderDealsTab()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">
+                            <i class="fas fa-filter mr-1 text-xs"></i>Filtrer
+                        </button>
+                        <span class="text-xs text-gray-400 ml-1" id="deals-count-label"></span>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <table class="w-full text-xs">
+                            <thead>
+                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">
+                                    <th class="p-2 font-semibold">Score</th>
+                                    <th class="p-2 font-semibold">Produit</th>
+                                    <th class="p-2 font-semibold text-center">Buy Box moy 90j</th>
+                                    <th class="p-2 font-semibold text-center">Marketplace</th>
+                                    <th class="p-2 font-semibold text-center">Frais totaux</th>
+                                    <th class="p-2 font-semibold text-center">Prix achat</th>
+                                    <th class="p-2 font-semibold text-center">Profit</th>
+                                    <th class="p-2 font-semibold text-center">ROI</th>
+                                    <th class="p-2 font-semibold text-center">Fournisseur</th>
+                                </tr>
+                            </thead>
+                            <tbody id="deals-tbody">
+                                <tr><td colspan="9" class="p-10 text-center text-gray-400">
+                                    <i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>
+                                    <p class="font-medium">Chargement des deals…</p>
+                                </td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
