@@ -32,6 +32,19 @@ function _mapDeal(d) {
         roi       = netProfit > 0 ? Math.round(netProfit / d.prix_achat * 1000) / 10 : 0;
     }
 
+    // Meilleure marketplace (la plus haute Buy Box parmi DE/IT/ES vs FR)
+    var prices = [
+        { mp: 'FR', price: d.buy_box_fr },
+        { mp: 'DE', price: d.buy_box_de },
+        { mp: 'IT', price: d.buy_box_it },
+        { mp: 'ES', price: d.buy_box_es },
+    ].filter(function(x) { return x.price > 0; });
+    var bestMP = null, bestPrice = 0;
+    prices.forEach(function(x) { if (x.price > bestPrice) { bestPrice = x.price; bestMP = x.mp; } });
+    var gainVsFR = (bestMP && bestMP !== 'FR' && d.buy_box_fr > 0)
+        ? Math.round((bestPrice - d.buy_box_fr) * 100) / 100
+        : null;
+
     return {
         id:          d.id,
         asin:        d.asin,
@@ -56,6 +69,9 @@ function _mapDeal(d) {
         score:       d.score_deal,
         alerte:      d.alerte_arbitrage,
         lienGS:      d.lien_google_shopping,
+        bestMP:      bestMP,
+        bestPrice:   bestPrice,
+        gainVsFR:    gainVsFR,
     };
 }
 
@@ -75,18 +91,76 @@ function loadCatalog() {
 
           _oaData = (res.data || []).map(_mapDeal);
 
-          // KPIs
+          var total     = _oaData.length;
+          var score70   = _oaData.filter(function(d) { return (d.score || 0) >= 70; }).length;
+          var eligible  = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE'; }).length;
+          var avecPrix  = _oaData.filter(function(d) { return d.prixAchat > 0; }).length;
+          var lastRun   = total > 0 ? 'Aujourd\'hui' : 'Aucun run';
+
+          // KPIs sourcing (section-oa-sourcing)
           var s = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
-          s('kpi-oa-total',    _oaData.length);
-          s('kpi-oa-score70',  _oaData.filter(function(d) { return (d.score || 0) >= 70; }).length);
-          s('kpi-oa-eligible', _oaData.filter(function(d) { return d.statut === 'ELIGIBLE'; }).length);
-          s('kpi-oa-avec-prix',_oaData.filter(function(d) { return d.prixAchat > 0; }).length);
-          s('catalog-last-run', _oaData.length > 0 ? 'Aujourd\'hui' : 'Aucun run');
+          s('kpi-oa-total',    total);
+          s('kpi-oa-score70',  score70);
+          s('kpi-oa-eligible', eligible);
+          s('kpi-oa-avec-prix',avecPrix);
+          s('catalog-last-run',  lastRun);
+          s('sourcing-last-run', lastRun);
+
+          // KPIs accueil
+          s('acc-kpi-total',     total);
+          s('acc-kpi-eligible',  eligible);
+          s('acc-kpi-score70',   score70);
+          s('acc-kpi-avec-prix', avecPrix);
+          s('acc-last-scan',     lastRun);
+
+          // Date accueil
+          var dateEl = document.getElementById('accueil-date');
+          if (dateEl) {
+              var now = new Date();
+              dateEl.textContent = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+          }
 
           renderRawTab();
           renderDealsTab();
+          renderCatalogTable();
+          _renderAccueilTopDeals();
       })
       .catch(function(e) { _showRawEmpty('Erreur connexion Supabase'); console.error('[OA]', e); });
+}
+
+// ── Top deals pour la page Accueil ───────────────────────────────────────────
+function _renderAccueilTopDeals() {
+    var el = document.getElementById('acc-top-deals');
+    if (!el) return;
+
+    var top5 = _oaData.slice(0, 5); // already sorted by score desc
+    if (!top5.length) {
+        el.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucun deal aujourd\'hui</div>';
+        return;
+    }
+
+    el.innerHTML = top5.map(function(p) {
+        var scoreColor = (p.score || 0) >= 70 ? 'bg-green-100 text-green-700'
+                       : (p.score || 0) >= 40 ? 'bg-amber-100 text-amber-700'
+                       : 'bg-gray-100 text-gray-500';
+        var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
+        var eligBadge = p.statut === 'ELIGIBLE'
+            ? '<span class="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-semibold">✓ Éligible</span>'
+            : p.statut === 'RESTRICTED'
+            ? '<span class="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-semibold">✗ Restreint</span>'
+            : '';
+        return '<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition">'
+            + '<span class="text-xs font-bold px-1.5 py-0.5 rounded shrink-0 ' + scoreColor + '">' + (p.score || '?') + '</span>'
+            + '<div class="flex-1 min-w-0">'
+                + '<a href="' + amzUrl + '" target="_blank" class="text-sm font-semibold text-gray-800 hover:text-indigo-600 block truncate">' + (p.titre || p.asin || '—').slice(0, 60) + '</a>'
+                + '<div class="text-xs text-gray-400 font-mono">' + (p.asin || '') + (p.categorie ? ' · ' + p.categorie : '') + '</div>'
+            + '</div>'
+            + '<div class="shrink-0 text-right">'
+                + (p.moy90j ? '<div class="text-sm font-bold text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '')
+                + eligBadge
+            + '</div>'
+            + '</div>';
+    }).join('');
 }
 
 // ── Switcher onglets ──────────────────────────────────────────────────────────
@@ -110,7 +184,63 @@ function switchOATab(tab) {
     }
 }
 
-// ── TAB : Données brutes ──────────────────────────────────────────────────────
+// ── Helpers row builders ──────────────────────────────────────────────────────
+function _buildRawRow(p) {
+    var scoreColor = (p.score || 0) >= 70 ? 'bg-green-100 text-green-700'
+                   : (p.score || 0) >= 40 ? 'bg-amber-100 text-amber-700'
+                   : 'bg-gray-100 text-gray-500';
+
+    var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
+
+    var eligBadge = p.statut === 'ELIGIBLE'
+        ? '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">✓ Éligible</span>'
+        : p.statut === 'RESTRICTED'
+        ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">✗ Restreint</span>'
+        : '<span class="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">À vérif.</span>';
+
+    var amzBadge = p.amzEnStock
+        ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">Concurrence</span>'
+        : '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">Libre</span>';
+
+    var otherPrices = [['DE', p.buyBoxDE], ['IT', p.buyBoxIT], ['ES', p.buyBoxES]]
+        .filter(function(x) { return x[1]; })
+        .map(function(x) { return (MP_FLAGS[x[0]] || '') + ' ' + x[1].toFixed(0) + '€'; })
+        .join(' · ');
+
+    // Meilleure MP + Gain vs FR (new columns)
+    var bestMPCell = p.bestMP
+        ? '<span class="font-semibold text-xs">' + (MP_FLAGS[p.bestMP] || '') + ' ' + p.bestMP + '</span>'
+            + (p.bestPrice ? '<div class="text-[10px] text-gray-500">' + p.bestPrice.toFixed(2) + '€</div>' : '')
+        : '—';
+
+    var gainCell = p.gainVsFR != null
+        ? '<span class="font-bold text-xs ' + (p.gainVsFR > 0 ? 'text-green-600' : 'text-red-500') + '">'
+            + (p.gainVsFR > 0 ? '+' : '') + p.gainVsFR.toFixed(2) + '€</span>'
+        : '<span class="text-gray-300 text-xs">—</span>';
+
+    return '<tr class="border-b border-gray-50 hover:bg-gray-50/70 transition-colors">'
+        + '<td class="p-2"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
+        + '<td class="p-2">'
+            + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
+            + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + (p.categorie ? ' · ' + p.categorie : '') + '</div>'
+        + '</td>'
+        + '<td class="p-2 text-center font-mono text-xs text-gray-600">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
+        + '<td class="p-2 text-center font-semibold text-xs">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
+        + '<td class="p-2 text-center font-bold text-xs">' + (p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '—') + '</td>'
+        + '<td class="p-2 text-center text-xs">'
+            + (p.moy90j ? '<div class="font-bold text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '—')
+            + (p.min90j ? '<div class="text-[10px] text-gray-400">min ' + p.min90j.toFixed(2) + '€</div>' : '')
+        + '</td>'
+        + '<td class="p-2 text-center text-[10px] text-gray-500 leading-snug">' + (otherPrices || '—') + '</td>'
+        + '<td class="p-2 text-center text-xs text-red-500 font-semibold">' + (p.frais ? p.frais.toFixed(2) + '€' : '—') + '</td>'
+        + '<td class="p-2 text-center text-[10px]">' + bestMPCell + '</td>'
+        + '<td class="p-2 text-center text-[10px]">' + gainCell + '</td>'
+        + '<td class="p-2 text-center text-[10px]">' + eligBadge + '</td>'
+        + '<td class="p-2 text-center text-[10px]">' + amzBadge + '</td>'
+        + '</tr>';
+}
+
+// ── TAB : Analyse (données brutes) — 12 colonnes ──────────────────────────────
 function renderRawTab() {
     var tbody = document.getElementById('raw-tbody');
     if (!tbody) return;
@@ -120,22 +250,51 @@ function renderRawTab() {
         return;
     }
 
-    tbody.innerHTML = _oaData.map(function(p) {
+    tbody.innerHTML = _oaData.map(_buildRawRow).join('');
+}
+
+function _showRawEmpty(msg) {
+    var tbody = document.getElementById('raw-tbody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="12" class="p-10 text-center text-gray-400">'
+        + '<i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>'
+        + '<p class="font-medium">' + msg + '</p></td></tr>';
+}
+
+// ── Catalogue (section-oa-catalogue) — browse/filter ─────────────────────────
+function renderCatalogTable(data) {
+    var tbody = document.getElementById('cat-tbody');
+    if (!tbody) return;
+
+    var items = data !== undefined ? data : _oaData;
+
+    if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="p-10 text-center text-gray-400">'
+            + '<i class="fas fa-store text-3xl mb-3 block text-gray-300"></i>'
+            + '<p class="font-medium">Catalogue vide</p>'
+            + '<p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> pour remplir le catalogue</p>'
+            + '</td></tr>';
+        return;
+    }
+
+    var label = document.getElementById('cat-count-label');
+    if (label) label.textContent = items.length + ' produit' + (items.length !== 1 ? 's' : '');
+
+    tbody.innerHTML = items.map(function(p) {
         var scoreColor = (p.score || 0) >= 70 ? 'bg-green-100 text-green-700'
                        : (p.score || 0) >= 40 ? 'bg-amber-100 text-amber-700'
                        : 'bg-gray-100 text-gray-500';
 
-        var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
+        var amzUrl = p.asin ? 'https://www.amazon.fr/dp/' + p.asin : '#';
 
         var eligBadge = p.statut === 'ELIGIBLE'
-            ? '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">✓ Éligible</span>'
+            ? '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">✓</span>'
             : p.statut === 'RESTRICTED'
-            ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">✗ Restreint</span>'
-            : '<span class="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">À vérif.</span>';
+            ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">✗</span>'
+            : '<span class="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">?</span>';
 
         var amzBadge = p.amzEnStock
-            ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">Concurrence</span>'
-            : '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">Libre</span>';
+            ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded text-[10px]">AMZ</span>'
+            : '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[10px]">Libre</span>';
 
         var otherPrices = [['DE', p.buyBoxDE], ['IT', p.buyBoxIT], ['ES', p.buyBoxES]]
             .filter(function(x) { return x[1]; })
@@ -146,7 +305,7 @@ function renderRawTab() {
             + '<td class="p-2"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
             + '<td class="p-2">'
                 + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
-                + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + ' · ' + (p.categorie || '') + '</div>'
+                + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + (p.categorie ? ' · ' + p.categorie : '') + '</div>'
             + '</td>'
             + '<td class="p-2 text-center font-mono text-xs text-gray-600">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
             + '<td class="p-2 text-center font-semibold text-xs">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
@@ -163,14 +322,38 @@ function renderRawTab() {
     }).join('');
 }
 
-function _showRawEmpty(msg) {
-    var tbody = document.getElementById('raw-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="p-10 text-center text-gray-400">'
-        + '<i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>'
-        + '<p class="font-medium">' + msg + '</p></td></tr>';
+function applyCatalogFilters() {
+    var search    = ((document.getElementById('cat-search')        || {}).value || '').toLowerCase().trim();
+    var statut    = ((document.getElementById('cat-statut-filter') || {}).value || 'all');
+    var minScore  = parseInt((document.getElementById('cat-min-score') || {}).value) || 0;
+    var maxBsr    = parseInt((document.getElementById('cat-max-bsr')   || {}).value) || 0;
+
+    var filtered = _oaData.filter(function(p) {
+        if (search && !(
+            (p.titre  || '').toLowerCase().indexOf(search) >= 0 ||
+            (p.asin   || '').toLowerCase().indexOf(search) >= 0
+        )) return false;
+        if (statut !== 'all' && p.statut !== statut) return false;
+        if ((p.score || 0) < minScore) return false;
+        if (maxBsr > 0 && p.bsr && p.bsr > maxBsr) return false;
+        return true;
+    });
+
+    renderCatalogTable(filtered);
 }
 
-// ── TAB : Deals ───────────────────────────────────────────────────────────────
+function resetCatalogFilters() {
+    var ids = ['cat-search', 'cat-min-score', 'cat-max-bsr'];
+    ids.forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.value = id === 'cat-min-score' ? '0' : '';
+    });
+    var sel = document.getElementById('cat-statut-filter');
+    if (sel) sel.value = 'all';
+    renderCatalogTable(_oaData);
+}
+
+// ── TAB : Deals (éligibles seulement) — 11 colonnes ──────────────────────────
 function renderDealsTab() {
     var tbody = document.getElementById('deals-tbody');
     if (!tbody) return;
@@ -192,7 +375,7 @@ function renderDealsTab() {
     if (label) label.textContent = data.length + ' deal' + (data.length !== 1 ? 's' : '');
 
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="11" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun deal avec ces filtres</p></td></tr>';
         return;
@@ -216,7 +399,7 @@ function renderDealsTab() {
                         : (p.netProfit || 0) > 0 ? 'text-amber-600'
                         : 'text-red-500';
 
-        var noPrix = '<span class="text-gray-300 text-xs" title="Entre le prix achat →">—</span>';
+        var noPrix = '<span class="text-gray-300 text-xs" title="Entre le prix achat">—</span>';
 
         var profitCell = hasPrix && p.netProfit != null
             ? '<span class="font-bold ' + profitColor + '">' + (p.netProfit >= 0 ? '+' : '') + p.netProfit.toFixed(2) + '€</span>'
@@ -228,30 +411,31 @@ function renderDealsTab() {
 
         var currentPrix = p.prixAchat ? p.prixAchat.toFixed(2) : '';
 
+        // Colonnes: Titre | ASIN | Marketplace | Prix vente 90j moy | Frais Amazon | Score | Alerte | Fournisseur (GS) | Prix achat (input) | Profit net | ROI
         return '<tr class="' + rowBorder + ' border-b border-gray-50 hover:bg-gray-50/50 transition-colors">'
-            + '<td class="p-2"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
-            + '<td class="p-2">'
+            + '<td class="p-3">'
                 + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
-                + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + ' · ' + (p.categorie || '') + '</div>'
-                + (p.alerte ? '<div class="text-[10px] text-amber-600 font-semibold">⚡ ' + p.alerte + '</div>' : '')
+                + (p.alerte ? '<div class="text-[10px] text-amber-600 font-semibold mt-0.5">⚡ ' + p.alerte + '</div>' : '')
             + '</td>'
-            + '<td class="p-2 text-center">'
-                + (p.moy90j ? '<div class="font-bold text-sm text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '<span class="text-gray-300 text-xs">—</span>')
+            + '<td class="p-3 font-mono text-xs text-gray-500">' + (p.asin || '—') + '</td>'
+            + '<td class="p-3 text-center"><span class="font-semibold text-sm">' + (MP_FLAGS[p.mp] || '') + ' ' + (p.mp || '—') + '</span></td>'
+            + '<td class="p-3 text-center">'
+                + (p.moy90j ? '<div class="font-bold text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '<span class="text-gray-300 text-xs">—</span>')
                 + (p.min90j ? '<div class="text-[10px] text-gray-400">min ' + p.min90j.toFixed(2) + '€</div>' : '')
             + '</td>'
-            + '<td class="p-2 text-center"><span class="font-semibold text-sm">' + (MP_FLAGS[p.mp] || '') + ' ' + p.mp + '</span></td>'
-            + '<td class="p-2 text-center text-xs text-red-500 font-semibold">' + (p.frais ? p.frais.toFixed(2) + '€' : '—') + '</td>'
-            + '<td class="p-2 text-center">'
-                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold mb-1 whitespace-nowrap">🔍 Trouver</a><br>' : '')
+            + '<td class="p-3 text-center text-xs text-red-500 font-semibold">' + (p.frais ? p.frais.toFixed(2) + '€' : '—') + '</td>'
+            + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
+            + '<td class="p-3 text-center text-xs text-amber-600">' + (p.alerte || '—') + '</td>'
+            + '<td class="p-3 text-center">'
+                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 Trouver</a>' : '<span class="text-gray-300 text-xs">—</span>')
+            + '</td>'
+            + '<td class="p-3 text-center bg-indigo-50/30">'
                 + '<input type="number" step="0.01" min="0" placeholder="Prix €" value="' + currentPrix + '" '
                 + 'class="w-20 border border-gray-200 rounded px-1.5 py-0.5 text-sm text-center focus:border-indigo-400 outline-none bg-white" '
                 + 'onchange="saveOAPrixAchat(' + JSON.stringify(p.id) + ', parseFloat(this.value)||0)" />'
             + '</td>'
-            + '<td class="p-2 text-center">' + profitCell + '</td>'
-            + '<td class="p-2 text-center">' + roiCell + '</td>'
-            + '<td class="p-2 text-center">'
-                + (p.asin ? '<a href="' + amzUrl + '" target="_blank" class="text-xs text-orange-500 hover:underline font-semibold">Amazon ↗</a>' : '')
-            + '</td>'
+            + '<td class="p-3 text-center bg-green-50/30">' + profitCell + '</td>'
+            + '<td class="p-3 text-center bg-green-50/30">' + roiCell + '</td>'
             + '</tr>';
     }).join('');
 }
@@ -280,14 +464,11 @@ function saveOAPrixAchat(dealId, prix) {
         }
 
         // Mettre à jour le compteur KPI
-        var el = document.getElementById('kpi-oa-avec-prix');
-        if (el) el.textContent = _oaData.filter(function(d) { return d.prixAchat > 0; }).length;
+        var avecPrix = _oaData.filter(function(d) { return d.prixAchat > 0; }).length;
+        var s = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+        s('kpi-oa-avec-prix',  avecPrix);
+        s('acc-kpi-avec-prix', avecPrix);
 
         renderDealsTab();
     });
 }
-
-// ── Compatibilité — évite erreurs si app.js appelle ces fonctions ─────────────
-function renderCatalogTable() { renderRawTab(); }
-function filterCatalog()      {}
-function resetCatalogFilters(){}
