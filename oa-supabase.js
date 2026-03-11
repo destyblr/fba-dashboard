@@ -46,32 +46,39 @@ function _mapDeal(d) {
         : null;
 
     return {
-        id:          d.id,
-        asin:        d.asin,
-        titre:       d.titre,
-        categorie:   d.categorie,
-        bsr:         d.bsr_fr,
-        vendeurs:    d.nb_vendeurs_fba,
-        amzEnStock:  d.amazon_en_stock,
-        buyBoxFR:    d.buy_box_fr,
-        buyBoxDE:    d.buy_box_de,
-        buyBoxIT:    d.buy_box_it,
-        buyBoxES:    d.buy_box_es,
-        moy90j:      d.buy_box_90j_moy_fr,
-        min90j:      d.buy_box_90j_min_fr,
-        frais:       d.total_frais,
-        statut:      d.statut,
-        mp:          mp,
-        amzPrice:    amzPrice,
-        prixAchat:   d.prix_achat || null,
-        netProfit:   netProfit,
-        roi:         roi,
-        score:       d.score_deal,
-        alerte:      d.alerte_arbitrage,
-        lienGS:      d.lien_google_shopping,
-        bestMP:      bestMP,
-        bestPrice:   bestPrice,
-        gainVsFR:    gainVsFR,
+        id:           d.id,
+        asin:         d.asin,
+        titre:        d.titre,
+        categorie:    d.categorie,
+        bsr:          d.bsr_fr,
+        vendeurs:     d.nb_vendeurs_fba,
+        amzEnStock:   d.amazon_en_stock,
+        buyBoxFR:     d.buy_box_fr,
+        buyBoxDE:     d.buy_box_de,
+        buyBoxIT:     d.buy_box_it,
+        buyBoxES:     d.buy_box_es,
+        moy90j:       d.buy_box_90j_moy_fr,
+        min90j:       d.buy_box_90j_min_fr,
+        referralFee:  d.referral_fee,
+        fraisFba:     d.frais_fba,
+        envoiFba:     d.envoi_fba,
+        fraisEfn:     d.frais_efn,
+        urssaf:       d.urssaf,
+        frais:        d.total_frais,
+        roiFr:        d.roi_fr,
+        roiMeilleur:  d.roi_meilleur,
+        statut:       d.statut,
+        mp:           mp,
+        amzPrice:     amzPrice,
+        prixAchat:    d.prix_achat || null,
+        netProfit:    netProfit,
+        roi:          roi,
+        score:        d.score_deal,
+        alerte:       d.alerte_arbitrage,
+        lienGS:       d.lien_google_shopping,
+        bestMP:       bestMP,
+        bestPrice:    bestPrice,
+        gainVsFR:     gainVsFR,
     };
 }
 
@@ -202,41 +209,77 @@ function _buildRawRow(p) {
         ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">Concurrence</span>'
         : '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">Libre</span>';
 
-    var otherPrices = [['DE', p.buyBoxDE], ['IT', p.buyBoxIT], ['ES', p.buyBoxES]]
-        .filter(function(x) { return x[1]; })
-        .map(function(x) { return (MP_FLAGS[x[0]] || '') + ' ' + x[1].toFixed(0) + '€'; })
-        .join(' · ');
-
-    // Meilleure MP + Gain vs FR (new columns)
-    var bestMPCell = p.bestMP
-        ? '<span class="font-semibold text-xs">' + (MP_FLAGS[p.bestMP] || '') + ' ' + p.bestMP + '</span>'
-            + (p.bestPrice ? '<div class="text-[10px] text-gray-500">' + p.bestPrice.toFixed(2) + '€</div>' : '')
-        : '—';
-
     var gainCell = p.gainVsFR != null
-        ? '<span class="font-bold text-xs ' + (p.gainVsFR > 0 ? 'text-green-600' : 'text-red-500') + '">'
+        ? '<span class="font-bold ' + (p.gainVsFR > 0 ? 'text-green-600' : 'text-red-500') + '">'
             + (p.gainVsFR > 0 ? '+' : '') + p.gainVsFR.toFixed(2) + '€</span>'
-        : '<span class="text-gray-300 text-xs">—</span>';
+        : '<span class="text-gray-300">—</span>';
+
+    var feeCell = function(v) { return v != null ? v.toFixed(2) + '€' : '<span class="text-gray-300">—</span>'; };
+    var pctCell = function(v) { return v != null ? v.toFixed(1) + '%' : '<span class="text-gray-300">—</span>'; };
+    var priceCell = function(v) { return v ? v.toFixed(2) + '€' : '<span class="text-gray-300">—</span>'; };
+
+    // Col 19 — Meilleure marketplace
+    var bestMPCell = p.bestMP
+        ? (MP_FLAGS[p.bestMP] || '') + ' ' + p.bestMP
+        : '<span class="text-gray-300">—</span>';
+
+    // Col 22 — Alerte arbitrage
+    var alerteCell = p.alerte
+        ? '<span class="text-amber-600 font-semibold">⚡ ' + p.alerte + '</span>'
+        : '<span class="text-gray-300">—</span>';
+
+    // Col 23 — Sourcing (lien Google Shopping)
+    var sourcingCell = p.lienGS
+        ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 GS</a>'
+        : '<span class="text-gray-300">—</span>';
 
     return '<tr class="border-b border-gray-50 hover:bg-gray-50/70 transition-colors">'
-        + '<td class="p-2"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
-        + '<td class="p-2">'
-            + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
-            + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + (p.categorie ? ' · ' + p.categorie : '') + '</div>'
-        + '</td>'
-        + '<td class="p-2 text-center font-mono text-xs text-gray-600">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
-        + '<td class="p-2 text-center font-semibold text-xs">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
-        + '<td class="p-2 text-center font-bold text-xs">' + (p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '—') + '</td>'
-        + '<td class="p-2 text-center text-xs">'
-            + (p.moy90j ? '<div class="font-bold text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '—')
-            + (p.min90j ? '<div class="text-[10px] text-gray-400">min ' + p.min90j.toFixed(2) + '€</div>' : '')
-        + '</td>'
-        + '<td class="p-2 text-center text-[10px] text-gray-500 leading-snug">' + (otherPrices || '—') + '</td>'
-        + '<td class="p-2 text-center text-xs text-red-500 font-semibold">' + (p.frais ? p.frais.toFixed(2) + '€' : '—') + '</td>'
-        + '<td class="p-2 text-center text-[10px]">' + bestMPCell + '</td>'
-        + '<td class="p-2 text-center text-[10px]">' + gainCell + '</td>'
-        + '<td class="p-2 text-center text-[10px]">' + eligBadge + '</td>'
-        + '<td class="p-2 text-center text-[10px]">' + amzBadge + '</td>'
+        // 1 — Score
+        + '<td class="p-2 text-center"><span class="font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
+        // 2 — Statut
+        + '<td class="p-2 text-center">' + eligBadge + '</td>'
+        // 3 — Titre
+        + '<td class="p-2"><a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 leading-tight block truncate max-w-[180px]" title="' + (p.titre || '') + '">' + (p.titre || '—').slice(0, 50) + '</a></td>'
+        // 4 — ASIN
+        + '<td class="p-2 font-mono text-gray-500 whitespace-nowrap">' + (p.asin || '—') + '</td>'
+        // 5 — Catégorie
+        + '<td class="p-2 text-gray-500 whitespace-nowrap">' + (p.categorie || '—') + '</td>'
+        // 6 — BSR
+        + '<td class="p-2 text-center font-mono text-gray-600">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
+        // 7 — Vendeurs FBA
+        + '<td class="p-2 text-center font-semibold">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
+        // 8 — Amazon vendeur
+        + '<td class="p-2 text-center">' + amzBadge + '</td>'
+        // 9 — Buy Box actuel FR
+        + '<td class="p-2 text-center font-bold">' + priceCell(p.buyBoxFR) + '</td>'
+        // 10 — Buy Box moy 90j
+        + '<td class="p-2 text-center font-bold text-gray-800">' + priceCell(p.moy90j) + '</td>'
+        // 11 — Buy Box min 90j
+        + '<td class="p-2 text-center text-gray-500">' + priceCell(p.min90j) + '</td>'
+        // 12 — Referral fee
+        + '<td class="p-2 text-center text-orange-500">' + feeCell(p.referralFee) + '</td>'
+        // 13 — Frais FBA
+        + '<td class="p-2 text-center text-red-400">' + feeCell(p.fraisFba) + '</td>'
+        // 14 — Envoi FBA
+        + '<td class="p-2 text-center text-red-400">' + feeCell(p.envoiFba) + '</td>'
+        // 15 — Frais EFN
+        + '<td class="p-2 text-center text-red-400">' + feeCell(p.fraisEfn) + '</td>'
+        // 16 — URSSAF
+        + '<td class="p-2 text-center text-purple-500">' + feeCell(p.urssaf) + '</td>'
+        // 17 — Total frais
+        + '<td class="p-2 text-center font-bold text-red-500">' + feeCell(p.frais) + '</td>'
+        // 18 — ROI estimé FR (%)
+        + '<td class="p-2 text-center font-semibold ' + ((p.roiFr || 0) >= 25 ? 'text-green-600' : 'text-gray-500') + '">' + pctCell(p.roiFr) + '</td>'
+        // 19 — Meilleure marketplace
+        + '<td class="p-2 text-center font-semibold">' + bestMPCell + '</td>'
+        // 20 — ROI meilleur (%)
+        + '<td class="p-2 text-center font-semibold ' + ((p.roiMeilleur || 0) >= 25 ? 'text-green-600' : 'text-gray-500') + '">' + pctCell(p.roiMeilleur) + '</td>'
+        // 21 — Gain vs FR
+        + '<td class="p-2 text-center">' + gainCell + '</td>'
+        // 22 — Alerte arbitrage
+        + '<td class="p-2 text-center">' + alerteCell + '</td>'
+        // 23 — Sourcing
+        + '<td class="p-2 text-center">' + sourcingCell + '</td>'
         + '</tr>';
 }
 
@@ -255,7 +298,7 @@ function renderRawTab() {
 
 function _showRawEmpty(msg) {
     var tbody = document.getElementById('raw-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="12" class="p-10 text-center text-gray-400">'
+    if (tbody) tbody.innerHTML = '<tr><td colspan="23" class="p-10 text-center text-gray-400">'
         + '<i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>'
         + '<p class="font-medium">' + msg + '</p></td></tr>';
 }
@@ -419,9 +462,8 @@ function renderDealsTab() {
             + '</td>'
             + '<td class="p-3 font-mono text-xs text-gray-500">' + (p.asin || '—') + '</td>'
             + '<td class="p-3 text-center"><span class="font-semibold text-sm">' + (MP_FLAGS[p.mp] || '') + ' ' + (p.mp || '—') + '</span></td>'
-            + '<td class="p-3 text-center">'
-                + (p.moy90j ? '<div class="font-bold text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '<span class="text-gray-300 text-xs">—</span>')
-                + (p.min90j ? '<div class="text-[10px] text-gray-400">min ' + p.min90j.toFixed(2) + '€</div>' : '')
+            + '<td class="p-3 text-center font-bold text-gray-800">'
+                + (p.moy90j ? p.moy90j.toFixed(2) + '€' : '<span class="text-gray-300 text-xs">—</span>')
             + '</td>'
             + '<td class="p-3 text-center text-xs text-red-500 font-semibold">' + (p.frais ? p.frais.toFixed(2) + '€' : '—') + '</td>'
             + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'

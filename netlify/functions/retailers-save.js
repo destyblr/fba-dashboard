@@ -1,5 +1,4 @@
 const { getStore: _getStore } = require('@netlify/blobs');
-const { DEFAULT_RETAILERS } = require('./_shared');
 function getStore(name) {
     return _getStore({ name, siteID: process.env.NETLIFY_SITE_ID, token: process.env.NETLIFY_BLOBS_TOKEN });
 }
@@ -16,8 +15,7 @@ exports.handler = async (event) => {
             let retailers = await store.get('retailers', { type: 'json' });
             // Auto-restaure si blob absent ou corrompu (< 5 retailers)
             if (!retailers || retailers.length < 5) {
-                retailers = DEFAULT_RETAILERS;
-                await store.setJSON('retailers', retailers);
+                retailers = [];
             }
             return {
                 statusCode: 200,

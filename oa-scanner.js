@@ -109,8 +109,6 @@ const OA_DEFAULTS = {
     dealMaxFBASellers: 10,
 
     // Deal Scanner — Notifications
-    telegramBotToken: '',
-    telegramChatId: '',
     emailjsServiceId: '',
     emailjsTemplateId: '',
     emailjsPublicKey: '',
@@ -280,8 +278,6 @@ function saveOASettings() {
         { id: 'oa-dealMaxBSR', key: 'dealMaxBSR', type: 'int' },
         { id: 'oa-dealMaxFBASellers', key: 'dealMaxFBASellers', type: 'int' },
         // Notifications
-        { id: 'oa-telegramBotToken', key: 'telegramBotToken', type: 'string' },
-        { id: 'oa-telegramChatId', key: 'telegramChatId', type: 'string' },
         { id: 'oa-emailjsServiceId', key: 'emailjsServiceId', type: 'string' },
         { id: 'oa-emailjsTemplateId', key: 'emailjsTemplateId', type: 'string' },
         { id: 'oa-emailjsPublicKey', key: 'emailjsPublicKey', type: 'string' },
@@ -378,8 +374,6 @@ function initOASettings() {
         { id: 'oa-dealMaxBSR', key: 'dealMaxBSR' },
         { id: 'oa-dealMaxFBASellers', key: 'dealMaxFBASellers' },
         // Notifications
-        { id: 'oa-telegramBotToken', key: 'telegramBotToken' },
-        { id: 'oa-telegramChatId', key: 'telegramChatId' },
         { id: 'oa-emailjsServiceId', key: 'emailjsServiceId' },
         { id: 'oa-emailjsTemplateId', key: 'emailjsTemplateId' },
         { id: 'oa-emailjsPublicKey', key: 'emailjsPublicKey' },
@@ -3578,7 +3572,6 @@ async function fetchDeals() {
         // Demarrer le compte a rebours cron
         startCronCountdown(serverData.updatedAt);
 
-        // Telegram gere par le cron (pas de doublon navigateur)
 
         // Restaurer le bouton
         if (fetchBtn) {
@@ -5328,10 +5321,6 @@ async function sendDealNotifications(newProfitableDeals) {
         // Notification navigateur
         sendBrowserNotification(deal);
 
-        // Telegram
-        if (settings.telegramBotToken && settings.telegramChatId) {
-            await sendTelegramNotification(settings, msg.telegram);
-        }
 
         // EmailJS
         if (settings.emailjsServiceId && settings.emailjsTemplateId && settings.emailjsPublicKey) {
@@ -5351,14 +5340,6 @@ function dealNotificationMessage(deal) {
     return {
         title: 'Deal rentable' + bestMkt,
         body: deal.title.substring(0, 60) + '\n' + deal.price.toFixed(2) + '€ → ' + profitStr + ' (' + roiStr + ' ROI)',
-        telegram: '🔔 *Deal rentable' + bestMkt + '*\n\n'
-            + '📦 ' + deal.title.substring(0, 80) + '\n'
-            + '💰 Prix: ' + deal.price.toFixed(2) + '€'
-            + (deal.amazonPrice ? ' → Amazon: ' + deal.amazonPrice.toFixed(2) + '€' : '') + '\n'
-            + '✅ Profit: ' + profitStr + ' (ROI ' + roiStr + ')\n'
-            + (deal.merchant ? '🏪 ' + deal.merchant : '') + '\n'
-            + (deal.asin ? '🔗 ASIN: ' + deal.asin : '') + '\n\n'
-            + '[Voir le deal](' + deal.link + ')'
     };
 }
 
@@ -5381,29 +5362,6 @@ function sendBrowserNotification(deal) {
     }
 }
 
-async function sendTelegramNotification(settings, messageText) {
-    var url = 'https://api.telegram.org/bot' + settings.telegramBotToken + '/sendMessage';
-    try {
-        var resp = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                chat_id: settings.telegramChatId,
-                text: messageText,
-                parse_mode: 'Markdown',
-                disable_web_page_preview: true
-            })
-        });
-        var data = await resp.json();
-        if (data.ok) {
-            console.log('[DealScanner] Telegram envoye OK');
-        } else {
-            console.warn('[DealScanner] Telegram erreur:', data.description);
-        }
-    } catch (e) {
-        console.warn('[DealScanner] Telegram erreur:', e.message);
-    }
-}
 
 async function sendEmailNotification(settings, deal) {
     if (typeof emailjs === 'undefined') {
