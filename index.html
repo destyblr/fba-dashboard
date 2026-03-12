@@ -221,11 +221,11 @@
                     <button class="nav-btn" data-section="oa-accueil" onclick="showSection('oa-accueil')">
                         <i class="fas fa-home sm:mr-1"></i><span class="hidden sm:inline">Accueil</span>
                     </button>
-                    <button class="nav-btn" data-section="oa-sourcing" onclick="showSection('oa-sourcing');loadCatalog()">
-                        <i class="fas fa-search-dollar sm:mr-1"></i><span class="hidden sm:inline">Sourcing</span>
-                    </button>
                     <button class="nav-btn" data-section="oa-catalogue" onclick="showSection('oa-catalogue')">
                         <i class="fas fa-store sm:mr-1"></i><span class="hidden sm:inline">Catalogue</span>
+                    </button>
+                    <button class="nav-btn" data-section="oa-sourcing" onclick="showSection('oa-sourcing');loadCatalog()">
+                        <i class="fas fa-table sm:mr-1"></i><span class="hidden sm:inline">Analyse</span>
                     </button>
                     <button class="nav-btn" data-section="oa-inventaire" onclick="showSection('oa-inventaire')">
                         <i class="fas fa-boxes-stacked sm:mr-1"></i><span class="hidden sm:inline">Inventaire</span>
@@ -1295,6 +1295,44 @@
                                     <span class="text-2xl font-bold text-purple-600" id="total-global-charges-fixes">39 €</span>
                                 </div>
                                 <p class="text-xs text-gray-500">Mensuelles + Annuelles lissées</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Paramètres OA (Sourcing) -->
+                    <div class="bg-white p-6 rounded-xl shadow-md border-l-4 border-orange-400">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                            <i class="fas fa-box-open text-orange-500"></i>
+                            Paramètres OA — Coûts variables
+                        </h3>
+                        <p class="text-xs text-gray-400 mb-4">Ces valeurs s'appliquent en temps réel à l'onglet Analyse (Données brutes + Cross Border).</p>
+
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Frais de préparation / étiquetage (€/unité)
+                                    <span class="text-gray-400 text-xs ml-2">ex : polybag, label, carton</span>
+                                </label>
+                                <div class="flex items-center gap-3">
+                                    <input type="number" id="oa-param-prep-fee" step="0.10" min="0" value="0.50"
+                                        class="w-32 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-400 transition text-sm"
+                                        oninput="updatePrepFee(this.value)">
+                                    <button onclick="togglePrep()" id="btn-prep-toggle-param"
+                                        class="text-xs px-3 py-1.5 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer">
+                                        Avec prep
+                                    </button>
+                                </div>
+                                <p class="text-xs text-gray-400 mt-1">Modifie le calcul Total frais et Profit net en temps réel.</p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">
+                                    Rotation stock estimée (jours)
+                                    <span class="text-gray-400 text-xs ml-2">pour calcul frais stockage</span>
+                                </label>
+                                <input type="number" id="oa-param-storage-days" step="1" min="1" value="30"
+                                    class="w-32 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-orange-400 transition text-sm"
+                                    oninput="updateStorageDays(this.value)">
                             </div>
                         </div>
                     </div>
@@ -3039,9 +3077,9 @@
                 <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
                     <div>
                         <h2 class="text-2xl font-bold text-gray-800">
-                            <i class="fas fa-search-dollar text-indigo-600 mr-2"></i>Sourcing OA
+                            <i class="fas fa-table text-indigo-600 mr-2"></i>Analyse
                         </h2>
-                        <p class="text-gray-500 text-sm">Données Keepa · Analyse multi-marketplace FR / DE / IT / ES</p>
+                        <p class="text-gray-500 text-sm">Données Keepa · Multi-marketplace FR / DE / IT / ES</p>
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="text-sm text-gray-400">Dernier scan : <span id="sourcing-last-run" class="font-semibold text-gray-600">—</span></span>
@@ -3073,20 +3111,39 @@
 
                 <!-- Onglets -->
                 <div class="flex gap-0 mb-5 border-b border-gray-200">
-                    <button id="oa-tab-btn-raw" onclick="switchOATab('raw')"
-                        class="px-5 py-2.5 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 -mb-px bg-white">
-                        📊 Analyse
-                    </button>
                     <button id="oa-tab-btn-deals" onclick="switchOATab('deals')"
-                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        class="px-5 py-2.5 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 -mb-px bg-white">
                         💼 Deals
+                    </button>
+                    <button id="oa-tab-btn-crossborder" onclick="switchOATab('crossborder')"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        🌍 Cross Border
+                    </button>
+                    <button id="oa-tab-btn-raw" onclick="switchOATab('raw')"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        📊 Données brutes
+                    </button>
+                    <button id="oa-tab-btn-rapport" onclick="switchOATab('rapport')"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        📋 Rapport
+                    </button>
+                </div>
+                <!-- Toggles frais -->
+                <div class="flex gap-2 mb-4">
+                    <button id="btn-urssaf-toggle" onclick="toggleUrssaf()"
+                        class="text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer">
+                        Avec URSSAF
+                    </button>
+                    <button id="btn-prep-toggle" onclick="togglePrep()"
+                        class="text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer">
+                        Avec prep
                     </button>
                 </div>
 
                 <!-- TAB : Analyse (full auto) -->
-                <div id="oa-tab-raw">
-                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                        <table class="w-full text-xs">
+                <div id="oa-tab-raw" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+                        <table class="text-xs" style="min-width:1600px">
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">
                                     <th class="p-2 font-semibold text-center">Score</th>
@@ -3100,22 +3157,23 @@
                                     <th class="p-2 font-semibold text-center">Buy Box FR</th>
                                     <th class="p-2 font-semibold text-center">Moy 90j</th>
                                     <th class="p-2 font-semibold text-center">Min 90j</th>
-                                    <th class="p-2 font-semibold text-center">Referral</th>
-                                    <th class="p-2 font-semibold text-center">FBA</th>
-                                    <th class="p-2 font-semibold text-center">Envoi FBA</th>
+                                    <th class="p-2 font-semibold text-center">Commission Amz</th>
+                                    <th class="p-2 font-semibold text-center">Traitement FBA</th>
+                                    <th class="p-2 font-semibold text-center">Envoi entrepôt</th>
                                     <th class="p-2 font-semibold text-center">EFN</th>
+                                    <th class="p-2 font-semibold text-center text-orange-400" title="Frais de préparation/étiquetage par unité (configurable dans Paramètres OA)">Prep</th>
                                     <th class="p-2 font-semibold text-center">URSSAF</th>
                                     <th class="p-2 font-semibold text-center">Total frais</th>
+                                    <th class="p-2 font-semibold text-center">Profit net</th>
                                     <th class="p-2 font-semibold text-center">ROI FR</th>
                                     <th class="p-2 font-semibold text-center">Meilleure MP</th>
                                     <th class="p-2 font-semibold text-center">ROI meilleur</th>
-                                    <th class="p-2 font-semibold text-center">Gain vs FR</th>
                                     <th class="p-2 font-semibold text-center">Arbitrage</th>
                                     <th class="p-2 font-semibold text-center">Sourcing</th>
                                 </tr>
                             </thead>
                             <tbody id="raw-tbody">
-                                <tr><td colspan="23" class="p-10 text-center text-gray-400">
+                                <tr><td colspan="24" class="p-10 text-center text-gray-400">
                                     <i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>
                                     <p class="font-medium">Aucune donnée</p>
                                     <p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> sur ton PC pour démarrer le sourcing</p>
@@ -3126,7 +3184,7 @@
                 </div>
 
                 <!-- TAB : Deals (éligibles seulement) -->
-                <div id="oa-tab-deals" class="hidden">
+                <div id="oa-tab-deals">
                     <!-- Filtres -->
                     <div class="bg-white rounded-xl shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2 border border-gray-100">
                         <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
@@ -3167,15 +3225,62 @@
                                     <th class="p-3 font-semibold text-center bg-indigo-50 text-indigo-600">Prix achat (toi)</th>
                                     <th class="p-3 font-semibold text-center bg-green-50 text-green-700">Profit net</th>
                                     <th class="p-3 font-semibold text-center bg-green-50 text-green-700">ROI</th>
+                                    <th class="p-3 font-semibold text-center">Sourcing</th>
                                 </tr>
                             </thead>
                             <tbody id="deals-tbody">
-                                <tr><td colspan="11" class="p-10 text-center text-gray-400">
+                                <tr><td colspan="12" class="p-10 text-center text-gray-400">
                                     <i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>
                                     <p class="font-medium">Chargement des deals…</p>
                                 </td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- TAB : Cross Border (Agent 2) -->
+                <div id="oa-tab-crossborder" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                                    <th class="p-2 font-semibold">Titre</th>
+                                    <th class="p-2 font-semibold">ASIN</th>
+                                    <th class="p-2 font-semibold text-center">Prix FR</th>
+                                    <th class="p-2 font-semibold text-center">Prix EU</th>
+                                    <th class="p-2 font-semibold text-center text-orange-500" title="TVA locale déduite par Amazon">TVA</th>
+                                    <th class="p-2 font-semibold text-center text-orange-400" title="Commission Amazon sur prix TTC">Commission</th>
+                                    <th class="p-2 font-semibold text-center text-red-400">Traitement FBA</th>
+                                    <th class="p-2 font-semibold text-center text-red-400">EFN</th>
+                                    <th class="p-2 font-semibold text-center text-red-300">Envoi</th>
+                                    <th class="p-2 font-semibold text-center text-purple-500">URSSAF</th>
+                                    <th class="p-2 font-semibold text-center text-gray-400" title="Stockage estimé 30j">Stockage</th>
+                                    <th class="p-2 font-semibold text-center text-orange-400" title="Frais préparation/étiquetage (configurable dans Paramètres OA)">Prep</th>
+                                    <th class="p-2 font-semibold text-center text-red-500">Total frais</th>
+                                    <th class="p-2 font-semibold text-center">Profit net</th>
+                                    <th class="p-2 font-semibold text-center">ROI</th>
+                                    <th class="p-2 font-semibold text-center">Alerte</th>
+                                    <th class="p-2 font-semibold text-center">Sourcing</th>
+                                </tr>
+                            </thead>
+                            <tbody id="crossborder-tbody">
+                                <tr><td colspan="17" class="p-10 text-center text-gray-400">
+                                    <i class="fas fa-globe-europe text-3xl mb-3 block text-gray-300"></i>
+                                    <p class="font-medium">Aucune donnée cross-border</p>
+                                    <p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> pour enrichir les deals via l'Agent 2</p>
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB : Rapport (historique des runs) -->
+                <div id="oa-tab-rapport" class="hidden">
+                    <div id="rapport-content" class="py-4">
+                        <p class="text-center text-gray-400 py-10">
+                            <i class="fas fa-spinner fa-spin text-2xl block mb-3 text-gray-300"></i>
+                            Chargement du rapport...
+                        </p>
                     </div>
                 </div>
             </section>
@@ -3260,7 +3365,7 @@
                     <h2 class="text-2xl font-bold text-gray-800">
                         <i class="fas fa-sliders text-indigo-600 mr-2"></i>Paramètres
                     </h2>
-                    <p class="text-gray-500 text-sm">Configuration du script Python · ces valeurs correspondent au fichier <code class="bg-gray-100 px-1 rounded text-indigo-600">config.py</code></p>
+                    <p class="text-gray-500 text-sm">Valeurs actuelles de <code class="bg-gray-100 px-1 rounded text-indigo-600">config.py</code> — pour modifier, éditer le fichier et relancer le script</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -3268,122 +3373,149 @@
                     <!-- Keepa — Filtres produits -->
                     <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
                         <h3 class="font-bold text-gray-700 mb-4 flex items-center gap-2">
-                            <img src="https://keepa.com/img/logo.png" alt="" class="h-4 w-auto" onerror="this.style.display='none'">
+                            <i class="fas fa-filter text-indigo-400"></i>
                             <span>Keepa — Filtres produits</span>
                         </h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">BSR max</label>
-                                <input type="number" value="50000" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300" placeholder="50000">
-                                <p class="text-xs text-gray-400 mt-1">Exclut les produits avec un BSR supérieur à cette valeur</p>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">BSR min / max</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">1 000 → 50 000</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">Vendeurs FBA min / max</label>
-                                <div class="flex gap-2">
-                                    <input type="number" value="1" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300" placeholder="Min">
-                                    <input type="number" value="15" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300" placeholder="Max">
-                                </div>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Buy Box min / max</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">15 € → 200 €</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">Historique prix (jours)</label>
-                                <input type="number" value="90" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Buy Box moy 90j min</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">15 €</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">ASINs max par run</label>
-                                <input type="number" value="50" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Vendeurs FBA min / max</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">1 → 15</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">ROI minimum (%)</label>
-                                <input type="number" value="25" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Exclure Amazon vendeur</span>
+                                <span class="text-xs font-bold px-2 py-0.5 rounded bg-red-100 text-red-600">OUI</span>
+                            </div>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">ROI minimum</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">25 %</span>
+                            </div>
+                            <div class="flex items-center justify-between py-2">
+                                <span class="text-sm text-gray-600">Budget tokens Keepa / run</span>
+                                <span class="text-sm font-semibold text-indigo-600 font-mono">200 tokens</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Catégories à scanner -->
                     <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
-                        <h3 class="font-bold text-gray-700 mb-4"><i class="fas fa-tag text-indigo-400 mr-2"></i>Catégories à scanner</h3>
+                        <h3 class="font-bold text-gray-700 mb-4"><i class="fas fa-tag text-indigo-400 mr-2"></i>Catégories actives <span class="text-xs font-normal text-gray-400 ml-1">(CATEGORIES_TO_SCAN)</span></h3>
                         <div class="space-y-2">
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" checked class="rounded text-indigo-600"> Jouets &amp; Jeux
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" checked class="rounded text-indigo-600"> Sports &amp; Loisirs
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" checked class="rounded text-indigo-600"> Cuisine &amp; Maison
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" class="rounded text-indigo-600"> Beauté &amp; Santé
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" class="rounded text-indigo-600"> Informatique
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" class="rounded text-indigo-600"> Animalerie
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" class="rounded text-indigo-600"> Bébé
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                                <input type="checkbox" class="rounded text-indigo-600"> Jardin
-                            </label>
+                            <div class="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                                <span class="text-sm text-gray-700">Toys &amp; Games</span>
+                                <span class="ml-auto text-xs text-gray-400">non-gaté</span>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                                <span class="text-sm text-gray-700">Sports &amp; Outdoors</span>
+                                <span class="ml-auto text-xs text-gray-400">non-gaté</span>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                                <span class="text-sm text-gray-700">Kitchen</span>
+                                <span class="ml-auto text-xs text-gray-400">non-gaté</span>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                                <span class="text-sm text-gray-700">Home &amp; Garden</span>
+                                <span class="ml-auto text-xs text-gray-400">non-gaté</span>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                                <span class="text-sm text-gray-700">Electronics</span>
+                                <span class="ml-auto text-xs text-gray-400">non-gaté</span>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5 border-b border-gray-50">
+                                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                                <span class="text-sm text-gray-700">Pet Supplies</span>
+                                <span class="ml-auto text-xs text-gray-400">non-gaté</span>
+                            </div>
+                            <div class="flex items-center gap-2 py-1.5">
+                                <span class="w-2 h-2 rounded-full bg-green-400 flex-shrink-0"></span>
+                                <span class="text-sm text-gray-700">Office Products</span>
+                                <span class="ml-auto text-xs text-gray-400">non-gaté</span>
+                            </div>
                         </div>
-                        <p class="text-xs text-gray-400 mt-4"><i class="fas fa-info-circle mr-1"></i>Modifie <code class="bg-gray-100 px-1 rounded">CATEGORIES_TO_SCAN</code> dans config.py pour appliquer</p>
+                        <div class="mt-3 pt-3 border-t border-gray-100">
+                            <p class="text-xs text-gray-400"><i class="fas fa-lock text-red-400 mr-1"></i>Gaté (exclus) : Health &amp; Beauty, Grocery, Baby, Jewelry, Clothing…</p>
+                        </div>
                     </div>
 
                     <!-- Frais & URSSAF -->
                     <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
                         <h3 class="font-bold text-gray-700 mb-4"><i class="fas fa-calculator text-orange-400 mr-2"></i>Frais &amp; Auto-entrepreneur</h3>
-                        <div class="space-y-4">
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">URSSAF (%)</label>
-                                <input type="number" value="12.3" step="0.1" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300">
-                                <p class="text-xs text-gray-400 mt-1">12.3% pour achat-revente auto-entrepreneur</p>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">URSSAF (achat-revente)</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">12.3 %</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">Unités par carton</label>
-                                <input type="number" value="10" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300">
-                                <p class="text-xs text-gray-400 mt-1">Pour le calcul des frais d'envoi FBA divisés par unité</p>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Unités par carton</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">10</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">Commission Amazon par défaut (%)</label>
-                                <input type="number" value="15" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Commission Amazon défaut</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">15 %</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">Marketplaces actives</label>
-                                <div class="flex gap-2 flex-wrap">
-                                    <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" checked class="rounded"> 🇫🇷 FR</label>
-                                    <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" checked class="rounded"> 🇩🇪 DE</label>
-                                    <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" checked class="rounded"> 🇮🇹 IT</label>
-                                    <label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" checked class="rounded"> 🇪🇸 ES</label>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Commission Electronics</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">8 %</span>
+                            </div>
+                            <div class="pt-2">
+                                <p class="text-xs text-gray-500 font-medium mb-2">Marketplaces EFN actives</p>
+                                <div class="flex gap-2">
+                                    <span class="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded">🇫🇷 FR</span>
+                                    <span class="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded">🇩🇪 DE</span>
+                                    <span class="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded">🇮🇹 IT</span>
+                                    <span class="px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded">🇪🇸 ES</span>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- SellerAmp -->
+                    <!-- Pipeline & Tokens -->
                     <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
-                        <h3 class="font-bold text-gray-700 mb-4"><i class="fas fa-shield-alt text-green-400 mr-2"></i>SellerAmp — Vérification éligibilité</h3>
-                        <div class="space-y-4">
-                            <div class="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
-                                <i class="fas fa-check-circle mr-1"></i>SellerAmp actif — vérifie l'éligibilité via Playwright
+                        <h3 class="font-bold text-gray-700 mb-4"><i class="fas fa-robot text-purple-400 mr-2"></i>Pipeline &amp; Agents Claude</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Itérations agent max</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">10</span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">Délai entre requêtes (sec)</label>
-                                <div class="flex gap-2">
-                                    <input type="number" value="1.5" step="0.1" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300" placeholder="Min">
-                                    <input type="number" value="3.0" step="0.1" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300" placeholder="Max">
-                                </div>
-                                <p class="text-xs text-gray-400 mt-1">Délai aléatoire pour éviter les bans</p>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Budget tokens / run</span>
+                                <span class="text-sm font-semibold text-indigo-600 font-mono">200 <span class="text-xs font-normal text-gray-400">(env AGENT_TOKEN_BUDGET)</span></span>
                             </div>
-                            <div>
-                                <label class="text-sm font-medium text-gray-700 block mb-1">Spread arbitrage min (€)</label>
-                                <input type="number" value="15" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-indigo-300">
-                                <p class="text-xs text-gray-400 mt-1">Alerte si écart de prix entre marketplaces dépasse cette valeur</p>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Tokens Keepa Pro</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">1 / min · ~1440 / jour</span>
+                            </div>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">Spread arbitrage min</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">15 %</span>
+                            </div>
+                            <div class="flex items-center justify-between py-2 border-b border-gray-50">
+                                <span class="text-sm text-gray-600">SellerAmp — éligibilité</span>
+                                <span class="text-xs font-bold px-2 py-0.5 rounded bg-green-100 text-green-600">ACTIF</span>
+                            </div>
+                            <div class="flex items-center justify-between py-2">
+                                <span class="text-sm text-gray-600">Délai SellerAmp</span>
+                                <span class="text-sm font-semibold text-gray-800 font-mono">1.5 – 3.0 s</span>
                             </div>
                         </div>
-                        <div class="mt-4 pt-4 border-t border-gray-100">
-                            <p class="text-xs text-gray-400"><i class="fas fa-info-circle mr-1"></i>Identifiants dans <code class="bg-gray-100 px-1 rounded">.env</code> · remplacé par SP-API dès validation</p>
+                        <div class="mt-4 pt-3 border-t border-gray-100">
+                            <p class="text-xs text-gray-400"><i class="fas fa-info-circle mr-1"></i>Credentials dans <code class="bg-gray-100 px-1 rounded">.env</code></p>
                         </div>
                     </div>
 
@@ -3391,7 +3523,7 @@
 
                 <div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
                     <i class="fas fa-exclamation-triangle mr-2"></i>
-                    Ces valeurs sont indicatives. Pour les modifier réellement, édite <code class="bg-amber-100 px-1 rounded">config.py</code> dans VS Code et relance le script.
+                    Valeurs en lecture seule. Pour modifier, édite <code class="bg-amber-100 px-1 rounded">oa_tool/config.py</code> dans VS Code et relance <code class="bg-amber-100 px-1 rounded">python main.py</code>.
                 </div>
             </section>
 

@@ -6,11 +6,140 @@ var OA_SUPABASE_URL = 'https://ittbipdvkutbiiqeukdg.supabase.co';
 var OA_SUPABASE_KEY = 'sb_publishable_uC4DebkXoayJkKDabA_A1w_7ft2qxwd';
 
 var _sbOAClient  = null;
-var _oaData      = [];           // données brutes (mapped)
-var _oaTab       = 'raw';        // onglet actif
+var _oaData      = [];           // deals du jour (mapped)
+var _cbData      = [];           // tous deals avec prix EU (cross-border)
+var _runData     = [];           // historique des runs
+var _oaTab       = 'deals';      // onglet actif
 
 var MP_FLAGS   = { FR: '🇫🇷', DE: '🇩🇪', IT: '🇮🇹', ES: '🇪🇸' };
 var MP_DOMAINS = { FR: 'fr',   DE: 'de',   IT: 'it',   ES: 'es'   };
+
+// ── TVA EU & frais de stockage ────────────────────────────────────────────────
+var TVA_EU = { DE: 0.19, IT: 0.22, ES: 0.21 };
+var STORAGE_DAYS    = 30;    // jours rotation estimée (paramètre)
+var STORAGE_RATE    = 0.26;  // €/m³/jour (Amazon Jan-Sep)
+var STORAGE_VOL_M3  = {      // volume estimé par size_tier
+    'small_standard':          0.0003,
+    'large_standard_400':      0.0010,
+    'large_standard_over_400': 0.0020,
+    'extra_large':             0.0050,
+};
+
+// ── Toggle URSSAF (persisté en localStorage) ──────────────────────────────────
+var _urssafOn = (localStorage.getItem('oa_urssaf') !== 'false');
+
+// ── Frais prep (persisté en localStorage) ─────────────────────────────────────
+var _prepFee = parseFloat(localStorage.getItem('oa_prep_fee') || '0.50');
+var _prepOn  = (localStorage.getItem('oa_prep') !== 'false');
+
+function toggleUrssaf() {
+    _urssafOn = !_urssafOn;
+    localStorage.setItem('oa_urssaf', _urssafOn ? 'true' : 'false');
+    var btn = document.getElementById('btn-urssaf-toggle');
+    if (btn) {
+        btn.textContent = _urssafOn ? 'Avec URSSAF' : 'Sans URSSAF';
+        btn.className = _urssafOn
+            ? 'text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer'
+            : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
+    }
+    renderRawTab();
+    renderDealsTab();
+    renderCrossBorderTab();
+}
+
+function togglePrep() {
+    _prepOn = !_prepOn;
+    localStorage.setItem('oa_prep', _prepOn ? 'true' : 'false');
+    var cls = _prepOn
+        ? 'text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer'
+        : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
+    ['btn-prep-toggle', 'btn-prep-toggle-param'].forEach(function(id) {
+        var btn = document.getElementById(id);
+        if (btn) { btn.textContent = _prepOn ? 'Avec prep' : 'Sans prep'; btn.className = cls; }
+    });
+    renderRawTab();
+    renderDealsTab();
+    renderCrossBorderTab();
+}
+
+function updatePrepFee(val) {
+    var v = parseFloat(val);
+    if (isNaN(v) || v < 0) return;
+    _prepFee = v;
+    localStorage.setItem('oa_prep_fee', v.toString());
+    // Sync les deux inputs (toggle bar + Paramètres)
+    ['oa-param-prep-fee'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el && parseFloat(el.value) !== v) el.value = v;
+    });
+    if (_prepOn) {
+        renderRawTab();
+        renderDealsTab();
+        renderCrossBorderTab();
+    }
+}
+
+function updateStorageDays(val) {
+    var v = parseInt(val);
+    if (isNaN(v) || v < 1) return;
+    STORAGE_DAYS = v;
+    renderRawTab();
+    renderDealsTab();
+    renderCrossBorderTab();
+}
+
+function _initOAParamInputs() {
+    var prep = document.getElementById('oa-param-prep-fee');
+    if (prep) prep.value = _prepFee;
+    var days = document.getElementById('oa-param-storage-days');
+    if (days) days.value = STORAGE_DAYS;
+    // Sync les boutons toggles
+    var btnU = document.getElementById('btn-urssaf-toggle');
+    if (btnU) {
+        btnU.textContent = _urssafOn ? 'Avec URSSAF' : 'Sans URSSAF';
+        btnU.className = _urssafOn
+            ? 'text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer'
+            : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
+    }
+    var prepCls = _prepOn
+        ? 'text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer'
+        : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
+    ['btn-prep-toggle', 'btn-prep-toggle-param'].forEach(function(id) {
+        var btnP = document.getElementById(id);
+        if (btnP) { btnP.textContent = _prepOn ? 'Avec prep' : 'Sans prep'; btnP.className = prepCls; }
+    });
+}
+
+// ── Calcul frais cross-border (en JS, avec TVA EU) ────────────────────────────
+function _calcCBFees(d) {
+    var mp      = d.bestMP && d.bestMP !== 'FR' ? d.bestMP : (d.mp || 'DE');
+    var priceEU = { DE: d.buyBoxDE, IT: d.buyBoxIT, ES: d.buyBoxES }[mp] || d.bestPrice || 0;
+    if (!priceEU) return null;
+
+    var tvaRate  = TVA_EU[mp] || 0;
+    var tva      = Math.round(priceEU * tvaRate / (1 + tvaRate) * 100) / 100;
+    var priceHT  = Math.round(priceEU / (1 + tvaRate) * 100) / 100;
+
+    var refRate  = (d.categorie && d.categorie.indexOf('Electronics') >= 0) ? 0.08 : 0.15;
+    var commis   = Math.round(priceEU * refRate * 100) / 100;
+    var fba      = d.fraisFba  || 7.50;
+    var efn      = d.fraisEfn  || 5.00;
+    var envoi    = d.envoiFba  || 1.20;
+    var urssaf   = _urssafOn ? Math.round(priceHT * 0.123 * 100) / 100 : 0;
+
+    var vol      = STORAGE_VOL_M3[d.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+    var stockage = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+    var prep     = _prepOn ? _prepFee : 0;
+
+    var total    = Math.round((tva + commis + fba + efn + envoi + urssaf + stockage + prep) * 100) / 100;
+
+    var prixAchat = (d.moy90j || d.buyBoxFR || 0) * 0.70;
+    var profit    = prixAchat > 0 ? Math.round((priceHT - total - prixAchat) * 100) / 100 : null;
+    var roi       = (prixAchat > 0 && profit != null) ? Math.round(profit / prixAchat * 1000) / 10 : null;
+
+    return { mp, priceEU, priceHT, tvaRate, tva, commis, refRate, fba, efn, envoi,
+             urssaf, stockage, prep, total, prixAchat, profit, roi };
+}
 
 // ── Client Supabase ───────────────────────────────────────────────────────────
 function _getOAClient() {
@@ -66,6 +195,7 @@ function _mapDeal(d) {
         urssaf:       d.urssaf,
         frais:        d.total_frais,
         roiFr:        d.roi_fr,
+        profitNetFr:  d.profit_net_fr,
         roiMeilleur:  d.roi_meilleur,
         statut:       d.statut,
         mp:           mp,
@@ -79,6 +209,8 @@ function _mapDeal(d) {
         bestMP:       bestMP,
         bestPrice:    bestPrice,
         gainVsFR:     gainVsFR,
+        weightG:      d.weight_g,
+        sizeTier:     d.size_tier,
     };
 }
 
@@ -127,12 +259,32 @@ function loadCatalog() {
               dateEl.textContent = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
           }
 
+          _initOAParamInputs();
           renderRawTab();
           renderDealsTab();
           renderCatalogTable();
           _renderAccueilTopDeals();
+          loadCrossBorderData();
       })
       .catch(function(e) { _showRawEmpty('Erreur connexion Supabase'); console.error('[OA]', e); });
+}
+
+// ── Cross Border — tous les ASINs en base avec prix EU ───────────────────────
+function loadCrossBorderData() {
+    var sb = _getOAClient();
+    if (!sb) return;
+
+    sb.from('deals')
+      .select('*')
+      .or('source.eq.cross_border,buy_box_de.not.is.null,buy_box_it.not.is.null,buy_box_es.not.is.null')
+      .order('roi_meilleur', { ascending: false })
+      .limit(200)
+      .then(function(res) {
+          if (res.error) { console.error('[CB]', res.error.message); return; }
+          _cbData = (res.data || []).map(_mapDeal);
+          renderCrossBorderTab();
+      })
+      .catch(function(e) { console.error('[CB]', e); });
 }
 
 // ── Top deals pour la page Accueil ───────────────────────────────────────────
@@ -173,22 +325,22 @@ function _renderAccueilTopDeals() {
 // ── Switcher onglets ──────────────────────────────────────────────────────────
 function switchOATab(tab) {
     _oaTab = tab;
-    var raw   = document.getElementById('oa-tab-raw');
-    var deals = document.getElementById('oa-tab-deals');
-    var btnR  = document.getElementById('oa-tab-btn-raw');
-    var btnD  = document.getElementById('oa-tab-btn-deals');
-
-    if (tab === 'raw') {
-        if (raw)   raw.classList.remove('hidden');
-        if (deals) deals.classList.add('hidden');
-        if (btnR)  { btnR.classList.add('text-indigo-600', 'border-indigo-600'); btnR.classList.remove('text-gray-400', 'border-transparent'); }
-        if (btnD)  { btnD.classList.remove('text-indigo-600', 'border-indigo-600'); btnD.classList.add('text-gray-400', 'border-transparent'); }
-    } else {
-        if (raw)   raw.classList.add('hidden');
-        if (deals) deals.classList.remove('hidden');
-        if (btnD)  { btnD.classList.add('text-indigo-600', 'border-indigo-600'); btnD.classList.remove('text-gray-400', 'border-transparent'); }
-        if (btnR)  { btnR.classList.remove('text-indigo-600', 'border-indigo-600'); btnR.classList.add('text-gray-400', 'border-transparent'); }
-    }
+    var tabs = ['raw', 'deals', 'crossborder', 'rapport'];
+    tabs.forEach(function(t) {
+        var el  = document.getElementById('oa-tab-' + t);
+        var btn = document.getElementById('oa-tab-btn-' + t);
+        if (!el || !btn) return;
+        if (t === tab) {
+            el.classList.remove('hidden');
+            btn.classList.add('text-indigo-600', 'border-indigo-600');
+            btn.classList.remove('text-gray-400', 'border-transparent');
+        } else {
+            el.classList.add('hidden');
+            btn.classList.remove('text-indigo-600', 'border-indigo-600');
+            btn.classList.add('text-gray-400', 'border-transparent');
+        }
+    });
+    if (tab === 'rapport' && !_runData.length) loadRunHistory();
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────
@@ -209,24 +361,43 @@ function _buildRawRow(p) {
         ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">Concurrence</span>'
         : '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">Libre</span>';
 
-    var gainCell = p.gainVsFR != null
-        ? '<span class="font-bold ' + (p.gainVsFR > 0 ? 'text-green-600' : 'text-red-500') + '">'
-            + (p.gainVsFR > 0 ? '+' : '') + p.gainVsFR.toFixed(2) + '€</span>'
-        : '<span class="text-gray-300">—</span>';
 
-    var feeCell = function(v) { return v != null ? v.toFixed(2) + '€' : '<span class="text-gray-300">—</span>'; };
     var pctCell = function(v) { return v != null ? v.toFixed(1) + '%' : '<span class="text-gray-300">—</span>'; };
     var priceCell = function(v) { return v ? v.toFixed(2) + '€' : '<span class="text-gray-300">—</span>'; };
 
+    // Tooltips calcul frais
+    var bb = p.moy90j || p.buyBoxFR || 0;
+    var tierLabel = p.sizeTier || '?';
+    var wg = p.weightG || 0;
+    var cartonKg = wg > 0 ? (wg / 1000 * 10).toFixed(2) : '?';
+    var refRate = p.categorie && (p.categorie.indexOf('Electronics') >= 0 || p.categorie.indexOf('Informatique') >= 0) ? '8%' : '15%';
+    var tipReferral  = bb ? 'Buy Box moy 90j (' + bb.toFixed(2) + '€) × ' + refRate : 'Prix × ' + refRate;
+    var tipFba       = 'Tier: ' + tierLabel + '\nGrille fixe Amazon selon poids/dimensions';
+    var tipEnvoi     = wg ? wg + 'g × 10u/carton = ' + cartonKg + 'kg\nTarif colissimo au poids' : 'Tarif selon poids carton';
+    var tipUrssaf    = bb ? 'Buy Box moy 90j (' + bb.toFixed(2) + '€) × 12.3%\nCotisation auto-entrepreneur' : 'Prix × 12.3%';
+    var tipEfn       = 'Frais EFN vers Allemagne (DE)\nTier: ' + tierLabel + ' — grille cross-border Amazon';
+    var tipPrep      = _prepOn
+        ? 'Frais préparation/étiquetage : ' + _prepFee.toFixed(2) + '€/unité\n(Configurable dans Paramètres OA)'
+        : 'Frais prep désactivés\n(Toggle "Avec prep" ou configurer dans Paramètres OA)';
+    var tipTotal     = 'Commission Amz + Traitement FBA\n+ Envoi entrepôt + URSSAF'
+        + (_prepOn ? ' + Prep' : '');
+    var feeTip = function(v, tip) {
+        return '<span title="' + tip + '" style="cursor:help;border-bottom:1px dotted #999">' + (v != null ? v.toFixed(2) + '€' : '—') + '</span>';
+    };
+
     // Col 19 — Meilleure marketplace
-    var bestMPCell = p.bestMP
-        ? (MP_FLAGS[p.bestMP] || '') + ' ' + p.bestMP
+    var bestMPCell = (p.bestMP && p.bestMP !== 'FR')
+        ? MP_FLAGS[p.bestMP] + ' ' + p.bestMP
         : '<span class="text-gray-300">—</span>';
 
     // Col 22 — Alerte arbitrage
+    var arbTip = 'Arbitrage = produit vendu plus cher sur une marketplace EU\n'
+        + 'que sur Amazon.fr (écart ≥ 15%).\n'
+        + 'Opportunité : acheter en FR, revendre en DE/IT/ES via EFN.\n'
+        + (p.alerte ? 'Détail : ' + p.alerte : 'Pas d\'écart détecté sur ce produit.');
     var alerteCell = p.alerte
-        ? '<span class="text-amber-600 font-semibold">⚡ ' + p.alerte + '</span>'
-        : '<span class="text-gray-300">—</span>';
+        ? '<span class="text-amber-600 font-semibold" title="' + arbTip + '" style="cursor:help">⚡ ' + p.alerte + '</span>'
+        : '<span class="text-gray-300" title="' + arbTip + '" style="cursor:help">—</span>';
 
     // Col 23 — Sourcing (lien Google Shopping)
     var sourcingCell = p.lienGS
@@ -235,7 +406,7 @@ function _buildRawRow(p) {
 
     return '<tr class="border-b border-gray-50 hover:bg-gray-50/70 transition-colors">'
         // 1 — Score
-        + '<td class="p-2 text-center"><span class="font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
+        + '<td class="p-2 text-center"><span class="font-bold px-1.5 py-0.5 rounded ' + scoreColor + '" title="Score 0-100&#10;BSR &lt; 5k → +40pts | &lt; 20k → +30pts | &lt; 50k → +20pts&#10;ROI ≥ 50% → +40pts | ≥ 35% → +30pts | ≥ 25% → +20pts&#10;Vendeurs FBA ≤ 3 → +20pts | ≤ 8 → +10pts&#10;Score ≥ 70 = deal intéressant" style="cursor:help">' + (p.score || '?') + '</span></td>'
         // 2 — Statut
         + '<td class="p-2 text-center">' + eligBadge + '</td>'
         // 3 — Titre
@@ -245,7 +416,7 @@ function _buildRawRow(p) {
         // 5 — Catégorie
         + '<td class="p-2 text-gray-500 whitespace-nowrap">' + (p.categorie || '—') + '</td>'
         // 6 — BSR
-        + '<td class="p-2 text-center font-mono text-gray-600">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
+        + '<td class="p-2 text-center font-mono text-gray-600" title="Best Seller Rank — rang de vente dans la catégorie&#10;Plus le rang est bas, plus le produit se vend&#10;&lt; 1 000 = excellent&#10;&lt; 10 000 = très bon&#10;&lt; 30 000 = bon&#10;&lt; 50 000 = acceptable&#10;Keepa surveille l\'historique BSR" style="cursor:help">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
         // 7 — Vendeurs FBA
         + '<td class="p-2 text-center font-semibold">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
         // 8 — Amazon vendeur
@@ -257,25 +428,53 @@ function _buildRawRow(p) {
         // 11 — Buy Box min 90j
         + '<td class="p-2 text-center text-gray-500">' + priceCell(p.min90j) + '</td>'
         // 12 — Referral fee
-        + '<td class="p-2 text-center text-orange-500">' + feeCell(p.referralFee) + '</td>'
+        + '<td class="p-2 text-center text-orange-500">' + feeTip(p.referralFee, tipReferral) + '</td>'
         // 13 — Frais FBA
-        + '<td class="p-2 text-center text-red-400">' + feeCell(p.fraisFba) + '</td>'
+        + '<td class="p-2 text-center text-red-400">' + feeTip(p.fraisFba, tipFba) + '</td>'
         // 14 — Envoi FBA
-        + '<td class="p-2 text-center text-red-400">' + feeCell(p.envoiFba) + '</td>'
+        + '<td class="p-2 text-center text-red-400">' + feeTip(p.envoiFba, tipEnvoi) + '</td>'
         // 15 — Frais EFN
-        + '<td class="p-2 text-center text-red-400">' + feeCell(p.fraisEfn) + '</td>'
-        // 16 — URSSAF
-        + '<td class="p-2 text-center text-purple-500">' + feeCell(p.urssaf) + '</td>'
-        // 17 — Total frais
-        + '<td class="p-2 text-center font-bold text-red-500">' + feeCell(p.frais) + '</td>'
-        // 18 — ROI estimé FR (%)
+        + '<td class="p-2 text-center text-red-400">' + feeTip(p.fraisEfn, tipEfn) + '</td>'
+        // 16 — Prep (toggle)
+        + (function() {
+            if (_prepOn) {
+                return '<td class="p-2 text-center text-orange-400">' + feeTip(_prepFee, tipPrep) + '</td>';
+            } else {
+                return '<td class="p-2 text-center text-gray-300" title="' + tipPrep + '"><span style="opacity:.4">—</span></td>';
+            }
+        })()
+        // 17 — URSSAF (toggle)
+        + (function() {
+            if (_urssafOn) {
+                return '<td class="p-2 text-center text-purple-500">' + feeTip(p.urssaf, tipUrssaf) + '</td>';
+            } else {
+                return '<td class="p-2 text-center text-gray-300 line-through" title="URSSAF désactivé"><span style="text-decoration:line-through;opacity:.4">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '—') + '</span></td>';
+            }
+        })()
+        // 18 — Total frais (ajusté selon toggle URSSAF + Prep)
+        + (function() {
+            var tot = p.frais;
+            if (!_urssafOn && p.urssaf != null) tot = tot != null ? Math.round((tot - p.urssaf) * 100) / 100 : null;
+            if (_prepOn) tot = tot != null ? Math.round((tot + _prepFee) * 100) / 100 : null;
+            var extras = [];
+            if (!_urssafOn) extras.push('URSSAF exclu');
+            if (_prepOn) extras.push('Prep inclu');
+            var tip = tipTotal + (extras.length ? '\n⚠ ' + extras.join(', ') : '');
+            return '<td class="p-2 text-center font-bold text-red-500">' + feeTip(tot, tip) + '</td>';
+        })()
+        // 19 — Profit net FR (€) ajusté
+        + (function() {
+            var urssafAdj = _urssafOn ? 0 : (p.urssaf || 0);
+            var prepAdj   = _prepOn ? _prepFee : 0;
+            var pn = p.profitNetFr != null ? Math.round((p.profitNetFr + urssafAdj - prepAdj) * 100) / 100 : null;
+            return '<td class="p-2 text-center font-semibold ' + ((pn || 0) >= 0 ? 'text-green-600' : 'text-red-500') + '" title="Buy Box moy 90j − frais − prix achat estimé (70%)">' + (pn != null ? (pn >= 0 ? '+' : '') + pn.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>';
+        })()
+        // 19 — ROI estimé FR (%)
         + '<td class="p-2 text-center font-semibold ' + ((p.roiFr || 0) >= 25 ? 'text-green-600' : 'text-gray-500') + '">' + pctCell(p.roiFr) + '</td>'
-        // 19 — Meilleure marketplace
+        // 20 — Meilleure marketplace
         + '<td class="p-2 text-center font-semibold">' + bestMPCell + '</td>'
         // 20 — ROI meilleur (%)
         + '<td class="p-2 text-center font-semibold ' + ((p.roiMeilleur || 0) >= 25 ? 'text-green-600' : 'text-gray-500') + '">' + pctCell(p.roiMeilleur) + '</td>'
-        // 21 — Gain vs FR
-        + '<td class="p-2 text-center">' + gainCell + '</td>'
         // 22 — Alerte arbitrage
         + '<td class="p-2 text-center">' + alerteCell + '</td>'
         // 23 — Sourcing
@@ -418,7 +617,7 @@ function renderDealsTab() {
     if (label) label.textContent = data.length + ' deal' + (data.length !== 1 ? 's' : '');
 
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="11" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="12" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun deal avec ces filtres</p></td></tr>';
         return;
@@ -478,6 +677,9 @@ function renderDealsTab() {
             + '</td>'
             + '<td class="p-3 text-center bg-green-50/30">' + profitCell + '</td>'
             + '<td class="p-3 text-center bg-green-50/30">' + roiCell + '</td>'
+            + '<td class="p-3 text-center">'
+                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 GS</a>' : '<span class="text-gray-300 text-xs">—</span>')
+            + '</td>'
             + '</tr>';
     }).join('');
 }
@@ -513,4 +715,242 @@ function saveOAPrixAchat(dealId, prix) {
 
         renderDealsTab();
     });
+}
+
+// ── Cross Border Tab ──────────────────────────────────────────────────────────
+function renderCrossBorderTab() {
+    var tbody = document.getElementById('crossborder-tbody');
+    if (!tbody) return;
+
+    if (!_cbData.length) {
+        tbody.innerHTML = '<tr><td colspan="17" class="p-10 text-center text-gray-400">'
+            + '<i class="fas fa-globe-europe text-3xl mb-3 block text-gray-300"></i>'
+            + '<p class="font-medium">Aucune opportunité cross-border</p>'
+            + '<p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> avec tokens &ge; 250 pour activer Agent 2 EU</p>'
+            + '</td></tr>';
+        return;
+    }
+
+    var tip = function(v, t) {
+        return '<span title="' + t + '" style="cursor:help;border-bottom:1px dotted #999">'
+            + (v != null ? v.toFixed(2) + '€' : '<span class=\'text-gray-300\'>—</span>')
+            + '</span>';
+    };
+    var pct = function(v, green) {
+        if (v == null) return '<span class="text-gray-300">—</span>';
+        var c = v >= (green || 25) ? 'text-green-600 font-bold' : v >= 0 ? 'text-amber-600 font-semibold' : 'text-red-500 font-semibold';
+        return '<span class="' + c + '">' + (v >= 0 ? '+' : '') + v.toFixed(1) + '%</span>';
+    };
+    var fmt = function(v) { return v != null ? v.toFixed(2) + '€' : '<span class="text-gray-300">—</span>'; };
+
+    tbody.innerHTML = _cbData.map(function(d) {
+        var f = _calcCBFees(d);
+        if (!f) return '';
+
+        var amzUrl = d.asin ? 'https://www.amazon.' + (MP_DOMAINS[f.mp] || 'de') + '/dp/' + d.asin : '#';
+        var gsCell = d.lienGS
+            ? '<a href="' + d.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold">🔍 GS</a>'
+            : '<span class="text-gray-300">—</span>';
+
+        // Tooltips détaillés
+        var tTva      = 'Prix TTC ' + f.mp + ' (' + f.priceEU.toFixed(2) + '€)\n× ' + (f.tvaRate * 100).toFixed(0) + '% TVA locale\n= ' + f.tva.toFixed(2) + '€ reversé à l\'état ' + f.mp;
+        var tCommis   = 'Prix TTC (' + f.priceEU.toFixed(2) + '€) × ' + (f.refRate * 100).toFixed(0) + '%\nCommission Amazon';
+        var tFba      = 'Tier: ' + (d.sizeTier || '?') + '\nTraitement FBA (grille fixe)';
+        var tEfn      = 'Frais EFN FR → ' + f.mp + '\nExpédition depuis entrepôt FR au client EU';
+        var tEnvoi    = (d.weightG || 0) + 'g — livraison à l\'entrepôt FR';
+        var tUrssaf   = !_urssafOn ? 'URSSAF désactivé' : 'Prix HT (' + f.priceHT.toFixed(2) + '€) × 12.3%\nCotisation auto-entrepreneur';
+        var tStockage = 'Vol. estimé (' + (d.sizeTier || '?') + ')\n× ' + STORAGE_RATE + '€/m³/j × ' + STORAGE_DAYS + ' jours';
+        var tPrep     = _prepOn
+            ? 'Frais préparation/étiquetage : ' + _prepFee.toFixed(2) + '€/unité\n(Configurable dans Paramètres OA)'
+            : 'Frais prep désactivés';
+        var tTotal    = 'TVA + Commission + FBA + EFN + Envoi' + (_urssafOn ? ' + URSSAF' : '') + ' + Stockage' + (_prepOn ? ' + Prep' : '');
+        var tProfit   = 'Prix HT (' + f.priceHT.toFixed(2) + '€) − total frais (' + f.total.toFixed(2) + '€)\n− achat estimé (' + f.prixAchat.toFixed(2) + '€ = moy90j × 70%)'
+            + (_prepOn ? '\n(Prep ' + _prepFee.toFixed(2) + '€ inclus)' : '');
+
+        var profitColor = (f.profit || 0) >= 5 ? 'text-green-600 font-bold'
+                        : (f.profit || 0) >= 0 ? 'text-amber-600 font-semibold'
+                        : 'text-red-500 font-semibold';
+        var profitCell  = f.profit != null
+            ? '<span class="' + profitColor + '" title="' + tProfit + '">' + (f.profit >= 0 ? '+' : '') + f.profit.toFixed(2) + '€</span>'
+            : '<span class="text-gray-300">—</span>';
+
+        var alerteCell = d.alerte
+            ? '<span class="bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded">⚡ ' + d.alerte + '</span>'
+            : '<span class="text-gray-300">—</span>';
+
+        return '<tr class="border-b border-gray-50 hover:bg-gray-50 transition">'
+            // Titre
+            + '<td class="p-2 max-w-[180px]"><a href="' + amzUrl + '" target="_blank" class="font-medium text-gray-800 hover:text-indigo-600 text-xs block truncate" title="' + (d.titre || '') + '">' + (d.titre || '').substring(0, 45) + '</a></td>'
+            // ASIN
+            + '<td class="p-2 font-mono text-xs text-gray-400">' + (d.asin || '') + '</td>'
+            // Prix FR
+            + '<td class="p-2 text-center text-sm font-semibold">' + fmt(d.buyBoxFR) + '</td>'
+            // Prix EU
+            + '<td class="p-2 text-center text-sm font-bold text-blue-600">' + fmt(f.priceEU) + ' <span class="text-xs text-gray-400">' + f.mp + '</span></td>'
+            // TVA EU
+            + '<td class="p-2 text-center text-orange-500">' + tip(f.tva, tTva) + '</td>'
+            // Commission
+            + '<td class="p-2 text-center text-orange-400">' + tip(f.commis, tCommis) + '</td>'
+            // Traitement FBA
+            + '<td class="p-2 text-center text-red-400">' + tip(f.fba, tFba) + '</td>'
+            // EFN
+            + '<td class="p-2 text-center text-red-400">' + tip(f.efn, tEfn) + '</td>'
+            // Envoi entrepôt
+            + '<td class="p-2 text-center text-red-300">' + tip(f.envoi, tEnvoi) + '</td>'
+            // URSSAF (toggle)
+            + '<td class="p-2 text-center ' + (_urssafOn ? 'text-purple-500' : 'text-gray-300') + '">' + tip(_urssafOn ? f.urssaf : null, tUrssaf) + '</td>'
+            // Stockage
+            + '<td class="p-2 text-center text-gray-400">' + tip(f.stockage, tStockage) + '</td>'
+            // Prep (toggle)
+            + '<td class="p-2 text-center ' + (_prepOn ? 'text-orange-400' : 'text-gray-300') + '">' + tip(_prepOn ? f.prep : null, tPrep) + '</td>'
+            // Total frais
+            + '<td class="p-2 text-center font-bold text-red-500">' + tip(f.total, tTotal) + '</td>'
+            // Profit net EU
+            + '<td class="p-2 text-center">' + profitCell + '</td>'
+            // ROI EU
+            + '<td class="p-2 text-center">' + pct(f.roi, 25) + '</td>'
+            // Alerte
+            + '<td class="p-2 text-center">' + alerteCell + '</td>'
+            // Sourcing
+            + '<td class="p-2 text-center">' + gsCell + '</td>'
+            + '</tr>';
+    }).join('');
+}
+
+// ── TAB : Rapport — historique des runs ───────────────────────────────────────
+function loadRunHistory() {
+    var sb = _getOAClient();
+    if (!sb) return;
+
+    sb.from('runs')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(30)
+      .then(function(res) {
+          if (res.error) { console.error('[OA Runs]', res.error); return; }
+          _runData = res.data || [];
+          renderRunTab();
+      })
+      .catch(function(e) { console.error('[OA Runs]', e); });
+}
+
+function renderRunTab() {
+    var wrap = document.getElementById('rapport-content');
+    if (!wrap) return;
+
+    if (!_runData.length) {
+        wrap.innerHTML = '<p class="text-center text-gray-400 py-10">Aucun run enregistré — lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code></p>';
+        return;
+    }
+
+    var last = _runData[0];
+    var lastDate = last.date ? new Date(last.date).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+    var lastStatus = last.status === 'success'  ? '✅ Succès'
+                   : last.status === 'skipped'  ? '⏭ Skip'
+                   : last.status === 'error'    ? '❌ Erreur'
+                   : last.status === 'no_deals' ? '⚠ Aucun deal'
+                   : last.status || '—';
+    var tokensBar = '';
+    if (last.tokens_before != null) {
+        var pct = Math.min(100, Math.round(last.tokens_before / 1440 * 100));
+        tokensBar = '<div class="w-full bg-gray-200 rounded-full h-2 mt-1"><div class="bg-indigo-500 h-2 rounded-full" style="width:' + pct + '%"></div></div>'
+            + '<div class="text-xs text-gray-500 mt-1">' + last.tokens_before + ' tokens au départ (~1440/jour max)</div>';
+    }
+
+    var summary = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">'
+        + '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">'
+        + '<div class="text-xs text-gray-400 mb-1">Dernier run</div>'
+        + '<div class="text-lg font-bold text-gray-800">' + lastStatus + ' — ' + lastDate + '</div>'
+        + '<div class="text-sm text-gray-500 mt-1">Stratégie : <span class="font-semibold text-indigo-600">' + (last.strategy || '—') + '</span>'
+        + ' | ' + (last.deals_found || 0) + ' deals | ' + (last.deals_eligible || 0) + ' éligibles | ' + (last.deals_cross_border || 0) + ' CB'
+        + (last.duree_secondes ? ' | ' + Math.round(last.duree_secondes / 60) + 'min' : '')
+        + '</div></div>'
+        + '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">'
+        + '<div class="text-xs text-gray-400 mb-1">Tokens dernier run</div>'
+        + (last.tokens_before != null
+            ? '<div class="text-lg font-bold text-gray-800">' + (last.tokens_before || 0) + ' → ' + (last.tokens_after || '?')
+              + ' <span class="text-sm font-normal text-red-500">(-' + (last.tokens_used || 0) + ')</span></div>'
+            : '<div class="text-gray-400">—</div>')
+        + tokensBar
+        + '</div></div>';
+
+    var statusIcon = function(s) {
+        return s === 'success'  ? '✅' : s === 'skipped' ? '⏭'
+             : s === 'error'    ? '❌' : s === 'no_deals' ? '⚠️' : '—';
+    };
+    var stratColor = function(s) {
+        return s === 'full_eu'  ? 'bg-green-100 text-green-700'
+             : s === 'full'     ? 'bg-blue-100 text-blue-700'
+             : s === 'standard' ? 'bg-indigo-100 text-indigo-700'
+             : s === 'reduced'  ? 'bg-amber-100 text-amber-700'
+             : 'bg-gray-100 text-gray-500';
+    };
+
+    var rows = _runData.map(function(r, i) {
+        var dt = r.date ? new Date(r.date) : null;
+        var dateStr = dt ? dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—';
+        var timeStr = dt ? dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
+        var duree   = r.duree_secondes ? Math.round(r.duree_secondes / 60) + 'min' : '—';
+        var tokens  = (r.tokens_before != null && r.tokens_after != null)
+            ? r.tokens_before + ' → ' + r.tokens_after + ' <span class="text-red-400">(-' + (r.tokens_used || 0) + ')</span>'
+            : (r.tokens_before != null ? r.tokens_before : '—');
+
+        var detailId  = 'run-detail-' + i;
+        var hasDetail = r.consignes_agent1 || r.consignes_agent2 || r.error;
+
+        var mainRow = '<tr class="border-b border-gray-50 hover:bg-gray-50 transition' + (hasDetail ? ' cursor-pointer' : '') + '"'
+            + (hasDetail ? ' onclick="document.getElementById(\'' + detailId + '\').classList.toggle(\'hidden\')"' : '')
+            + '>'
+            + '<td class="p-2 text-center text-xs text-gray-500">' + dateStr + '</td>'
+            + '<td class="p-2 text-center text-xs font-mono text-gray-600">' + timeStr + '</td>'
+            + '<td class="p-2 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold ' + stratColor(r.strategy) + '">' + (r.strategy || '—') + '</span></td>'
+            + '<td class="p-2 text-center text-xs font-mono">' + tokens + '</td>'
+            + '<td class="p-2 text-center text-xs font-semibold">' + (r.deals_found || '—') + '</td>'
+            + '<td class="p-2 text-center text-xs font-semibold text-green-600">' + (r.deals_eligible || '—') + '</td>'
+            + '<td class="p-2 text-center text-xs font-semibold text-blue-500">' + (r.deals_cross_border || '—') + '</td>'
+            + '<td class="p-2 text-center text-xs text-gray-400">' + duree + '</td>'
+            + '<td class="p-2 text-center">' + statusIcon(r.status) + '</td>'
+            + (hasDetail ? '<td class="p-2 text-center text-gray-300 text-xs">▼</td>' : '<td></td>')
+            + '</tr>';
+
+        var detailRow = '<tr id="' + detailId + '" class="hidden bg-indigo-50/40">'
+            + '<td colspan="10" class="p-4">'
+            + '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">'
+            + (r.consignes_agent1
+                ? '<div class="bg-white rounded-lg p-3 border border-indigo-100">'
+                  + '<div class="font-semibold text-indigo-700 mb-1">📋 Consignes → Agent 1</div>'
+                  + '<pre class="text-gray-600 whitespace-pre-wrap font-mono text-[11px] leading-relaxed">' + r.consignes_agent1 + '</pre>'
+                  + '</div>' : '')
+            + (r.consignes_agent2
+                ? '<div class="bg-white rounded-lg p-3 border border-blue-100">'
+                  + '<div class="font-semibold text-blue-700 mb-1">📋 Consignes → Agent 2 EU</div>'
+                  + '<pre class="text-gray-600 whitespace-pre-wrap font-mono text-[11px] leading-relaxed">' + r.consignes_agent2 + '</pre>'
+                  + '</div>' : '')
+            + (r.error
+                ? '<div class="bg-red-50 rounded-lg p-3 border border-red-200 md:col-span-2">'
+                  + '<div class="font-semibold text-red-600 mb-1">❌ Erreur</div>'
+                  + '<pre class="text-red-500 whitespace-pre-wrap font-mono text-[11px]">' + r.error + '</pre>'
+                  + '</div>' : '')
+            + '</div></td></tr>';
+
+        return mainRow + (hasDetail ? detailRow : '');
+    }).join('');
+
+    wrap.innerHTML = summary
+        + '<div class="bg-white rounded-xl shadow-sm overflow-x-auto">'
+        + '<table class="w-full text-sm">'
+        + '<thead><tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">'
+        + '<th class="p-2 text-center">Date</th>'
+        + '<th class="p-2 text-center">Heure</th>'
+        + '<th class="p-2 text-center">Stratégie</th>'
+        + '<th class="p-2 text-center">Tokens</th>'
+        + '<th class="p-2 text-center">Deals</th>'
+        + '<th class="p-2 text-center text-green-600">Éligibles</th>'
+        + '<th class="p-2 text-center text-blue-500">Cross-B.</th>'
+        + '<th class="p-2 text-center">Durée</th>'
+        + '<th class="p-2 text-center">Statut</th>'
+        + '<th class="p-2"></th>'
+        + '</tr></thead>'
+        + '<tbody>' + rows + '</tbody>'
+        + '</table></div>';
 }
