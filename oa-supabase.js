@@ -427,42 +427,7 @@ function _buildRawRow(p) {
         + '<td class="p-2 text-center font-bold text-gray-800">' + priceCell(p.moy90j) + '</td>'
         // 11 — Buy Box min 90j
         + '<td class="p-2 text-center text-gray-500">' + priceCell(p.min90j) + '</td>'
-        // 12 — Referral fee
-        + '<td class="p-2 text-center text-orange-500">' + feeTip(p.referralFee, tipReferral) + '</td>'
-        // 13 — Frais FBA
-        + '<td class="p-2 text-center text-red-400">' + feeTip(p.fraisFba, tipFba) + '</td>'
-        // 14 — Envoi FBA
-        + '<td class="p-2 text-center text-red-400">' + feeTip(p.envoiFba, tipEnvoi) + '</td>'
-        // 15 — Frais EFN
-        + '<td class="p-2 text-center text-red-400">' + feeTip(p.fraisEfn, tipEfn) + '</td>'
-        // 16 — Prep (toggle)
-        + (function() {
-            if (_prepOn) {
-                return '<td class="p-2 text-center text-orange-400">' + feeTip(_prepFee, tipPrep) + '</td>';
-            } else {
-                return '<td class="p-2 text-center text-gray-300" title="' + tipPrep + '"><span style="opacity:.4">—</span></td>';
-            }
-        })()
-        // 17 — URSSAF (toggle)
-        + (function() {
-            if (_urssafOn) {
-                return '<td class="p-2 text-center text-purple-500">' + feeTip(p.urssaf, tipUrssaf) + '</td>';
-            } else {
-                return '<td class="p-2 text-center text-gray-300 line-through" title="URSSAF désactivé"><span style="text-decoration:line-through;opacity:.4">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '—') + '</span></td>';
-            }
-        })()
-        // 18 — Total frais (ajusté selon toggle URSSAF + Prep)
-        + (function() {
-            var tot = p.frais;
-            if (!_urssafOn && p.urssaf != null) tot = tot != null ? Math.round((tot - p.urssaf) * 100) / 100 : null;
-            if (_prepOn) tot = tot != null ? Math.round((tot + _prepFee) * 100) / 100 : null;
-            var extras = [];
-            if (!_urssafOn) extras.push('URSSAF exclu');
-            if (_prepOn) extras.push('Prep inclu');
-            var tip = tipTotal + (extras.length ? '\n⚠ ' + extras.join(', ') : '');
-            return '<td class="p-2 text-center font-bold text-red-500">' + feeTip(tot, tip) + '</td>';
-        })()
-        // 19 — Profit net FR (€) ajusté
+        // 12 — Profit net FR (€)
         + (function() {
             var urssafAdj = _urssafOn ? 0 : (p.urssaf || 0);
             var prepAdj   = _prepOn ? _prepFee : 0;
@@ -617,7 +582,7 @@ function renderDealsTab() {
     if (label) label.textContent = data.length + ' deal' + (data.length !== 1 ? 's' : '');
 
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="12" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun deal avec ces filtres</p></td></tr>';
         return;
@@ -664,7 +629,11 @@ function renderDealsTab() {
             + '<td class="p-3 text-center font-bold text-gray-800">'
                 + (p.moy90j ? p.moy90j.toFixed(2) + '€' : '<span class="text-gray-300 text-xs">—</span>')
             + '</td>'
-            + '<td class="p-3 text-center text-xs text-red-500 font-semibold">' + (p.frais ? p.frais.toFixed(2) + '€' : '—') + '</td>'
+            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.referralFee != null ? p.referralFee.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
+            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.fraisFba != null ? p.fraisFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
+            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.envoiFba != null ? p.envoiFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
+            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
+            + '<td class="p-3 text-center text-xs text-red-600 font-semibold">' + (p.frais != null ? p.frais.toFixed(2) + '€' : '—') + '</td>'
             + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
             + '<td class="p-3 text-center text-xs text-amber-600">' + (p.alerte || '—') + '</td>'
             + '<td class="p-3 text-center">'
