@@ -211,6 +211,8 @@ function _mapDeal(d) {
         gainVsFR:     gainVsFR,
         weightG:      d.weight_g,
         sizeTier:     d.size_tier,
+        verdict:      d.verdict    || null,
+        analyseIa:    d.analyse_ia || null,
     };
 }
 
@@ -646,6 +648,15 @@ function renderDealsTab() {
             + '</td>'
             + '<td class="p-3 text-center bg-green-50/30">' + profitCell + '</td>'
             + '<td class="p-3 text-center bg-green-50/30">' + roiCell + '</td>'
+            + (function() {
+                if (!p.verdict) return '<td class="p-3 text-center"><span class="text-gray-300 text-xs">—</span></td>';
+                var cls = p.verdict === 'BUY'  ? 'bg-green-100 text-green-700 border border-green-300'
+                        : p.verdict === 'RISKY' ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                        : 'bg-red-100 text-red-600 border border-red-300';
+                var icon = p.verdict === 'BUY' ? '✅' : p.verdict === 'RISKY' ? '⚠️' : '❌';
+                var tip = p.analyseIa ? ' title="' + p.analyseIa.replace(/"/g, '&quot;') + '"' : '';
+                return '<td class="p-3 text-center"><span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '"' + tip + '>' + icon + ' ' + p.verdict + '</span></td>';
+            })()
             + '<td class="p-3 text-center">'
                 + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 GS</a>' : '<span class="text-gray-300 text-xs">—</span>')
             + '</td>'
