@@ -345,6 +345,11 @@ function switchOATab(tab) {
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
     if (tab === 'pool' && !_poolData.length) loadPoolData();
+    // Hide URSSAF/prep toggles on rapport and pool tabs
+    var toggleDiv = document.querySelector('#btn-urssaf-toggle') && document.querySelector('#btn-urssaf-toggle').parentElement;
+    if (toggleDiv) {
+        toggleDiv.style.display = (tab === 'rapport' || tab === 'pool') ? 'none' : '';
+    }
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────
@@ -834,9 +839,9 @@ function renderRunTab() {
                    : last.status || '—';
     var tokensBar = '';
     if (last.tokens_before != null) {
-        var pct = Math.min(100, Math.round(last.tokens_before / 1440 * 100));
+        var pct = Math.min(100, Math.round(last.tokens_before / 60 * 100));
         tokensBar = '<div class="w-full bg-gray-200 rounded-full h-2 mt-1"><div class="bg-indigo-500 h-2 rounded-full" style="width:' + pct + '%"></div></div>'
-            + '<div class="text-xs text-gray-500 mt-1">' + last.tokens_before + ' tokens au départ (~1440/jour max)</div>';
+            + '<div class="text-xs text-gray-500 mt-1">' + last.tokens_before + ' / 60 tokens (bucket max = 60)</div>';
     }
 
     var summary = '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">'
@@ -861,32 +866,43 @@ function renderRunTab() {
         return s === 'success'  ? '✅' : s === 'skipped' ? '⏭'
              : s === 'error'    ? '❌' : s === 'no_deals' ? '⚠️' : '—';
     };
-    var stratColor = function(s) {
-        return s === 'full_eu'  ? 'bg-green-100 text-green-700'
-             : s === 'full'     ? 'bg-blue-100 text-blue-700'
-             : s === 'standard' ? 'bg-indigo-100 text-indigo-700'
-             : s === 'reduced'  ? 'bg-amber-100 text-amber-700'
-             : 'bg-gray-100 text-gray-500';
+    var catColors = {
+        'Toys & Games':     'bg-blue-100 text-blue-700',
+        'Sports & Outdoors':'bg-green-100 text-green-700',
+        'Kitchen':          'bg-orange-100 text-orange-700',
+        'Home & Garden':    'bg-purple-100 text-purple-700',
+        'Electronics':      'bg-cyan-100 text-cyan-700',
+        'Pet Supplies':     'bg-amber-100 text-amber-700',
+        'Office Products':  'bg-indigo-100 text-indigo-700',
     };
+    var catColor = function(s) { return catColors[s] || 'bg-gray-100 text-gray-500'; };
 
-    var rows = _runData.map(function(r, i) {
+    // Grouper par date
+    var todayStr = new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    var groups = {};
+    var groupOrder = [];
+    _runData.forEach(function(r, i) {
         var dt = r.date ? new Date(r.date) : null;
         var dateStr = dt ? dt.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—';
+        if (!groups[dateStr]) { groups[dateStr] = []; groupOrder.push(dateStr); }
+        groups[dateStr].push({ r: r, i: i });
+    });
+
+    var buildRow = function(r, i) {
+        var dt = r.date ? new Date(r.date) : null;
         var timeStr = dt ? dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '—';
         var duree   = r.duree_secondes ? Math.round(r.duree_secondes / 60) + 'min' : '—';
         var tokens  = (r.tokens_before != null && r.tokens_after != null)
             ? r.tokens_before + ' → ' + r.tokens_after + ' <span class="text-red-400">(-' + (r.tokens_used || 0) + ')</span>'
             : (r.tokens_before != null ? r.tokens_before : '—');
-
         var detailId  = 'run-detail-' + i;
         var hasDetail = r.consignes_agent1 || r.consignes_agent2 || r.error;
 
         var mainRow = '<tr class="border-b border-gray-50 hover:bg-gray-50 transition' + (hasDetail ? ' cursor-pointer' : '') + '"'
             + (hasDetail ? ' onclick="document.getElementById(\'' + detailId + '\').classList.toggle(\'hidden\')"' : '')
             + '>'
-            + '<td class="p-2 text-center text-xs text-gray-500">' + dateStr + '</td>'
             + '<td class="p-2 text-center text-xs font-mono text-gray-600">' + timeStr + '</td>'
-            + '<td class="p-2 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold ' + stratColor(r.strategy) + '">' + (r.strategy || '—') + '</span></td>'
+            + '<td class="p-2 text-center"><span class="text-xs px-2 py-0.5 rounded-full font-semibold ' + catColor(r.strategy) + '">' + (r.strategy || '—') + '</span></td>'
             + '<td class="p-2 text-center text-xs font-mono">' + tokens + '</td>'
             + '<td class="p-2 text-center text-xs font-semibold">' + (r.deals_found || '—') + '</td>'
             + '<td class="p-2 text-center text-xs font-semibold text-green-600">' + (r.deals_eligible || '—') + '</td>'
@@ -896,36 +912,34 @@ function renderRunTab() {
             + (hasDetail ? '<td class="p-2 text-center text-gray-300 text-xs">▼</td>' : '<td></td>')
             + '</tr>';
 
-        var detailRow = '<tr id="' + detailId + '" class="hidden bg-indigo-50/40">'
-            + '<td colspan="10" class="p-4">'
-            + '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">'
-            + (r.consignes_agent1
-                ? '<div class="bg-white rounded-lg p-3 border border-indigo-100">'
-                  + '<div class="font-semibold text-indigo-700 mb-1">📋 Consignes → Agent 1</div>'
-                  + '<pre class="text-gray-600 whitespace-pre-wrap font-mono text-[11px] leading-relaxed">' + r.consignes_agent1 + '</pre>'
-                  + '</div>' : '')
-            + (r.consignes_agent2
-                ? '<div class="bg-white rounded-lg p-3 border border-blue-100">'
-                  + '<div class="font-semibold text-blue-700 mb-1">📋 Consignes → Agent 2 EU</div>'
-                  + '<pre class="text-gray-600 whitespace-pre-wrap font-mono text-[11px] leading-relaxed">' + r.consignes_agent2 + '</pre>'
-                  + '</div>' : '')
-            + (r.error
-                ? '<div class="bg-red-50 rounded-lg p-3 border border-red-200 md:col-span-2">'
-                  + '<div class="font-semibold text-red-600 mb-1">❌ Erreur</div>'
-                  + '<pre class="text-red-500 whitespace-pre-wrap font-mono text-[11px]">' + r.error + '</pre>'
-                  + '</div>' : '')
-            + '</div></td></tr>';
+        var detailRow = hasDetail
+            ? '<tr id="' + detailId + '" class="hidden bg-indigo-50/40">'
+              + '<td colspan="9" class="p-4">'
+              + '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">'
+              + (r.consignes_agent1
+                  ? '<div class="bg-white rounded-lg p-3 border border-indigo-100">'
+                    + '<div class="font-semibold text-indigo-700 mb-1">📋 Consignes → Agent 1</div>'
+                    + '<pre class="text-gray-600 whitespace-pre-wrap font-mono text-[11px] leading-relaxed">' + r.consignes_agent1 + '</pre>'
+                    + '</div>' : '')
+              + (r.consignes_agent2
+                  ? '<div class="bg-white rounded-lg p-3 border border-blue-100">'
+                    + '<div class="font-semibold text-blue-700 mb-1">📋 Consignes → Agent 2 EU</div>'
+                    + '<pre class="text-gray-600 whitespace-pre-wrap font-mono text-[11px] leading-relaxed">' + r.consignes_agent2 + '</pre>'
+                    + '</div>' : '')
+              + (r.error
+                  ? '<div class="bg-red-50 rounded-lg p-3 border border-red-200 md:col-span-2">'
+                    + '<div class="font-semibold text-red-600 mb-1">❌ Erreur</div>'
+                    + '<pre class="text-red-500 whitespace-pre-wrap font-mono text-[11px]">' + r.error + '</pre>'
+                    + '</div>' : '')
+              + '</div></td></tr>'
+            : '';
+        return mainRow + detailRow;
+    };
 
-        return mainRow + (hasDetail ? detailRow : '');
-    }).join('');
-
-    wrap.innerHTML = summary
-        + '<div class="bg-white rounded-xl shadow-sm overflow-x-auto">'
-        + '<table class="w-full text-sm">'
+    var thead = '<table class="w-full text-sm">'
         + '<thead><tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">'
-        + '<th class="p-2 text-center">Date</th>'
         + '<th class="p-2 text-center">Heure</th>'
-        + '<th class="p-2 text-center">Stratégie</th>'
+        + '<th class="p-2 text-center">Catégorie</th>'
         + '<th class="p-2 text-center">Tokens</th>'
         + '<th class="p-2 text-center">Deals</th>'
         + '<th class="p-2 text-center text-green-600">Éligibles</th>'
@@ -933,51 +947,108 @@ function renderRunTab() {
         + '<th class="p-2 text-center">Durée</th>'
         + '<th class="p-2 text-center">Statut</th>'
         + '<th class="p-2"></th>'
-        + '</tr></thead>'
-        + '<tbody>' + rows + '</tbody>'
-        + '</table></div>';
+        + '</tr></thead>';
+
+    var accordionBlocks = groupOrder.map(function(dateStr) {
+        var items = groups[dateStr];
+        var isToday = (dateStr === todayStr);
+        var groupId = 'run-group-' + dateStr.replace('/', '-');
+        // Résumé du jour
+        var totalDeals = items.reduce(function(s, x) { return s + (x.r.deals_found || 0); }, 0);
+        var totalElig  = items.reduce(function(s, x) { return s + (x.r.deals_eligible || 0); }, 0);
+        var totalTok   = items.reduce(function(s, x) { return s + (x.r.tokens_used || 0); }, 0);
+        var nbSuccess  = items.filter(function(x) { return x.r.status === 'success'; }).length;
+        var nbSkip     = items.filter(function(x) { return x.r.status === 'skipped'; }).length;
+        var summary = nbSuccess + ' run' + (nbSuccess > 1 ? 's' : '')
+            + (nbSkip ? ' + ' + nbSkip + ' skip' : '')
+            + (totalTok ? ' · ' + totalTok + ' tokens' : '')
+            + (totalDeals ? ' · ' + totalDeals + ' deals' : '')
+            + (totalElig ? ' · <span class="text-green-600 font-semibold">' + totalElig + ' éligibles</span>' : '');
+
+        var rows = items.map(function(x) { return buildRow(x.r, x.i); }).join('');
+
+        return '<div class="bg-white rounded-xl shadow-sm mb-3 overflow-hidden">'
+            + '<div class="flex items-center justify-between px-4 py-3 cursor-pointer select-none hover:bg-gray-50 border-b border-gray-100" onclick="var el=document.getElementById(\'' + groupId + '\');el.classList.toggle(\'hidden\');this.querySelector(\'.acc-arrow\').classList.toggle(\'rotate-180\')">'
+            + '<div class="flex items-center gap-3">'
+            + '<span class="font-bold text-gray-700 text-sm">' + dateStr + (isToday ? ' <span class="text-xs font-normal text-indigo-500 ml-1">Aujourd\'hui</span>' : '') + '</span>'
+            + '<span class="text-xs text-gray-400">' + summary + '</span>'
+            + '</div>'
+            + '<svg class="acc-arrow w-4 h-4 text-gray-400 transition-transform' + (isToday ? ' rotate-180' : '') + '" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>'
+            + '</div>'
+            + '<div id="' + groupId + '"' + (isToday ? '' : ' class="hidden"') + '>'
+            + '<div class="overflow-x-auto">'
+            + thead + '<tbody>' + rows + '</tbody></table>'
+            + '</div></div></div>';
+    }).join('');
+
+    wrap.innerHTML = summary + accordionBlocks;
 }
 
 // ── Graphiques rapport ────────────────────────────────────────────────────────
 function _buildRunCharts() {
-    var agent1Runs = _runData.filter(function(r) { return r.strategy && r.strategy !== 'agent2'; }).slice(0, 14).reverse();
-    if (!agent1Runs.length) return '';
+    var KNOWN_CATS = ['Toys & Games','Sports & Outdoors','Kitchen','Home & Garden','Electronics','Pet Supplies','Office Products'];
 
-    var maxTokens = Math.max.apply(null, agent1Runs.map(function(r) { return r.tokens_used || 0; })) || 1;
-    var maxElig   = Math.max.apply(null, agent1Runs.map(function(r) { return r.deals_eligible || 0; })) || 1;
+    // ── Graphique 1 : ELIGIBLE cumulé par catégorie ───────────────────────────
+    var catElig = {};
+    var catRuns = {};
+    _runData.forEach(function(r) {
+        if (KNOWN_CATS.indexOf(r.strategy) < 0) return;
+        catElig[r.strategy] = (catElig[r.strategy] || 0) + (r.deals_eligible || 0);
+        catRuns[r.strategy] = (catRuns[r.strategy] || 0) + 1;
+    });
+    var cats = Object.keys(catElig).sort(function(a, b) { return catElig[b] - catElig[a]; });
+    var maxElig = cats.reduce(function(m, c) { return Math.max(m, catElig[c]); }, 1);
 
-    var tokBars = agent1Runs.map(function(r) {
-        var pct = Math.round((r.tokens_used || 0) / maxTokens * 100);
-        var dt  = r.date ? new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '';
-        var cat = (r.strategy || '').replace(' & ', '/').substring(0, 8);
-        return '<div class="flex flex-col items-center" style="width:' + Math.round(100/agent1Runs.length) + '%">'
-            + '<div class="text-[10px] text-gray-500 mb-1">' + (r.tokens_used || 0) + '</div>'
+    var catBars = cats.length ? cats.map(function(cat) {
+        var pct  = Math.round(catElig[cat] / maxElig * 100);
+        var short = cat.replace(' & ', '/').replace('Sports/', 'Sports/').substring(0, 8);
+        var hasElig = catElig[cat] > 0;
+        return '<div class="flex flex-col items-center flex-1">'
+            + '<div class="text-[10px] text-gray-500 mb-1 font-semibold">' + catElig[cat] + '</div>'
             + '<div class="w-full flex items-end justify-center" style="height:60px">'
-            + '<div class="w-4/5 bg-indigo-400 rounded-t" style="height:' + Math.max(4, pct) + '%"></div></div>'
-            + '<div class="text-[9px] text-gray-400 mt-1 text-center leading-tight">' + cat + '</div>'
-            + '<div class="text-[9px] text-gray-300">' + dt + '</div>'
+            + '<div class="w-3/4 rounded-t ' + (hasElig ? 'bg-green-400' : 'bg-gray-200') + '" style="height:' + Math.max(6, pct) + '%"></div></div>'
+            + '<div class="text-[9px] text-indigo-600 mt-1 text-center leading-tight font-medium">' + short + '</div>'
+            + '<div class="text-[9px] text-gray-300">' + catRuns[cat] + ' run' + (catRuns[cat] > 1 ? 's' : '') + '</div>'
             + '</div>';
-    }).join('');
+    }).join('')
+    : '<div class="text-xs text-gray-400 text-center w-full py-4">Pas encore de données</div>';
 
-    var eligBars = agent1Runs.map(function(r) {
-        var pct = Math.round((r.deals_eligible || 0) / maxElig * 100);
-        var cat = (r.strategy || '').replace(' & ', '/').substring(0, 8);
-        return '<div class="flex flex-col items-center" style="width:' + Math.round(100/agent1Runs.length) + '%">'
-            + '<div class="text-[10px] text-gray-500 mb-1">' + (r.deals_eligible || 0) + '</div>'
-            + '<div class="w-full flex items-end justify-center" style="height:60px">'
-            + '<div class="w-4/5 rounded-t ' + ((r.deals_eligible || 0) > 0 ? 'bg-green-400' : 'bg-gray-200') + '" style="height:' + Math.max(4, pct) + '%"></div></div>'
-            + '<div class="text-[9px] text-gray-400 mt-1 text-center leading-tight">' + cat + '</div>'
+    // ── Graphique 2 : Jauge tokens actuelle (estimée) ─────────────────────────
+    // Cherche le dernier run qui a tokens_after (success ou skipped avec tokens_before)
+    var lastWithTokens = null;
+    for (var i = 0; i < _runData.length; i++) {
+        if (_runData[i].tokens_before != null) { lastWithTokens = _runData[i]; break; }
+    }
+    var gaugeHtml = '<div class="text-xs text-gray-400 text-center py-4">Données insuffisantes</div>';
+    if (lastWithTokens) {
+        var baseTokens = lastWithTokens.tokens_after != null ? lastWithTokens.tokens_after : lastWithTokens.tokens_before;
+        var runDate    = lastWithTokens.date ? new Date(lastWithTokens.date) : null;
+        var elapsed    = runDate ? Math.floor((Date.now() - runDate.getTime()) / 60000) : 0; // minutes
+        var estimated  = Math.min(60, baseTokens + elapsed);
+        var pctGauge   = Math.round(estimated / 60 * 100);
+        var gaugeColor = estimated >= 60 ? 'bg-green-400' : estimated >= 40 ? 'bg-amber-400' : 'bg-red-400';
+        var minsToFull = estimated >= 60 ? 0 : (60 - estimated);
+        var statusTxt  = estimated >= 60
+            ? '<span class="text-green-600 font-semibold">Prêt à lancer ✓</span>'
+            : '<span class="text-amber-600">~' + minsToFull + ' min pour être plein</span>';
+        var runTimeStr = runDate ? runDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '?';
+        gaugeHtml = '<div class="flex flex-col items-center justify-center h-full gap-3 py-2">'
+            + '<div class="text-3xl font-bold ' + (estimated >= 60 ? 'text-green-600' : 'text-gray-700') + '">' + estimated + '<span class="text-lg font-normal text-gray-400"> / 60</span></div>'
+            + '<div class="w-full bg-gray-100 rounded-full h-4 overflow-hidden">'
+            + '<div class="' + gaugeColor + ' h-4 rounded-full transition-all" style="width:' + pctGauge + '%"></div></div>'
+            + '<div class="text-xs text-gray-500">' + statusTxt + '</div>'
+            + '<div class="text-[10px] text-gray-300">Basé sur run ' + runTimeStr + ' + refill 1/min</div>'
             + '</div>';
-    }).join('');
+    }
 
     return '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">'
         + '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">'
-        + '<div class="text-xs font-semibold text-gray-600 mb-3">Tokens utilisés par run (14 derniers)</div>'
-        + '<div class="flex items-end gap-0 w-full">' + tokBars + '</div>'
+        + '<div class="text-xs font-semibold text-gray-600 mb-3">ELIGIBLE cumulé par catégorie</div>'
+        + '<div class="flex items-end gap-1 w-full">' + catBars + '</div>'
         + '</div>'
         + '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">'
-        + '<div class="text-xs font-semibold text-gray-600 mb-3">Deals ELIGIBLE trouvés par run</div>'
-        + '<div class="flex items-end gap-0 w-full">' + eligBars + '</div>'
+        + '<div class="text-xs font-semibold text-gray-600 mb-3">Tokens actuels (estimé)</div>'
+        + gaugeHtml
         + '</div></div>';
 }
 
