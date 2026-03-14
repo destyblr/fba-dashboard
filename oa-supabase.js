@@ -189,6 +189,7 @@ function _mapDeal(d) {
         referralFee:  d.referral_fee,
         fraisFba:     d.frais_fba,
         envoiFba:     d.envoi_fba,
+        stockageFba:  d.stockage_fba,
         fraisEfn:     d.frais_efn,
         urssaf:       d.urssaf,
         frais:        d.total_frais,
@@ -575,7 +576,7 @@ function renderDealsTab() {
     if (label) label.textContent = data.length + ' deal' + (data.length !== 1 ? 's' : '');
 
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="19" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun deal avec ces filtres</p></td></tr>';
         return;
@@ -625,6 +626,7 @@ function renderDealsTab() {
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.referralFee != null ? p.referralFee.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.fraisFba != null ? p.fraisFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.envoiFba != null ? p.envoiFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
+            + '<td class="p-3 text-center text-xs text-gray-400">' + (p.stockageFba != null ? p.stockageFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
             + '<td style="' + (_urssafOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '—') + '</td>'
             + '<td style="' + (_prepOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (_prepFee.toFixed(2)) + '€</td>'
             + '<td class="p-3 text-center text-xs text-red-600 font-semibold">' + (p.frais != null ? p.frais.toFixed(2) + '€' : '—') + '</td>'
