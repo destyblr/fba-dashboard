@@ -33,17 +33,25 @@ var _urssafOn = (localStorage.getItem('oa_urssaf') !== 'false');
 var _prepFee = parseFloat(localStorage.getItem('oa_prep_fee') || '0.50');
 var _prepOn  = (localStorage.getItem('oa_prep') !== 'false');
 
+function _syncToggleBtns() {
+    var uCls = _urssafOn ? 'text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer'
+                         : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
+    var pCls = _prepOn   ? 'text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer'
+                         : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
+    ['btn-urssaf-toggle', 'btn-urssaf-toggle-cb'].forEach(function(id) {
+        var b = document.getElementById(id);
+        if (b) { b.className = uCls; b.textContent = _urssafOn ? 'Avec URSSAF' : 'Sans URSSAF'; }
+    });
+    ['btn-prep-toggle', 'btn-prep-toggle-cb', 'btn-prep-toggle-param'].forEach(function(id) {
+        var b = document.getElementById(id);
+        if (b) { b.className = pCls; b.textContent = _prepOn ? 'Avec prep' : 'Sans prep'; }
+    });
+}
+
 function toggleUrssaf() {
     _urssafOn = !_urssafOn;
     localStorage.setItem('oa_urssaf', _urssafOn ? 'true' : 'false');
-    var btn = document.getElementById('btn-urssaf-toggle');
-    if (btn) {
-        btn.textContent = _urssafOn ? 'Avec URSSAF' : 'Sans URSSAF';
-        btn.className = _urssafOn
-            ? 'text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer'
-            : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
-    }
-    renderRawTab();
+    _syncToggleBtns();
     renderDealsTab();
     renderCrossBorderTab();
 }
@@ -51,14 +59,7 @@ function toggleUrssaf() {
 function togglePrep() {
     _prepOn = !_prepOn;
     localStorage.setItem('oa_prep', _prepOn ? 'true' : 'false');
-    var cls = _prepOn
-        ? 'text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer'
-        : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
-    ['btn-prep-toggle', 'btn-prep-toggle-param'].forEach(function(id) {
-        var btn = document.getElementById(id);
-        if (btn) { btn.textContent = _prepOn ? 'Avec prep' : 'Sans prep'; btn.className = cls; }
-    });
-    renderRawTab();
+    _syncToggleBtns();
     renderDealsTab();
     renderCrossBorderTab();
 }
@@ -94,21 +95,7 @@ function _initOAParamInputs() {
     if (prep) prep.value = _prepFee;
     var days = document.getElementById('oa-param-storage-days');
     if (days) days.value = STORAGE_DAYS;
-    // Sync les boutons toggles
-    var btnU = document.getElementById('btn-urssaf-toggle');
-    if (btnU) {
-        btnU.textContent = _urssafOn ? 'Avec URSSAF' : 'Sans URSSAF';
-        btnU.className = _urssafOn
-            ? 'text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer'
-            : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
-    }
-    var prepCls = _prepOn
-        ? 'text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer'
-        : 'text-xs px-3 py-1 rounded-full font-semibold bg-gray-100 text-gray-400 border border-gray-200 cursor-pointer line-through';
-    ['btn-prep-toggle', 'btn-prep-toggle-param'].forEach(function(id) {
-        var btnP = document.getElementById(id);
-        if (btnP) { btnP.textContent = _prepOn ? 'Avec prep' : 'Sans prep'; btnP.className = prepCls; }
-    });
+    _syncToggleBtns();
 }
 
 // ── Calcul frais cross-border (en JS, avec TVA EU) ────────────────────────────
@@ -222,11 +209,12 @@ function loadCatalog() {
     var sb = _getOAClient();
     if (!sb) { _showRawEmpty('Supabase non configuré'); return; }
 
-    var today = new Date().toISOString().split('T')[0];
+    var since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
     sb.from('deals')
       .select('*')
-      .gte('date_scan', today + 'T00:00:00')
+      .gte('date_scan', since + 'T00:00:00')
+      .not('source', 'eq', 'cross_border')
       .order('score_deal', { ascending: false })
       .then(function(res) {
           if (res.error) { _showRawEmpty('Erreur : ' + res.error.message); return; }
@@ -237,7 +225,9 @@ function loadCatalog() {
           var score70   = _oaData.filter(function(d) { return (d.score || 0) >= 70; }).length;
           var eligible  = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE'; }).length;
           var avecPrix  = _oaData.filter(function(d) { return d.prixAchat > 0; }).length;
-          var lastRun   = total > 0 ? 'Aujourd\'hui' : 'Aucun run';
+          var lastRun   = total > 0
+              ? new Date(_oaData[0].dateScan || _oaData[0].date_scan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})
+              : 'Aucun run';
 
           // KPIs sourcing (section-oa-sourcing)
           var s = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
@@ -345,11 +335,6 @@ function switchOATab(tab) {
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
     if (tab === 'pool' && !_poolData.length) loadPoolData();
-    // Hide URSSAF/prep toggles on rapport and pool tabs
-    var toggleDiv = document.querySelector('#btn-urssaf-toggle') && document.querySelector('#btn-urssaf-toggle').parentElement;
-    if (toggleDiv) {
-        toggleDiv.style.display = (tab === 'rapport' || tab === 'pool') ? 'none' : '';
-    }
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────
@@ -400,10 +385,12 @@ function _buildRawRow(p) {
         : '<span class="text-gray-300">—</span>';
 
     // Col 22 — Alerte arbitrage
-    var arbTip = 'Arbitrage = produit vendu plus cher sur une marketplace EU\n'
-        + 'que sur Amazon.fr (écart ≥ 15%).\n'
-        + 'Opportunité : acheter en FR, revendre en DE/IT/ES via EFN.\n'
-        + (p.alerte ? 'Détail : ' + p.alerte : 'Pas d\'écart détecté sur ce produit.');
+    var euPrices = [['🇩🇪 DE', p.buyBoxDE], ['🇮🇹 IT', p.buyBoxIT], ['🇪🇸 ES', p.buyBoxES]]
+        .map(function(x) { return x[0] + ' : ' + (x[1] ? x[1].toFixed(2) + '€' : '—'); })
+        .join('\n');
+    var arbTip = 'Prix EU actuels :\n' + euPrices
+        + '\n🇫🇷 FR : ' + (p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '—')
+        + (p.alerte ? '\n\n⚡ ' + p.alerte : '\n\nPas d\'écart ≥ 15% détecté.');
     var alerteCell = p.alerte
         ? '<span class="text-amber-600 font-semibold" title="' + arbTip + '" style="cursor:help">⚡ ' + p.alerte + '</span>'
         : '<span class="text-gray-300" title="' + arbTip + '" style="cursor:help">—</span>';
@@ -415,44 +402,31 @@ function _buildRawRow(p) {
 
     return '<tr class="border-b border-gray-50 hover:bg-gray-50/70 transition-colors">'
         // 1 — Score
-        + '<td class="p-2 text-center"><span class="font-bold px-1.5 py-0.5 rounded ' + scoreColor + '" title="Score 0-100&#10;BSR &lt; 5k → +40pts | &lt; 20k → +30pts | &lt; 50k → +20pts&#10;ROI ≥ 50% → +40pts | ≥ 35% → +30pts | ≥ 25% → +20pts&#10;Vendeurs FBA ≤ 3 → +20pts | ≤ 8 → +10pts&#10;Score ≥ 70 = deal intéressant" style="cursor:help">' + (p.score || '?') + '</span></td>'
+        + '<td class="p-1.5 text-center"><span class="font-bold px-1.5 py-0.5 rounded text-[11px] ' + scoreColor + '" title="Score 0-100&#10;BSR &lt; 5k → +40pts | &lt; 20k → +30pts | &lt; 50k → +20pts&#10;ROI ≥ 50% → +40pts | ≥ 35% → +30pts | ≥ 25% → +20pts&#10;Vendeurs FBA ≤ 3 → +20pts | ≤ 8 → +10pts&#10;Score ≥ 70 = deal intéressant" style="cursor:help">' + (p.score || '?') + '</span></td>'
         // 2 — Statut
-        + '<td class="p-2 text-center">' + eligBadge + '</td>'
+        + '<td class="p-1.5 text-center">' + eligBadge + '</td>'
         // 3 — Titre
-        + '<td class="p-2"><a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 leading-tight block truncate max-w-[180px]" title="' + (p.titre || '') + '">' + (p.titre || '—').slice(0, 50) + '</a></td>'
-        // 4 — ASIN
-        + '<td class="p-2 font-mono text-gray-500 whitespace-nowrap">' + (p.asin || '—') + '</td>'
-        // 5 — Catégorie
-        + '<td class="p-2 text-gray-500 whitespace-nowrap">' + (p.categorie || '—') + '</td>'
+        + '<td class="p-1.5"><a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 leading-tight block truncate max-w-[200px] md:max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '—').slice(0, 55) + '</a></td>'
+        // 4 — ASIN (masqué sur mobile)
+        + '<td class="p-1.5 font-mono text-gray-500 whitespace-nowrap hidden md:table-cell text-[10px]">' + (p.asin || '—') + '</td>'
+        // 5 — Catégorie (masqué sur petits écrans)
+        + '<td class="p-1.5 text-gray-500 whitespace-nowrap hidden sm:table-cell">' + (p.categorie || '—') + '</td>'
         // 6 — BSR
-        + '<td class="p-2 text-center font-mono text-gray-600" title="Best Seller Rank — rang de vente dans la catégorie&#10;Plus le rang est bas, plus le produit se vend&#10;&lt; 1 000 = excellent&#10;&lt; 10 000 = très bon&#10;&lt; 30 000 = bon&#10;&lt; 50 000 = acceptable&#10;Keepa surveille l\'historique BSR" style="cursor:help">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
+        + '<td class="p-1.5 text-center font-mono text-gray-600 whitespace-nowrap" title="Best Seller Rank" style="cursor:help">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
         // 7 — Vendeurs FBA
-        + '<td class="p-2 text-center font-semibold">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
+        + '<td class="p-1.5 text-center font-semibold">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
         // 8 — Amazon vendeur
-        + '<td class="p-2 text-center">' + amzBadge + '</td>'
+        + '<td class="p-1.5 text-center">' + amzBadge + '</td>'
         // 9 — Buy Box actuel FR
-        + '<td class="p-2 text-center font-bold">' + priceCell(p.buyBoxFR) + '</td>'
+        + '<td class="p-1.5 text-center font-bold whitespace-nowrap">' + priceCell(p.buyBoxFR) + '</td>'
         // 10 — Buy Box moy 90j
-        + '<td class="p-2 text-center font-bold text-gray-800">' + priceCell(p.moy90j) + '</td>'
-        // 11 — Buy Box min 90j
-        + '<td class="p-2 text-center text-gray-500">' + priceCell(p.min90j) + '</td>'
-        // 12 — Profit net FR (€)
-        + (function() {
-            var urssafAdj = _urssafOn ? 0 : (p.urssaf || 0);
-            var prepAdj   = _prepOn ? _prepFee : 0;
-            var pn = p.profitNetFr != null ? Math.round((p.profitNetFr + urssafAdj - prepAdj) * 100) / 100 : null;
-            return '<td class="p-2 text-center font-semibold ' + ((pn || 0) >= 0 ? 'text-green-600' : 'text-red-500') + '" title="Buy Box moy 90j − frais − prix achat estimé (70%)">' + (pn != null ? (pn >= 0 ? '+' : '') + pn.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>';
-        })()
-        // 19 — ROI estimé FR (%)
-        + '<td class="p-2 text-center font-semibold ' + ((p.roiFr || 0) >= 25 ? 'text-green-600' : 'text-gray-500') + '">' + pctCell(p.roiFr) + '</td>'
-        // 20 — Meilleure marketplace
-        + '<td class="p-2 text-center font-semibold">' + bestMPCell + '</td>'
-        // 20 — ROI meilleur (%)
-        + '<td class="p-2 text-center font-semibold ' + ((p.roiMeilleur || 0) >= 25 ? 'text-green-600' : 'text-gray-500') + '">' + pctCell(p.roiMeilleur) + '</td>'
-        // 22 — Alerte arbitrage
-        + '<td class="p-2 text-center">' + alerteCell + '</td>'
-        // 23 — Sourcing
-        + '<td class="p-2 text-center">' + sourcingCell + '</td>'
+        + '<td class="p-1.5 text-center font-bold text-gray-800 whitespace-nowrap">' + priceCell(p.moy90j) + '</td>'
+        // 11 — Buy Box min 90j (masqué sur petits écrans)
+        + '<td class="p-1.5 text-center text-gray-500 whitespace-nowrap hidden sm:table-cell">' + priceCell(p.min90j) + '</td>'
+        // 12 — Alerte arbitrage
+        + '<td class="p-1.5 text-center whitespace-nowrap">' + alerteCell + '</td>'
+        // 13 — Sourcing
+        + '<td class="p-1.5 text-center">' + sourcingCell + '</td>'
         + '</tr>';
 }
 
