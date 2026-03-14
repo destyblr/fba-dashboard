@@ -9,6 +9,7 @@ var _sbOAClient  = null;
 var _oaData      = [];           // deals du jour (mapped)
 var _cbData      = [];           // tous deals avec prix EU (cross-border)
 var _runData     = [];           // historique des runs
+var _poolData    = [];           // pool ELIGIBLE persistant
 var _oaTab       = 'deals';      // onglet actif
 
 var MP_FLAGS   = { FR: '🇫🇷', DE: '🇩🇪', IT: '🇮🇹', ES: '🇪🇸' };
@@ -327,7 +328,7 @@ function _renderAccueilTopDeals() {
 // ── Switcher onglets ──────────────────────────────────────────────────────────
 function switchOATab(tab) {
     _oaTab = tab;
-    var tabs = ['raw', 'deals', 'crossborder', 'rapport'];
+    var tabs = ['raw', 'deals', 'crossborder', 'rapport', 'pool'];
     tabs.forEach(function(t) {
         var el  = document.getElementById('oa-tab-' + t);
         var btn = document.getElementById('oa-tab-btn-' + t);
@@ -343,6 +344,7 @@ function switchOATab(tab) {
         }
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
+    if (tab === 'pool' && !_poolData.length) loadPoolData();
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────
@@ -841,7 +843,7 @@ function renderRunTab() {
         + '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">'
         + '<div class="text-xs text-gray-400 mb-1">Dernier run</div>'
         + '<div class="text-lg font-bold text-gray-800">' + lastStatus + ' — ' + lastDate + '</div>'
-        + '<div class="text-sm text-gray-500 mt-1">Stratégie : <span class="font-semibold text-indigo-600">' + (last.strategy || '—') + '</span>'
+        + '<div class="text-sm text-gray-500 mt-1">Catégorie : <span class="font-semibold text-indigo-600">' + (last.strategy || '—') + '</span>'
         + ' | ' + (last.deals_found || 0) + ' deals | ' + (last.deals_eligible || 0) + ' éligibles | ' + (last.deals_cross_border || 0) + ' CB'
         + (last.duree_secondes ? ' | ' + Math.round(last.duree_secondes / 60) + 'min' : '')
         + '</div></div>'
@@ -852,7 +854,8 @@ function renderRunTab() {
               + ' <span class="text-sm font-normal text-red-500">(-' + (last.tokens_used || 0) + ')</span></div>'
             : '<div class="text-gray-400">—</div>')
         + tokensBar
-        + '</div></div>';
+        + '</div></div>'
+        + _buildRunCharts();
 
     var statusIcon = function(s) {
         return s === 'success'  ? '✅' : s === 'skipped' ? '⏭'
@@ -933,4 +936,112 @@ function renderRunTab() {
         + '</tr></thead>'
         + '<tbody>' + rows + '</tbody>'
         + '</table></div>';
+}
+
+// ── Graphiques rapport ────────────────────────────────────────────────────────
+function _buildRunCharts() {
+    var agent1Runs = _runData.filter(function(r) { return r.strategy && r.strategy !== 'agent2'; }).slice(0, 14).reverse();
+    if (!agent1Runs.length) return '';
+
+    var maxTokens = Math.max.apply(null, agent1Runs.map(function(r) { return r.tokens_used || 0; })) || 1;
+    var maxElig   = Math.max.apply(null, agent1Runs.map(function(r) { return r.deals_eligible || 0; })) || 1;
+
+    var tokBars = agent1Runs.map(function(r) {
+        var pct = Math.round((r.tokens_used || 0) / maxTokens * 100);
+        var dt  = r.date ? new Date(r.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '';
+        var cat = (r.strategy || '').replace(' & ', '/').substring(0, 8);
+        return '<div class="flex flex-col items-center" style="width:' + Math.round(100/agent1Runs.length) + '%">'
+            + '<div class="text-[10px] text-gray-500 mb-1">' + (r.tokens_used || 0) + '</div>'
+            + '<div class="w-full flex items-end justify-center" style="height:60px">'
+            + '<div class="w-4/5 bg-indigo-400 rounded-t" style="height:' + Math.max(4, pct) + '%"></div></div>'
+            + '<div class="text-[9px] text-gray-400 mt-1 text-center leading-tight">' + cat + '</div>'
+            + '<div class="text-[9px] text-gray-300">' + dt + '</div>'
+            + '</div>';
+    }).join('');
+
+    var eligBars = agent1Runs.map(function(r) {
+        var pct = Math.round((r.deals_eligible || 0) / maxElig * 100);
+        var cat = (r.strategy || '').replace(' & ', '/').substring(0, 8);
+        return '<div class="flex flex-col items-center" style="width:' + Math.round(100/agent1Runs.length) + '%">'
+            + '<div class="text-[10px] text-gray-500 mb-1">' + (r.deals_eligible || 0) + '</div>'
+            + '<div class="w-full flex items-end justify-center" style="height:60px">'
+            + '<div class="w-4/5 rounded-t ' + ((r.deals_eligible || 0) > 0 ? 'bg-green-400' : 'bg-gray-200') + '" style="height:' + Math.max(4, pct) + '%"></div></div>'
+            + '<div class="text-[9px] text-gray-400 mt-1 text-center leading-tight">' + cat + '</div>'
+            + '</div>';
+    }).join('');
+
+    return '<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">'
+        + '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">'
+        + '<div class="text-xs font-semibold text-gray-600 mb-3">Tokens utilisés par run (14 derniers)</div>'
+        + '<div class="flex items-end gap-0 w-full">' + tokBars + '</div>'
+        + '</div>'
+        + '<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">'
+        + '<div class="text-xs font-semibold text-gray-600 mb-3">Deals ELIGIBLE trouvés par run</div>'
+        + '<div class="flex items-end gap-0 w-full">' + eligBars + '</div>'
+        + '</div></div>';
+}
+
+// ── Pool ELIGIBLE ─────────────────────────────────────────────────────────────
+function loadPoolData() {
+    var sb = _getOAClient();
+    if (!sb) return;
+    document.getElementById('pool-table-container').innerHTML =
+        '<p class="text-center text-gray-400 py-10"><i class="fas fa-spinner fa-spin text-2xl block mb-3 text-gray-300"></i>Chargement...</p>';
+
+    sb.from('eligible_pool')
+      .select('*')
+      .order('date_found', { ascending: false })
+      .limit(500)
+      .then(function(res) {
+          if (res.error) { console.error('[Pool]', res.error); return; }
+          _poolData = res.data || [];
+          renderPoolTab();
+      })
+      .catch(function(e) { console.error('[Pool]', e); });
+}
+
+function renderPoolTab() {
+    // Stats par catégorie
+    var catCount = {};
+    _poolData.forEach(function(p) {
+        var c = p.categorie || 'Autre';
+        catCount[c] = (catCount[c] || 0) + 1;
+    });
+    var statsHtml = '<div class="bg-white p-3 rounded-xl shadow-sm border border-indigo-100 text-center col-span-2 md:col-span-1">'
+        + '<div class="text-2xl font-bold text-indigo-600">' + _poolData.length + '</div>'
+        + '<div class="text-xs text-gray-400">ASINs dans le pool</div></div>';
+    Object.keys(catCount).sort().forEach(function(cat) {
+        statsHtml += '<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-center">'
+            + '<div class="text-xl font-bold text-gray-700">' + catCount[cat] + '</div>'
+            + '<div class="text-xs text-gray-400">' + cat.replace(' & ', '/') + '</div></div>';
+    });
+    document.getElementById('pool-stats').innerHTML = statsHtml;
+
+    if (!_poolData.length) {
+        document.getElementById('pool-table-container').innerHTML =
+            '<p class="text-center text-gray-400 py-10">Pool vide — les ASINs ELIGIBLE s\'accumuleront au fil des runs.</p>';
+        return;
+    }
+
+    var rows = _poolData.map(function(p) {
+        var dt = p.date_found ? new Date(p.date_found).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' }) : '—';
+        var asinLink = '<a href="https://www.amazon.fr/dp/' + p.asin + '" target="_blank" class="text-indigo-600 hover:underline font-mono">' + p.asin + '</a>';
+        return '<tr class="border-b border-gray-50 hover:bg-gray-50">'
+            + '<td class="p-2">' + asinLink + '</td>'
+            + '<td class="p-2 text-xs text-gray-700 max-w-xs truncate">' + (p.titre || '—') + '</td>'
+            + '<td class="p-2 text-xs text-center"><span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600 text-[11px]">' + (p.categorie || '—') + '</span></td>'
+            + '<td class="p-2 text-xs text-center text-gray-500">' + (p.brand || '—') + '</td>'
+            + '<td class="p-2 text-xs text-center text-gray-400">' + dt + '</td>'
+            + '<td class="p-2 text-xs text-center font-semibold text-gray-600">' + (p.nb_vus || 1) + '</td>'
+            + '</tr>';
+    }).join('');
+
+    document.getElementById('pool-table-container').innerHTML =
+        '<div class="bg-white rounded-xl shadow-sm overflow-x-auto">'
+        + '<table class="w-full text-sm">'
+        + '<thead><tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">'
+        + '<th class="p-2">ASIN</th><th class="p-2">Titre</th>'
+        + '<th class="p-2 text-center">Catégorie</th><th class="p-2 text-center">Marque</th>'
+        + '<th class="p-2 text-center">Date</th><th class="p-2 text-center">Nb vus</th>'
+        + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 }

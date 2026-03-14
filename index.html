@@ -3127,6 +3127,10 @@
                         class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
                         📋 Rapport
                     </button>
+                    <button id="oa-tab-btn-pool" onclick="switchOATab('pool')"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        🎯 Pool ELIGIBLE
+                    </button>
                 </div>
                 <!-- Toggles frais -->
                 <div class="flex gap-2 mb-4">
@@ -3278,6 +3282,26 @@
                         <p class="text-center text-gray-400 py-10">
                             <i class="fas fa-spinner fa-spin text-2xl block mb-3 text-gray-300"></i>
                             Chargement du rapport...
+                        </p>
+                    </div>
+                </div>
+
+                <!-- TAB : Pool ELIGIBLE -->
+                <div id="oa-tab-pool" class="hidden">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-800">Pool ELIGIBLE</h3>
+                            <p class="text-xs text-gray-400">ASINs confirmés vendables sur votre compte — accumulés depuis le départ, sans filtres Keepa</p>
+                        </div>
+                        <button onclick="loadPoolData()" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100">
+                            Actualiser
+                        </button>
+                    </div>
+                    <div id="pool-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"></div>
+                    <div id="pool-table-container">
+                        <p class="text-center text-gray-400 py-10">
+                            <i class="fas fa-spinner fa-spin text-2xl block mb-3 text-gray-300"></i>
+                            Chargement du pool...
                         </p>
                     </div>
                 </div>
