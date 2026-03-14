@@ -3202,8 +3202,8 @@
                     </div>
 
                     <!-- Tableau Deals -->
-                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
+                    <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+                        <table class="w-full text-sm" style="min-width:900px">
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
                                     <th class="p-3 font-semibold">Titre</th>
@@ -3213,7 +3213,8 @@
                                     <th class="p-3 font-semibold text-center text-orange-500">Commission</th>
                                     <th class="p-3 font-semibold text-center text-orange-500">FBA</th>
                                     <th class="p-3 font-semibold text-center text-orange-500">Envoi</th>
-                                    <th class="p-3 font-semibold text-center text-orange-500">URSSAF</th>
+                                    <th id="th-deals-urssaf" class="p-3 font-semibold text-center text-orange-500">URSSAF</th>
+                                    <th id="th-deals-prep" class="p-3 font-semibold text-center text-orange-500">Prep</th>
                                     <th class="p-3 font-semibold text-center text-red-600">Total frais</th>
                                     <th class="p-3 font-semibold text-center">Score</th>
                                     <th class="p-3 font-semibold text-center">Alerte</th>
@@ -3247,8 +3248,8 @@
                             Avec prep
                         </button>
                     </div>
-                    <div class="bg-white rounded-xl shadow-sm overflow-hidden">
-                        <table class="w-full text-sm">
+                    <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
+                        <table class="w-full text-sm" style="min-width:900px">
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
                                     <th class="p-2 font-semibold">Titre</th>
@@ -3260,9 +3261,9 @@
                                     <th class="p-2 font-semibold text-center text-red-400">Traitement FBA</th>
                                     <th class="p-2 font-semibold text-center text-red-400">EFN</th>
                                     <th class="p-2 font-semibold text-center text-red-300">Envoi</th>
-                                    <th class="p-2 font-semibold text-center text-purple-500">URSSAF</th>
+                                    <th id="th-cb-urssaf" class="p-2 font-semibold text-center text-purple-500">URSSAF</th>
                                     <th class="p-2 font-semibold text-center text-gray-400" title="Stockage estimé 30j">Stockage</th>
-                                    <th class="p-2 font-semibold text-center text-orange-400" title="Frais préparation/étiquetage (configurable dans Paramètres OA)">Prep</th>
+                                    <th id="th-cb-prep" class="p-2 font-semibold text-center text-orange-400" title="Frais préparation/étiquetage (configurable dans Paramètres OA)">Prep</th>
                                     <th class="p-2 font-semibold text-center text-red-500">Total frais</th>
                                     <th class="p-2 font-semibold text-center">Profit net</th>
                                     <th class="p-2 font-semibold text-center">ROI</th>
@@ -3587,7 +3588,7 @@
     <script src="google-sync.js"></script>
 
     <!-- OA Supabase — remplace Netlify Blobs par notre Python+Supabase -->
-    <script src="oa-supabase.js?v=2"></script>
+    <script src="oa-supabase.js?v=3"></script>
 
 </body>
 </html>

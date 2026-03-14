@@ -27,11 +27,11 @@ var STORAGE_VOL_M3  = {      // volume estimé par size_tier
 };
 
 // ── Toggle URSSAF (persisté en localStorage) ──────────────────────────────────
-var _urssafOn = (localStorage.getItem('oa_urssaf') !== 'false');
+var _urssafOn = (localStorage.getItem('oa_urssaf') === 'true');
 
 // ── Frais prep (persisté en localStorage) ─────────────────────────────────────
 var _prepFee = parseFloat(localStorage.getItem('oa_prep_fee') || '0.50');
-var _prepOn  = (localStorage.getItem('oa_prep') !== 'false');
+var _prepOn  = (localStorage.getItem('oa_prep') === 'true');
 
 function _syncToggleBtns() {
     var uCls = _urssafOn ? 'text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer'
@@ -45,6 +45,16 @@ function _syncToggleBtns() {
     ['btn-prep-toggle', 'btn-prep-toggle-cb', 'btn-prep-toggle-param'].forEach(function(id) {
         var b = document.getElementById(id);
         if (b) { b.className = pCls; b.textContent = _prepOn ? 'Avec prep' : 'Sans prep'; }
+    });
+    // Show/hide URSSAF columns
+    ['th-deals-urssaf', 'th-cb-urssaf'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = _urssafOn ? '' : 'none';
+    });
+    // Show/hide Prep columns
+    ['th-deals-prep', 'th-cb-prep'].forEach(function(id) {
+        var el = document.getElementById(id);
+        if (el) el.style.display = _prepOn ? '' : 'none';
     });
 }
 
@@ -615,7 +625,8 @@ function renderDealsTab() {
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.referralFee != null ? p.referralFee.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.fraisFba != null ? p.fraisFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.envoiFba != null ? p.envoiFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
-            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
+            + '<td style="' + (_urssafOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '—') + '</td>'
+            + '<td style="' + (_prepOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (_prepFee.toFixed(2)) + '€</td>'
             + '<td class="p-3 text-center text-xs text-red-600 font-semibold">' + (p.frais != null ? p.frais.toFixed(2) + '€' : '—') + '</td>'
             + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
             + '<td class="p-3 text-center text-xs text-amber-600">' + (p.alerte || '—') + '</td>'
@@ -759,11 +770,11 @@ function renderCrossBorderTab() {
             // Envoi entrepôt
             + '<td class="p-2 text-center text-red-300">' + tip(f.envoi, tEnvoi) + '</td>'
             // URSSAF (toggle)
-            + '<td class="p-2 text-center ' + (_urssafOn ? 'text-purple-500' : 'text-gray-300') + '">' + tip(_urssafOn ? f.urssaf : null, tUrssaf) + '</td>'
+            + '<td style="' + (_urssafOn ? '' : 'display:none') + '" class="p-2 text-center text-purple-500">' + tip(f.urssaf, tUrssaf) + '</td>'
             // Stockage
             + '<td class="p-2 text-center text-gray-400">' + tip(f.stockage, tStockage) + '</td>'
             // Prep (toggle)
-            + '<td class="p-2 text-center ' + (_prepOn ? 'text-orange-400' : 'text-gray-300') + '">' + tip(_prepOn ? f.prep : null, tPrep) + '</td>'
+            + '<td style="' + (_prepOn ? '' : 'display:none') + '" class="p-2 text-center text-orange-400">' + tip(f.prep, tPrep) + '</td>'
             // Total frais
             + '<td class="p-2 text-center font-bold text-red-500">' + tip(f.total, tTotal) + '</td>'
             // Profit net EU
