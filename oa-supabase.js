@@ -394,7 +394,7 @@ function _renderAccueilCharts() {
     var catValues = catLabels.map(function(k) { return catCounts[k]; });
     var catColorMap = {
         'Kitchen': '#f97316', 'Home & Garden': '#22c55e', 'Auto & Moto': '#3b82f6',
-        'Office Products': '#a855f7', 'Hygiène & Santé': '#ec4899', 'Luminaires': '#eab308',
+        'Toys & Games': '#a855f7', 'Hygiène & Santé': '#ec4899', 'Luminaires': '#eab308',
     };
     var catBgColors = catLabels.map(function(c) { return catColorMap[c] || '#9ca3af'; });
 
@@ -780,7 +780,7 @@ function renderCatalogTable(data) {
             'Kitchen': 'bg-orange-100 text-orange-700',
             'Home & Garden': 'bg-green-100 text-green-700',
             'Auto & Moto': 'bg-blue-100 text-blue-700',
-            'Office Products': 'bg-purple-100 text-purple-700',
+            'Toys & Games': 'bg-purple-100 text-purple-700',
             'Hygiène & Santé': 'bg-pink-100 text-pink-700',
             'Luminaires': 'bg-yellow-100 text-yellow-700',
         };
@@ -1176,7 +1176,7 @@ function analyseIA(deal) {
         + '- Score : ' + (deal.score || '?') + '/100\n'
         + '- Alerte arbitrage : ' + (deal.alerte || 'Aucune') + '\n\n'
         + 'Critères :\n'
-        + '- BUY : profit >= 5€ ET (ROI >= 20% OU profit >= 8€), BSR adapté à la catégorie (Kitchen/Home < 80k, Office/Luminaires < 50k, autres < 60k), 2-10 vendeurs FBA, prix stable (instabilité < 25%), tendance ≥ stable\n'
+        + '- BUY : profit >= 5€ ET (ROI >= 20% OU profit >= 8€), BSR adapté à la catégorie (Kitchen/Home < 80k, Toys/Luminaires < 50k, autres < 60k), 2-10 vendeurs FBA, prix stable (instabilité < 25%), tendance ≥ stable\n'
         + '- RISKY : profit 3-5€, ou ROI 15-20%, ou instabilité 25-40%, ou tendance baissière > -10%, ou 1 vendeur FBA (PL possible), ou produit lourd (>2kg)\n'
         + '- SKIP : profit < 3€, ou ROI < 15%, ou Amazon vendeur, ou tendance baissière > -15%, ou instabilité > 40%\n\n'
         + 'Réponds en JSON : {"verdict": "BUY|RISKY|SKIP", "analyse": "1-2 phrases max en français expliquant pourquoi"}';
@@ -1399,7 +1399,7 @@ function renderRunTab() {
         'Kitchen':          'bg-orange-100 text-orange-700',
         'Home & Garden':    'bg-purple-100 text-purple-700',
         'Auto & Moto':      'bg-blue-100 text-blue-700',
-        'Office Products':  'bg-indigo-100 text-indigo-700',
+        'Toys & Games':     'bg-indigo-100 text-indigo-700',
         'Hygiène & Santé':  'bg-green-100 text-green-700',
         'Luminaires':       'bg-cyan-100 text-cyan-700',
     };
@@ -1514,7 +1514,7 @@ function renderRunTab() {
 
 // ── Graphiques rapport ────────────────────────────────────────────────────────
 function _buildRunCharts() {
-    var KNOWN_CATS = ['Kitchen','Home & Garden','Auto & Moto','Office Products','Hygiène & Santé','Luminaires'];
+    var KNOWN_CATS = ['Kitchen','Home & Garden','Auto & Moto','Toys & Games','Hygiène & Santé','Luminaires'];
 
     // ── Graphique 1 : ELIGIBLE cumulé par catégorie ───────────────────────────
     var catElig = {};
