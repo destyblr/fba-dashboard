@@ -212,6 +212,7 @@ function _mapDeal(d) {
         sizeTier:     d.size_tier,
         verdict:      d.verdict    || null,
         analyseIa:    d.analyse_ia || null,
+        dateScan:     d.date_scan  || null,
     };
 }
 
@@ -236,8 +237,8 @@ function loadCatalog() {
           var score70   = _oaData.filter(function(d) { return (d.score || 0) >= 70; }).length;
           var eligible  = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE'; }).length;
           var avecPrix  = _oaData.filter(function(d) { return d.prixAchat > 0; }).length;
-          var lastRun   = total > 0
-              ? new Date(_oaData[0].dateScan || _oaData[0].date_scan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'})
+          var lastRun   = total > 0 && _oaData[0].dateScan
+              ? new Date(_oaData[0].dateScan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})
               : 'Aucun run';
 
           // KPIs sourcing (section-oa-sourcing)
@@ -284,7 +285,11 @@ function loadCrossBorderData() {
       .order('roi_meilleur', { ascending: false })
       .limit(200)
       .then(function(res) {
-          if (res.error) { console.error('[CB]', res.error.message); return; }
+          if (res.error) {
+              var cbTb = document.getElementById('crossborder-tbody');
+              if (cbTb) cbTb.innerHTML = '<tr><td colspan="17" class="p-10 text-center text-red-400">Erreur : ' + res.error.message + '</td></tr>';
+              return;
+          }
           _cbData = (res.data || []).map(_mapDeal);
           renderCrossBorderTab();
       })
@@ -456,7 +461,7 @@ function renderRawTab() {
 
 function _showRawEmpty(msg) {
     var tbody = document.getElementById('raw-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="23" class="p-10 text-center text-gray-400">'
+    if (tbody) tbody.innerHTML = '<tr><td colspan="13" class="p-10 text-center text-gray-400">'
         + '<i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>'
         + '<p class="font-medium">' + msg + '</p></td></tr>';
 }
@@ -626,7 +631,11 @@ function renderDealsTab() {
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.referralFee != null ? p.referralFee.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.fraisFba != null ? p.fraisFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + (p.envoiFba != null ? p.envoiFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
-            + '<td class="p-3 text-center text-xs text-gray-400">' + (p.stockageFba != null ? p.stockageFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
+            + (function() {
+                var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+                var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+                return '<td class="p-3 text-center text-xs text-gray-400">' + stk.toFixed(2) + '€</td>';
+            })()
             + '<td style="' + (_urssafOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '—') + '</td>'
             + '<td style="' + (_prepOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (_prepFee.toFixed(2)) + '€</td>'
             + '<td class="p-3 text-center text-xs text-red-600 font-semibold">' + (p.frais != null ? p.frais.toFixed(2) + '€' : '—') + '</td>'
@@ -651,9 +660,6 @@ function renderDealsTab() {
                 var tip = p.analyseIa ? ' title="' + p.analyseIa.replace(/"/g, '&quot;') + '"' : '';
                 return '<td class="p-3 text-center"><span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '"' + tip + '>' + icon + ' ' + p.verdict + '</span></td>';
             })()
-            + '<td class="p-3 text-center">'
-                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 GS</a>' : '<span class="text-gray-300 text-xs">—</span>')
-            + '</td>'
             + '</tr>';
     }).join('');
 }
@@ -1051,7 +1057,11 @@ function loadPoolData() {
       .order('date_found', { ascending: false })
       .limit(500)
       .then(function(res) {
-          if (res.error) { console.error('[Pool]', res.error); return; }
+          if (res.error) {
+              document.getElementById('pool-table-container').innerHTML =
+                  '<p class="text-center text-red-400 py-10">Erreur : ' + res.error.message + '</p>';
+              return;
+          }
           _poolData = res.data || [];
           renderPoolTab();
       })
