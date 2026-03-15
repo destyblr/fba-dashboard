@@ -225,7 +225,7 @@ function loadCatalog() {
     sb.from('deals')
       .select('*')
       .gte('date_scan', since + 'T00:00:00')
-      .not('source', 'eq', 'cross_border')
+      .or('source.is.null,source.neq.cross_border')
       .order('score_deal', { ascending: false })
       .then(function(res) {
           if (res.error) { _showRawEmpty('Erreur : ' + res.error.message); return; }
