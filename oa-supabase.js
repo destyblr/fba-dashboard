@@ -4,6 +4,7 @@
 
 var OA_SUPABASE_URL = 'https://ittbipdvkutbiiqeukdg.supabase.co';
 var OA_SUPABASE_KEY = 'sb_publishable_uC4DebkXoayJkKDabA_A1w_7ft2qxwd';
+var ANTHROPIC_API_KEY = localStorage.getItem('oa_anthropic_key') || '';
 
 var _sbOAClient  = null;
 var _oaData      = [];           // deals du jour (mapped)
@@ -213,6 +214,7 @@ function _mapDeal(d) {
         verdict:      d.verdict    || null,
         analyseIa:    d.analyse_ia || null,
         dateScan:     d.date_scan  || null,
+        statutAchat:  d.statut_achat || 'a_commander',
     };
 }
 
@@ -227,11 +229,19 @@ function loadCatalog() {
       .select('*')
       .gte('date_scan', since + 'T00:00:00')
       .or('source.is.null,source.neq.cross_border')
+      .order('profit_net_fr', { ascending: false })
       .order('score_deal', { ascending: false })
       .then(function(res) {
           if (res.error) { _showRawEmpty('Erreur : ' + res.error.message); return; }
 
-          _oaData = (res.data || []).map(_mapDeal);
+          var mapped = (res.data || []).map(_mapDeal);
+          // Dédupliquer par ASIN (garder le plus récent = premier car trié par score desc)
+          var seen = {};
+          _oaData = mapped.filter(function(d) {
+              if (!d.asin || seen[d.asin]) return false;
+              seen[d.asin] = true;
+              return true;
+          });
 
           var total     = _oaData.length;
           var score70   = _oaData.filter(function(d) { return (d.score || 0) >= 70; }).length;
@@ -251,11 +261,26 @@ function loadCatalog() {
           s('sourcing-last-run', lastRun);
 
           // KPIs accueil
-          s('acc-kpi-total',     total);
-          s('acc-kpi-eligible',  eligible);
-          s('acc-kpi-score70',   score70);
-          s('acc-kpi-avec-prix', avecPrix);
+          var catalogData = _getCatalogData();
+          var enAttente = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE' && !d.prixAchat; }).length;
+          var totalProfit = 0, totalRoi = 0, roiCount = 0;
+          catalogData.forEach(function(p) {
+              var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+              var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+              var dt = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
+                  + (_urssafOn ? (p.urssaf || 0) : 0) + (_prepOn ? _prepFee : 0);
+              var pr = (p.moy90j || 0) - dt - p.prixAchat;
+              totalProfit += pr;
+              if (p.prixAchat > 0) { totalRoi += pr / p.prixAchat * 100; roiCount++; }
+          });
+          var avgRoi = roiCount > 0 ? Math.round(totalRoi / roiCount) : 0;
+          s('acc-kpi-catalogue', catalogData.length);
+          s('acc-kpi-profit',    (totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2) + '€');
+          s('acc-kpi-roi',       avgRoi + '%');
+          s('acc-kpi-en-attente', enAttente);
           s('acc-last-scan',     lastRun);
+          _renderAccueilCharts();
+          _loadAccueilRuns();
 
           // Date accueil
           var dateEl = document.getElementById('accueil-date');
@@ -296,39 +321,196 @@ function loadCrossBorderData() {
       .catch(function(e) { console.error('[CB]', e); });
 }
 
-// ── Top deals pour la page Accueil ───────────────────────────────────────────
+// ── Top deals par profit pour la page Accueil ────────────────────────────────
 function _renderAccueilTopDeals() {
     var el = document.getElementById('acc-top-deals');
     if (!el) return;
 
-    var top5 = _oaData.slice(0, 5); // already sorted by score desc
+    // Top 5 deals avec prix d'achat, triés par profit
+    var withPrix = _getCatalogData().map(function(p) {
+        var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+        var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+        var dt = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
+            + (_urssafOn ? (p.urssaf || 0) : 0) + (_prepOn ? _prepFee : 0);
+        p._dynProfit = Math.round(((p.moy90j || 0) - dt - p.prixAchat) * 100) / 100;
+        p._dynRoi = p.prixAchat > 0 ? Math.round(p._dynProfit / p.prixAchat * 1000) / 10 : 0;
+        return p;
+    }).sort(function(a, b) { return b._dynProfit - a._dynProfit; });
+
+    var top5 = withPrix.slice(0, 5);
     if (!top5.length) {
-        el.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucun deal aujourd\'hui</div>';
+        // Fallback: top 5 deals éligibles sans prix
+        var eligible = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE'; }).slice(0, 5);
+        if (!eligible.length) {
+            el.innerHTML = '<div class="text-center text-gray-400 text-sm py-8">Aucun deal</div>';
+            return;
+        }
+        el.innerHTML = eligible.map(function(p) {
+            var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
+            return '<div class="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50 transition border-b border-gray-50">'
+                + '<div class="flex-1 min-w-0">'
+                    + '<a href="' + amzUrl + '" target="_blank" class="text-sm font-semibold text-gray-800 hover:text-indigo-600 block truncate">' + (p.titre || '').slice(0, 50) + '</a>'
+                    + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + '</div>'
+                + '</div>'
+                + '<div class="text-sm font-bold text-gray-700">' + (p.moy90j ? p.moy90j.toFixed(2) + '€' : '—') + '</div>'
+                + '</div>';
+        }).join('');
         return;
     }
 
     el.innerHTML = top5.map(function(p) {
-        var scoreColor = (p.score || 0) >= 70 ? 'bg-green-100 text-green-700'
-                       : (p.score || 0) >= 40 ? 'bg-amber-100 text-amber-700'
-                       : 'bg-gray-100 text-gray-500';
         var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
-        var eligBadge = p.statut === 'ELIGIBLE'
-            ? '<span class="bg-green-100 text-green-700 text-[10px] px-1.5 py-0.5 rounded font-semibold">✓ Éligible</span>'
-            : p.statut === 'RESTRICTED'
-            ? '<span class="bg-red-100 text-red-600 text-[10px] px-1.5 py-0.5 rounded font-semibold">✗ Restreint</span>'
-            : '';
-        return '<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition">'
-            + '<span class="text-xs font-bold px-1.5 py-0.5 rounded shrink-0 ' + scoreColor + '">' + (p.score || '?') + '</span>'
+        var profitColor = p._dynProfit >= 5 ? 'text-green-600' : p._dynProfit > 0 ? 'text-amber-600' : 'text-red-500';
+        var verdictIcon = p.verdict === 'BUY' ? '✅' : p.verdict === 'RISKY' ? '⚠️' : p.verdict === 'SKIP' ? '❌' : '';
+        return '<div class="flex items-center gap-3 px-5 py-2.5 hover:bg-gray-50 transition border-b border-gray-50">'
             + '<div class="flex-1 min-w-0">'
-                + '<a href="' + amzUrl + '" target="_blank" class="text-sm font-semibold text-gray-800 hover:text-indigo-600 block truncate">' + (p.titre || p.asin || '—').slice(0, 60) + '</a>'
-                + '<div class="text-xs text-gray-400 font-mono">' + (p.asin || '') + (p.categorie ? ' · ' + p.categorie : '') + '</div>'
+                + '<a href="' + amzUrl + '" target="_blank" class="text-sm font-semibold text-gray-800 hover:text-indigo-600 block truncate">' + (p.titre || '').slice(0, 45) + '</a>'
+                + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + ' · ' + (p.categorie || '') + '</div>'
             + '</div>'
-            + '<div class="shrink-0 text-right">'
-                + (p.moy90j ? '<div class="text-sm font-bold text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '')
-                + eligBadge
+            + '<div class="shrink-0 text-right flex items-center gap-2">'
+                + '<span class="text-xs">' + verdictIcon + '</span>'
+                + '<span class="font-bold ' + profitColor + '">' + (p._dynProfit >= 0 ? '+' : '') + p._dynProfit.toFixed(2) + '€</span>'
+                + '<span class="text-xs text-gray-400">' + p._dynRoi.toFixed(0) + '%</span>'
             + '</div>'
             + '</div>';
     }).join('');
+}
+
+// ── Graphiques Accueil ──────────────────────────────────────────────────────
+var _accChartRuns = null, _accChartCats = null;
+
+function _renderAccueilCharts() {
+    // Donut catégories
+    var catCtx = document.getElementById('acc-chart-categories');
+    if (!catCtx) return;
+
+    var catCounts = {};
+    var eligible = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE'; });
+    eligible.forEach(function(d) {
+        var c = d.categorie || 'Autre';
+        catCounts[c] = (catCounts[c] || 0) + 1;
+    });
+    var catLabels = Object.keys(catCounts);
+    var catValues = catLabels.map(function(k) { return catCounts[k]; });
+    var catColorMap = {
+        'Kitchen': '#f97316', 'Home & Garden': '#22c55e', 'Auto & Moto': '#3b82f6',
+        'Office Products': '#a855f7', 'Hygiène & Santé': '#ec4899', 'Luminaires': '#eab308',
+    };
+    var catBgColors = catLabels.map(function(c) { return catColorMap[c] || '#9ca3af'; });
+
+    if (_accChartCats) _accChartCats.destroy();
+    _accChartCats = new Chart(catCtx, {
+        type: 'doughnut',
+        data: {
+            labels: catLabels,
+            datasets: [{ data: catValues, backgroundColor: catBgColors, borderWidth: 1 }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 } } }
+            }
+        }
+    });
+}
+
+// ── Derniers runs (depuis Supabase) ─────────────────────────────────────────
+function _loadAccueilRuns() {
+    var sb = _getOAClient();
+    if (!sb) return;
+
+    sb.from('runs')
+      .select('*')
+      .order('date', { ascending: false })
+      .limit(20)
+      .then(function(res) {
+          if (res.error || !res.data) return;
+          var runs = res.data;
+
+          // Tokens KPI + dernier scan depuis runs
+          var lastRun = runs[0];
+          if (lastRun) {
+              var tokEl = document.getElementById('acc-kpi-tokens');
+              if (tokEl) tokEl.textContent = (lastRun.tokens_after != null ? lastRun.tokens_after + '/60' : '—');
+
+              var runDate = new Date(lastRun.date);
+              var runDateStr = runDate.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+                  + ' ' + runDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+              var s = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+              s('acc-last-scan', runDateStr);
+              s('sourcing-last-run', runDateStr);
+              s('catalog-last-run', runDateStr);
+          }
+
+          // Graphique barres — runs des 14 derniers jours
+          var runsCtx = document.getElementById('acc-chart-runs');
+          if (runsCtx && runs.length > 1) {
+              var last14 = runs.slice(0, 14).reverse();
+              var labels = last14.map(function(r) {
+                  var d = new Date(r.date);
+                  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+                      + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+              });
+              var dealsFound = last14.map(function(r) { return r.deals_found || 0; });
+              var dealsEligible = last14.map(function(r) { return r.deals_eligible || 0; });
+
+              if (_accChartRuns) _accChartRuns.destroy();
+              _accChartRuns = new Chart(runsCtx, {
+                  type: 'bar',
+                  data: {
+                      labels: labels,
+                      datasets: [
+                          { label: 'Trouvés', data: dealsFound, backgroundColor: '#818cf8', borderRadius: 3 },
+                          { label: 'Éligibles', data: dealsEligible, backgroundColor: '#34d399', borderRadius: 3 },
+                      ]
+                  },
+                  options: {
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      scales: {
+                          x: { ticks: { font: { size: 9 }, maxRotation: 45 } },
+                          y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                      },
+                      plugins: { legend: { labels: { boxWidth: 12, font: { size: 11 } } } }
+                  }
+              });
+          }
+
+          // Mini tableau derniers runs
+          var runsEl = document.getElementById('acc-last-runs');
+          if (runsEl) {
+              var top5 = runs.slice(0, 5);
+              runsEl.innerHTML = '<table class="w-full text-xs">'
+                  + '<thead><tr class="bg-gray-50 text-[10px] uppercase text-gray-500">'
+                  + '<th class="p-2 text-left">Date</th><th class="p-2 text-center">Agent</th>'
+                  + '<th class="p-2 text-center">Deals</th><th class="p-2 text-center">Tokens</th>'
+                  + '<th class="p-2 text-center">Statut</th></tr></thead>'
+                  + '<tbody>' + top5.map(function(r) {
+                      var d = new Date(r.date);
+                      var dateStr = d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+                          + ' ' + d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+                      var isA1 = r.agent === 'agent1' || (!r.agent && (r.deals_found || 0) > 0);
+                      var agentBadge = isA1
+                          ? '<span class="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded font-semibold">A1</span>'
+                          : '<span class="bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-semibold">A2</span>';
+                      var deals = isA1
+                          ? (r.deals_found || 0) + ' / ' + (r.deals_eligible || 0)
+                          : (r.deals_cross_border || 0) + ' CB';
+                      var statusCls = r.status === 'success' ? 'bg-green-100 text-green-700'
+                          : r.status === 'error' ? 'bg-red-100 text-red-600'
+                          : 'bg-gray-100 text-gray-500';
+                      var statusIcon = r.status === 'success' ? '✓' : r.status === 'error' ? '✗' : '—';
+                      return '<tr class="border-b border-gray-50 hover:bg-gray-50">'
+                          + '<td class="p-2 text-gray-600">' + dateStr + '</td>'
+                          + '<td class="p-2 text-center">' + agentBadge + '</td>'
+                          + '<td class="p-2 text-center font-semibold">' + deals + '</td>'
+                          + '<td class="p-2 text-center text-gray-500">' + (r.tokens_used || 0) + '</td>'
+                          + '<td class="p-2 text-center"><span class="text-[10px] px-1.5 py-0.5 rounded font-semibold ' + statusCls + '">' + statusIcon + '</span></td>'
+                          + '</tr>';
+                  }).join('') + '</tbody></table>';
+          }
+      });
 }
 
 // ── Switcher onglets ──────────────────────────────────────────────────────────
@@ -406,10 +588,16 @@ function _buildRawRow(p) {
         .join('\n');
     var arbTip = 'Prix EU actuels :\n' + euPrices
         + '\n🇫🇷 FR : ' + (p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '—')
-        + (p.alerte ? '\n\n⚡ ' + p.alerte : '\n\nPas d\'écart ≥ 15% détecté.');
-    var alerteCell = p.alerte
-        ? '<span class="text-amber-600 font-semibold" title="' + arbTip + '" style="cursor:help">⚡ ' + p.alerte + '</span>'
-        : '<span class="text-gray-300" title="' + arbTip + '" style="cursor:help">—</span>';
+        + (p.alerte ? '\n\n⚡ ' + p.alerte : '\n\nPas d\'écart ≥ 10% détecté.');
+    var bestEU = Math.max(p.buyBoxDE || 0, p.buyBoxIT || 0, p.buyBoxES || 0);
+    var alerteCell;
+    if (p.alerte) {
+        alerteCell = '<span class="text-amber-600 font-semibold" title="' + arbTip + '" style="cursor:help">⚡ ' + p.alerte + '</span>';
+    } else if (bestEU > 0) {
+        alerteCell = '<span class="text-red-400 font-mono" title="' + arbTip + '" style="cursor:help">' + bestEU.toFixed(2) + '€</span>';
+    } else {
+        alerteCell = '<span class="text-gray-300" title="' + arbTip + '" style="cursor:help">—</span>';
+    }
 
     // Col 23 — Sourcing (lien Google Shopping)
     var sourcingCell = p.lienGS
@@ -438,7 +626,7 @@ function _buildRawRow(p) {
         // 10 — Buy Box moy 90j
         + '<td class="p-1.5 text-center font-bold text-gray-800 whitespace-nowrap">' + priceCell(p.moy90j) + '</td>'
         // 11 — Buy Box min 90j (masqué sur petits écrans)
-        + '<td class="p-1.5 text-center text-gray-500 whitespace-nowrap hidden sm:table-cell">' + priceCell(p.min90j) + '</td>'
+        + '<td class="p-1.5 text-center text-gray-500 whitespace-nowrap hidden sm:table-cell" title="' + (p.min90j ? 'Prix le plus bas des 90 derniers jours' : 'Non disponible — Keepa n\'a pas assez d\'historique pour ce produit') + '" style="cursor:help">' + priceCell(p.min90j) + '</td>'
         // 12 — Alerte arbitrage
         + '<td class="p-1.5 text-center whitespace-nowrap">' + alerteCell + '</td>'
         // 13 — Sourcing
@@ -467,17 +655,64 @@ function _showRawEmpty(msg) {
 }
 
 // ── Catalogue (section-oa-catalogue) — browse/filter ─────────────────────────
+var STATUT_ACHAT_LABELS = {
+    a_commander: { label: 'À commander', cls: 'bg-blue-100 text-blue-700 border-blue-300' },
+    commande:    { label: 'Commandé',    cls: 'bg-amber-100 text-amber-700 border-amber-300' },
+    en_stock:    { label: 'En stock FBA', cls: 'bg-green-100 text-green-700 border-green-300' },
+    vendu:       { label: 'Vendu',        cls: 'bg-gray-100 text-gray-500 border-gray-300' },
+};
+
+function _getCatalogData() {
+    return _oaData.filter(function(p) { return p.prixAchat > 0; });
+}
+
 function renderCatalogTable(data) {
     var tbody = document.getElementById('cat-tbody');
     if (!tbody) return;
 
-    var items = data !== undefined ? data : _oaData;
+    var items = data !== undefined ? data : _getCatalogData();
+
+    // KPIs
+    var kpiEl = document.getElementById('cat-kpis');
+    if (kpiEl) {
+        var allCat = _getCatalogData();
+        var totalProfit = 0, totalRoi = 0, roiCount = 0;
+        var statutCounts = { a_commander: 0, commande: 0, en_stock: 0, vendu: 0 };
+        allCat.forEach(function(p) {
+            var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+            var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+            var dt = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
+                + (_urssafOn ? (p.urssaf || 0) : 0) + (_prepOn ? _prepFee : 0);
+            var pr = (p.moy90j || 0) - dt - p.prixAchat;
+            totalProfit += pr;
+            if (p.prixAchat > 0) { totalRoi += pr / p.prixAchat * 100; roiCount++; }
+            statutCounts[p.statutAchat || 'a_commander'] = (statutCounts[p.statutAchat || 'a_commander'] || 0) + 1;
+        });
+        var avgRoi = roiCount > 0 ? Math.round(totalRoi / roiCount) : 0;
+        var profitColor = totalProfit >= 0 ? 'text-green-600' : 'text-red-500';
+        kpiEl.innerHTML = ''
+            + '<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-center">'
+            + '<div class="text-2xl font-bold text-indigo-600">' + allCat.length + '</div>'
+            + '<div class="text-xs text-gray-400">Produits validés</div></div>'
+            + '<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-center">'
+            + '<div class="text-2xl font-bold ' + profitColor + '">' + (totalProfit >= 0 ? '+' : '') + totalProfit.toFixed(2) + '€</div>'
+            + '<div class="text-xs text-gray-400">Profit total estimé</div></div>'
+            + '<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-center">'
+            + '<div class="text-2xl font-bold text-indigo-600">' + avgRoi + '%</div>'
+            + '<div class="text-xs text-gray-400">ROI moyen</div></div>'
+            + '<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-center">'
+            + '<div class="text-sm font-bold text-blue-600">' + (statutCounts.a_commander || 0) + ' à cmd</div>'
+            + '<div class="text-sm font-bold text-amber-600">' + (statutCounts.commande || 0) + ' cmdé</div></div>'
+            + '<div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-center">'
+            + '<div class="text-sm font-bold text-green-600">' + (statutCounts.en_stock || 0) + ' stock</div>'
+            + '<div class="text-sm font-bold text-gray-500">' + (statutCounts.vendu || 0) + ' vendu</div></div>';
+    }
 
     if (!items.length) {
-        tbody.innerHTML = '<tr><td colspan="10" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-store text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Catalogue vide</p>'
-            + '<p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> pour remplir le catalogue</p>'
+            + '<p class="text-xs mt-1">Renseigne un prix d\'achat dans l\'onglet Deals pour ajouter un produit</p>'
             + '</td></tr>';
         return;
     }
@@ -486,62 +721,142 @@ function renderCatalogTable(data) {
     if (label) label.textContent = items.length + ' produit' + (items.length !== 1 ? 's' : '');
 
     tbody.innerHTML = items.map(function(p) {
-        var scoreColor = (p.score || 0) >= 70 ? 'bg-green-100 text-green-700'
-                       : (p.score || 0) >= 40 ? 'bg-amber-100 text-amber-700'
-                       : 'bg-gray-100 text-gray-500';
+        var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
 
-        var amzUrl = p.asin ? 'https://www.amazon.fr/dp/' + p.asin : '#';
+        // Calculs dynamiques
+        var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+        var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+        var dynTotal = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
+            + (_urssafOn ? (p.urssaf || 0) : 0) + (_prepOn ? _prepFee : 0);
+        var profit = (p.moy90j || 0) - dynTotal - p.prixAchat;
+        profit = Math.round(profit * 100) / 100;
+        var roi = p.prixAchat > 0 ? Math.round(profit / p.prixAchat * 1000) / 10 : 0;
 
-        var eligBadge = p.statut === 'ELIGIBLE'
-            ? '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">✓</span>'
-            : p.statut === 'RESTRICTED'
-            ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">✗</span>'
-            : '<span class="bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">?</span>';
+        var profitColor = profit >= 5 && roi >= 20 ? 'text-green-600' : profit > 0 ? 'text-amber-600' : 'text-red-500';
 
-        var amzBadge = p.amzEnStock
-            ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded text-[10px]">AMZ</span>'
-            : '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded text-[10px]">Libre</span>';
+        // Tendance
+        var moy = p.moy90j || 0;
+        var actuel = p.buyBoxFR || 0;
+        var tendance = moy > 0 ? Math.round((actuel - moy) / moy * 1000) / 10 : 0;
+        var tendanceCell = tendance > 5
+            ? '<span class="text-green-600 font-semibold" title="Actuel (' + actuel.toFixed(2) + '€) vs Moy 90j (' + moy.toFixed(2) + '€)">↗️ +' + tendance + '%</span>'
+            : tendance < -5
+            ? '<span class="text-red-500 font-semibold" title="Actuel (' + actuel.toFixed(2) + '€) vs Moy 90j (' + moy.toFixed(2) + '€)">↘️ ' + tendance + '%</span>'
+            : '<span class="text-gray-400" title="Actuel (' + actuel.toFixed(2) + '€) vs Moy 90j (' + moy.toFixed(2) + '€)">→ ' + tendance + '%</span>';
 
-        var otherPrices = [['DE', p.buyBoxDE], ['IT', p.buyBoxIT], ['ES', p.buyBoxES]]
-            .filter(function(x) { return x[1]; })
-            .map(function(x) { return (MP_FLAGS[x[0]] || '') + ' ' + x[1].toFixed(0) + '€'; })
-            .join(' · ');
+        // Tooltips
+        var tipFrais = 'Comm. (' + (p.referralFee || 0).toFixed(2) + '€) + FBA (' + (p.fraisFba || 0).toFixed(2) + '€) + Envoi (' + (p.envoiFba || 0).toFixed(2) + '€) + Stock. (' + stk.toFixed(2) + '€)'
+            + (_urssafOn ? ' + URSSAF (' + (p.urssaf || 0).toFixed(2) + '€)' : '')
+            + (_prepOn ? ' + Prep (' + _prepFee.toFixed(2) + '€)' : '')
+            + '\n= ' + dynTotal.toFixed(2) + '€';
+        var tipProfit = 'Vente (' + (p.moy90j || 0).toFixed(2) + '€) − Frais (' + dynTotal.toFixed(2) + '€) − Achat (' + p.prixAchat.toFixed(2) + '€)\n= ' + (profit >= 0 ? '+' : '') + profit.toFixed(2) + '€';
+        var tipRoi = 'Profit (' + (profit >= 0 ? '+' : '') + profit.toFixed(2) + '€) / Achat (' + p.prixAchat.toFixed(2) + '€)\n= ' + roi.toFixed(1) + '%';
+
+        // Avis IA
+        var iaCriteres = 'Critères IA :\n• BUY : profit ≥ 5€ + (ROI ≥ 20% ou profit ≥ 8€)\n• RISKY : profit 3-5€, ROI 15-20%\n• SKIP : profit < 3€, ROI < 15%';
+        var iaCell;
+        if (!p.verdict) {
+            iaCell = '<span class="text-gray-300 text-xs">—</span>';
+        } else {
+            var cls = p.verdict === 'BUY' ? 'bg-green-100 text-green-700'
+                    : p.verdict === 'RISKY' ? 'bg-amber-100 text-amber-700'
+                    : 'bg-red-100 text-red-600';
+            var icon = p.verdict === 'BUY' ? '✅' : p.verdict === 'RISKY' ? '⚠️' : '❌';
+            var iaTip = (p.analyseIa ? p.analyseIa.replace(/"/g, '&quot;') + '\n\n' : '') + iaCriteres;
+            iaCell = '<span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '" title="' + iaTip + '">' + icon + ' ' + p.verdict + '</span>';
+        }
+
+        // Statut achat dropdown
+        var sa = p.statutAchat || 'a_commander';
+        var statutCell = "<select onchange=\"updateStatutAchat('" + p.id + "', this.value)\" "
+            + 'class="text-xs border rounded px-1 py-0.5 font-semibold cursor-pointer ' + (STATUT_ACHAT_LABELS[sa] || {}).cls + '">'
+            + Object.keys(STATUT_ACHAT_LABELS).map(function(k) {
+                return '<option value="' + k + '"' + (k === sa ? ' selected' : '') + '>' + STATUT_ACHAT_LABELS[k].label + '</option>';
+            }).join('')
+            + '</select>';
+
+        // Catégorie badge
+        var catColors = {
+            'Kitchen': 'bg-orange-100 text-orange-700',
+            'Home & Garden': 'bg-green-100 text-green-700',
+            'Auto & Moto': 'bg-blue-100 text-blue-700',
+            'Office Products': 'bg-purple-100 text-purple-700',
+            'Hygiène & Santé': 'bg-pink-100 text-pink-700',
+            'Luminaires': 'bg-yellow-100 text-yellow-700',
+        };
+        var catCls = catColors[p.categorie] || 'bg-gray-100 text-gray-600';
 
         return '<tr class="border-b border-gray-50 hover:bg-gray-50/70 transition-colors">'
-            + '<td class="p-2"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
-            + '<td class="p-2">'
-                + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
-                + '<div class="text-[10px] text-gray-400 font-mono">' + (p.asin || '') + (p.categorie ? ' · ' + p.categorie : '') + '</div>'
-            + '</td>'
+            + '<td class="p-2 max-w-[200px]"><a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs block truncate" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 50) + '</a></td>'
+            + '<td class="p-2 font-mono text-xs text-gray-400">' + (p.asin || '') + '</td>'
+            + '<td class="p-2 text-center"><span class="text-[10px] px-1.5 py-0.5 rounded font-semibold ' + catCls + '">' + (p.categorie || '?') + '</span></td>'
             + '<td class="p-2 text-center font-mono text-xs text-gray-600">' + (p.bsr ? '#' + Number(p.bsr).toLocaleString('fr') : '—') + '</td>'
             + '<td class="p-2 text-center font-semibold text-xs">' + (p.vendeurs != null ? p.vendeurs : '?') + '</td>'
-            + '<td class="p-2 text-center font-bold text-xs">' + (p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '—') + '</td>'
-            + '<td class="p-2 text-center text-xs">'
-                + (p.moy90j ? '<div class="font-bold text-gray-800">' + p.moy90j.toFixed(2) + '€</div>' : '—')
-                + (p.min90j ? '<div class="text-[10px] text-gray-400">min ' + p.min90j.toFixed(2) + '€</div>' : '')
+            + '<td class="p-2 text-center bg-indigo-50/30">'
+                + '<div class="flex items-center justify-center gap-1">'
+                + '<input type="number" step="0.01" min="0" value="' + (p.prixAchat ? p.prixAchat.toFixed(2) : '') + '" '
+                + 'id="cat-prix-' + p.id + '" '
+                + 'class="w-14 border border-gray-200 rounded px-1 py-0.5 text-sm text-center outline-none bg-white" />'
+                + "<button onclick=\"saveOAPrixAchat('" + p.id + "', parseFloat(document.getElementById('cat-prix-" + p.id + "').value)||0)\" "
+                + 'class="text-xs bg-indigo-500 text-white px-1 py-0.5 rounded hover:bg-indigo-600">OK</button>'
+                + "<button onclick=\"clearOAPrixAchat('" + p.id + "')\" "
+                + 'class="text-xs bg-red-100 text-red-500 px-1 py-0.5 rounded hover:bg-red-200">✗</button>'
+                + '</div></td>'
+            + '<td class="p-2 text-center font-bold text-xs">' + (p.moy90j ? p.moy90j.toFixed(2) + '€' : '—') + '</td>'
+            + '<td class="p-2 text-center text-xs text-red-500 font-semibold cursor-help" title="' + tipFrais + '">' + dynTotal.toFixed(2) + '€</td>'
+            + '<td class="p-2 text-center bg-green-50/30"><span class="font-bold ' + profitColor + ' cursor-help" title="' + tipProfit + '">' + (profit >= 0 ? '+' : '') + profit.toFixed(2) + '€</span></td>'
+            + '<td class="p-2 text-center bg-green-50/30"><span class="font-bold ' + profitColor + ' cursor-help" title="' + tipRoi + '">' + roi.toFixed(0) + '%</span></td>'
+            + '<td class="p-2 text-center text-xs">' + tendanceCell + '</td>'
+            + '<td class="p-2 text-center">' + iaCell + '</td>'
+            + '<td class="p-2 text-center">' + statutCell + '</td>'
+            + '<td class="p-2 text-center">'
+                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold">🔍</a>' : '<span class="text-gray-300">—</span>')
             + '</td>'
-            + '<td class="p-2 text-center text-[10px] text-gray-500 leading-snug">' + (otherPrices || '—') + '</td>'
-            + '<td class="p-2 text-center text-xs text-red-500 font-semibold">' + (p.frais ? p.frais.toFixed(2) + '€' : '—') + '</td>'
-            + '<td class="p-2 text-center text-[10px]">' + eligBadge + '</td>'
-            + '<td class="p-2 text-center text-[10px]">' + amzBadge + '</td>'
             + '</tr>';
     }).join('');
 }
 
-function applyCatalogFilters() {
-    var search    = ((document.getElementById('cat-search')        || {}).value || '').toLowerCase().trim();
-    var statut    = ((document.getElementById('cat-statut-filter') || {}).value || 'all');
-    var minScore  = parseInt((document.getElementById('cat-min-score') || {}).value) || 0;
-    var maxBsr    = parseInt((document.getElementById('cat-max-bsr')   || {}).value) || 0;
+function updateStatutAchat(dealId, statut) {
+    var sb = _getOAClient();
+    if (!sb || !dealId) return;
 
-    var filtered = _oaData.filter(function(p) {
+    sb.from('deals').update({ statut_achat: statut }).eq('id', dealId).then(function(res) {
+        if (res.error) { console.error('[OA] Statut error', res.error); return; }
+        for (var i = 0; i < _oaData.length; i++) {
+            if (_oaData[i].id === dealId) { _oaData[i].statutAchat = statut; break; }
+        }
+        // Re-render KPIs
+        renderCatalogTable();
+    });
+}
+
+function applyCatalogFilters() {
+    var search     = ((document.getElementById('cat-search')              || {}).value || '').toLowerCase().trim();
+    var catFilter  = ((document.getElementById('cat-cat-filter')          || {}).value || 'all');
+    var verdict    = ((document.getElementById('cat-verdict-filter')      || {}).value || 'all');
+    var statutA    = ((document.getElementById('cat-statut-achat-filter') || {}).value || 'all');
+    var minRoi     = parseFloat((document.getElementById('cat-min-roi')   || {}).value) || 0;
+    var minProfit  = parseFloat((document.getElementById('cat-min-profit')|| {}).value) || 0;
+
+    var filtered = _getCatalogData().filter(function(p) {
         if (search && !(
-            (p.titre  || '').toLowerCase().indexOf(search) >= 0 ||
-            (p.asin   || '').toLowerCase().indexOf(search) >= 0
+            (p.titre || '').toLowerCase().indexOf(search) >= 0 ||
+            (p.asin  || '').toLowerCase().indexOf(search) >= 0
         )) return false;
-        if (statut !== 'all' && p.statut !== statut) return false;
-        if ((p.score || 0) < minScore) return false;
-        if (maxBsr > 0 && p.bsr && p.bsr > maxBsr) return false;
+        if (catFilter !== 'all' && p.categorie !== catFilter) return false;
+        if (verdict !== 'all' && p.verdict !== verdict) return false;
+        if (statutA !== 'all' && (p.statutAchat || 'a_commander') !== statutA) return false;
+
+        // Calcul dynamique pour filtre ROI/profit
+        var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+        var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+        var dt = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
+            + (_urssafOn ? (p.urssaf || 0) : 0) + (_prepOn ? _prepFee : 0);
+        var pr = Math.round(((p.moy90j || 0) - dt - p.prixAchat) * 100) / 100;
+        var ro = p.prixAchat > 0 ? Math.round(pr / p.prixAchat * 1000) / 10 : 0;
+
+        if (minRoi > 0 && ro < minRoi) return false;
+        if (minProfit > 0 && pr < minProfit) return false;
         return true;
     });
 
@@ -549,14 +864,13 @@ function applyCatalogFilters() {
 }
 
 function resetCatalogFilters() {
-    var ids = ['cat-search', 'cat-min-score', 'cat-max-bsr'];
-    ids.forEach(function(id) {
-        var el = document.getElementById(id);
-        if (el) el.value = id === 'cat-min-score' ? '0' : '';
+    ['cat-search', 'cat-min-roi', 'cat-min-profit'].forEach(function(id) {
+        var el = document.getElementById(id); if (el) el.value = '';
     });
-    var sel = document.getElementById('cat-statut-filter');
-    if (sel) sel.value = 'all';
-    renderCatalogTable(_oaData);
+    ['cat-cat-filter', 'cat-verdict-filter', 'cat-statut-achat-filter'].forEach(function(id) {
+        var el = document.getElementById(id); if (el) el.value = 'all';
+    });
+    renderCatalogTable();
 }
 
 // ── TAB : Deals (éligibles seulement) — 11 colonnes ──────────────────────────
@@ -566,14 +880,12 @@ function renderDealsTab() {
 
     var minScore    = parseInt((document.getElementById('deal-min-score')    || {}).value) || 0;
     var maxBsr      = parseInt((document.getElementById('deal-max-bsr')      || {}).value) || 0;
-    var eligOnly    = (document.getElementById('deal-eligible-only') || {}).checked;
-    var noAmz       = (document.getElementById('deal-no-amz')        || {}).checked;
 
     var data = _oaData.filter(function(p) {
+        if (p.statut !== 'ELIGIBLE') return false;
+        if (p.amzEnStock) return false;
         if ((p.score || 0) < minScore) return false;
         if (maxBsr > 0 && p.bsr && p.bsr > maxBsr) return false;
-        if (eligOnly && p.statut !== 'ELIGIBLE') return false;
-        if (noAmz && p.amzEnStock) return false;
         return true;
     });
 
@@ -607,61 +919,153 @@ function renderDealsTab() {
 
         var noPrix = '<span class="text-gray-300 text-xs" title="Entre le prix achat">—</span>';
 
-        var profitCell = hasPrix && p.netProfit != null
-            ? '<span class="font-bold ' + profitColor + '">' + (p.netProfit >= 0 ? '+' : '') + p.netProfit.toFixed(2) + '€</span>'
-            : noPrix;
-
-        var roiCell = hasPrix && p.roi != null
-            ? '<span class="font-bold ' + profitColor + '">' + p.roi.toFixed(0) + '%</span>'
-            : noPrix;
+        var tipProfit = 'Entre le prix achat';
+        var tipRoi = 'Entre le prix achat';
+        var profitCell = noPrix;
+        var roiCell = noPrix;
 
         var currentPrix = p.prixAchat ? p.prixAchat.toFixed(2) : '';
 
-        // Colonnes: Titre | ASIN | Marketplace | Prix vente 90j moy | Frais Amazon | Score | Alerte | Fournisseur (GS) | Prix achat (input) | Profit net | ROI
+        // Tooltips frais
+        var bb = p.moy90j || p.buyBoxFR || 0;
+        var tierLabel = p.sizeTier || '?';
+        var wg = p.weightG || 0;
+        var cartonKg = wg > 0 ? (wg / 1000 * 10).toFixed(1) : '?';
+        var tipComm   = bb ? 'Prix 90j (' + bb.toFixed(2) + '€) × 15%\n= ' + (bb * 0.15).toFixed(2) + '€' : 'Prix × 15%';
+        var tipFba    = 'Tier: ' + tierLabel + '\nGrille fixe Amazon selon poids/dimensions';
+        var tipEnvoi  = wg ? wg + 'g × 10u/carton = ' + cartonKg + 'kg\nTarif postal au poids' : 'Tarif selon poids carton';
+        var tipUrssaf = bb ? bb.toFixed(2) + '€ × 12.3% = ' + (bb * 0.123).toFixed(2) + '€' : 'Prix × 12.3%';
+        var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+        var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+        var tipStock  = 'Volume: ' + (vol * 1000000).toFixed(0) + 'cm³\n' + STORAGE_DAYS + 'j × ' + STORAGE_RATE + '€/m³/j = ' + stk.toFixed(2) + '€';
+        // Recalcul total dynamique avec toggles URSSAF/Prep
+        var dynTotal = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
+            + (_urssafOn ? (p.urssaf || 0) : 0)
+            + (_prepOn ? _prepFee : 0);
+        var tipTotal  = 'Comm. (' + (p.referralFee || 0).toFixed(2) + '€) + FBA (' + (p.fraisFba || 0).toFixed(2) + '€) + Envoi (' + (p.envoiFba || 0).toFixed(2) + '€) + Stock. (' + stk.toFixed(2) + '€)'
+            + (_urssafOn ? ' + URSSAF (' + (p.urssaf || 0).toFixed(2) + '€)' : '')
+            + (_prepOn ? ' + Prep (' + _prepFee.toFixed(2) + '€)' : '')
+            + '\n= ' + dynTotal.toFixed(2) + '€';
+        var feeTip = function(v, tip) { return '<span title="' + tip + '" style="cursor:help;border-bottom:1px dotted #ccc">' + (v != null ? v.toFixed(2) + '€' : '—') + '</span>'; };
+
+        // Recalcul profit/ROI dynamique avec dynTotal
+        var dynProfit = null, dynRoi = null;
+        if (hasPrix && p.moy90j) {
+            dynProfit = Math.round((p.moy90j - dynTotal - p.prixAchat) * 100) / 100;
+            dynRoi = p.prixAchat > 0 ? Math.round(dynProfit / p.prixAchat * 1000) / 10 : 0;
+        }
+        var dynProfitable = dynProfit != null && dynProfit >= 3 && dynRoi >= 25;
+        profitColor = dynProfitable ? 'text-green-600'
+                    : (dynProfit || 0) > 0 ? 'text-amber-600'
+                    : 'text-red-500';
+        rowBorder = dynProfitable ? 'border-l-4 border-l-green-400 bg-green-50'
+                  : hasPrix && (dynProfit || 0) > 0 ? 'border-l-4 border-l-amber-300 bg-amber-50'
+                  : hasPrix && (dynProfit || 0) < 0 ? 'border-l-4 border-l-red-300 bg-red-50/40'
+                  : 'border-l-4 border-l-transparent';
+
+        if (hasPrix && dynProfit != null) {
+            tipProfit = 'Prix 90j (' + (p.moy90j || 0).toFixed(2) + '€) − Frais (' + dynTotal.toFixed(2) + '€) − Achat (' + p.prixAchat.toFixed(2) + '€)\n= ' + (dynProfit >= 0 ? '+' : '') + dynProfit.toFixed(2) + '€';
+            tipRoi = 'Profit (' + (dynProfit >= 0 ? '+' : '') + dynProfit.toFixed(2) + '€) / Achat (' + p.prixAchat.toFixed(2) + '€)\n= ' + dynRoi.toFixed(1) + '%';
+            profitCell = '<span class="font-bold ' + profitColor + '" title="' + tipProfit + '" style="cursor:help">' + (dynProfit >= 0 ? '+' : '') + dynProfit.toFixed(2) + '€</span>';
+            roiCell = '<span class="font-bold ' + profitColor + '" title="' + tipRoi + '" style="cursor:help">' + dynRoi.toFixed(0) + '%</span>';
+        }
+
+        // Avis IA
+        var iaCriteres = 'Critères IA :\n'
+            + '• BUY : profit ≥ 5€ + (ROI ≥ 20% ou profit ≥ 8€), BSR adapté/catégorie, 2-10 vendeurs, prix stable, tendance ≥ stable\n'
+            + '• RISKY : profit 3-5€, ROI 15-20%, instab 25-40%, tendance baisse > -10%, 1 vendeur, ou poids > 2kg\n'
+            + '• SKIP : profit < 3€, ROI < 15%, Amazon vendeur, tendance baisse > -15%, ou instab > 40%';
+        var iaCell;
+        if (!p.verdict) {
+            iaCell = '<span class="text-gray-300 text-xs cursor-help" title="' + iaCriteres + '">en attente</span>';
+        } else {
+            var cls = p.verdict === 'BUY' ? 'bg-green-100 text-green-700 border border-green-300'
+                    : p.verdict === 'RISKY' ? 'bg-amber-100 text-amber-700 border border-amber-300'
+                    : 'bg-red-100 text-red-600 border border-red-300';
+            var icon = p.verdict === 'BUY' ? '✅' : p.verdict === 'RISKY' ? '⚠️' : '❌';
+            var iaTip = (p.analyseIa ? p.analyseIa.replace(/"/g, '&quot;') + '\n\n' : '') + iaCriteres;
+            iaCell = '<span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '" title="' + iaTip + '">' + icon + ' ' + p.verdict + '</span>';
+        }
+
+        // Colonnes réorganisées: Titre | ASIN | MP | Prix 90j | Prix achat | Profit | ROI | Avis IA | Score | Alerte | Sourcing | Frais...
         return '<tr class="' + rowBorder + ' border-b border-gray-50 hover:bg-gray-50/50 transition-colors">'
+            // 1 — Titre
             + '<td class="p-3">'
                 + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
-                + (p.alerte ? '<div class="text-[10px] text-amber-600 font-semibold mt-0.5">⚡ ' + p.alerte + '</div>' : '')
             + '</td>'
+            // 2 — ASIN
             + '<td class="p-3 font-mono text-xs text-gray-500">' + (p.asin || '—') + '</td>'
+            // 3 — MP
             + '<td class="p-3 text-center"><span class="font-semibold text-sm">' + (MP_FLAGS[p.mp] || '') + ' ' + (p.mp || '—') + '</span></td>'
-            + '<td class="p-3 text-center font-bold text-gray-800">'
-                + (p.moy90j ? p.moy90j.toFixed(2) + '€' : '<span class="text-gray-300 text-xs">—</span>')
+            // 4 — Prix 90j
+            + '<td class="p-3 text-center font-bold text-gray-800">' + (p.moy90j ? p.moy90j.toFixed(2) + '€' : '<span class="text-gray-300 text-xs">—</span>') + '</td>'
+            // 5 — Prix achat (input + bouton valider)
+            + '<td class="p-3 text-center bg-indigo-50/30">'
+                + '<div class="flex items-center justify-center gap-1">'
+                + '<input type="number" step="0.01" min="0" placeholder="€" value="' + currentPrix + '" '
+                + 'id="prix-input-' + p.id + '" '
+                + 'class="w-16 border border-gray-200 rounded px-1 py-0.5 text-sm text-center focus:border-indigo-400 outline-none bg-white" '
+                + "oninput=\"previewDealProfit('" + p.id + "', this.value, " + (p.moy90j || 0) + ', ' + dynTotal + ')\" />'
+                + "<button onclick=\"saveOAPrixAchat('" + p.id + "', parseFloat(document.getElementById('prix-input-" + p.id + "').value)||0)\" "
+                + 'class="text-xs bg-indigo-500 text-white px-1.5 py-0.5 rounded hover:bg-indigo-600" title="Valider le prix">OK</button>'
+                + (currentPrix ? "<button onclick=\"clearOAPrixAchat('" + p.id + "')\" "
+                + 'class="text-xs bg-red-100 text-red-500 px-1 py-0.5 rounded hover:bg-red-200" title="Effacer le prix">✗</button>' : '')
+                + '</div>'
             + '</td>'
-            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.referralFee != null ? p.referralFee.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
-            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.fraisFba != null ? p.fraisFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
-            + '<td class="p-3 text-center text-xs text-orange-500">' + (p.envoiFba != null ? p.envoiFba.toFixed(2) + '€' : '<span class="text-gray-300">—</span>') + '</td>'
-            + (function() {
-                var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
-                var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
-                return '<td class="p-3 text-center text-xs text-gray-400">' + stk.toFixed(2) + '€</td>';
-            })()
-            + '<td style="' + (_urssafOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (p.urssaf != null ? p.urssaf.toFixed(2) + '€' : '—') + '</td>'
-            + '<td style="' + (_prepOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (_prepFee.toFixed(2)) + '€</td>'
-            + '<td class="p-3 text-center text-xs text-red-600 font-semibold">' + (p.frais != null ? p.frais.toFixed(2) + '€' : '—') + '</td>'
+            // 6 — Profit
+            + '<td class="p-3 text-center bg-green-50/30" id="profit-cell-' + p.id + '">' + profitCell + '</td>'
+            // 7 — ROI
+            + '<td class="p-3 text-center bg-green-50/30" id="roi-cell-' + p.id + '">' + roiCell + '</td>'
+            // 8 — Avis IA
+            + '<td class="p-3 text-center">' + iaCell + '</td>'
+            // 9 — Score
             + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
-            + '<td class="p-3 text-center text-xs text-amber-600">' + (p.alerte || '—') + '</td>'
+            // 10 — Alerte
+            + (function() {
+                var euLines = [['DE', p.buyBoxDE], ['IT', p.buyBoxIT], ['ES', p.buyBoxES]]
+                    .map(function(x) { return x[0] + ': ' + (x[1] ? x[1].toFixed(2) + '€' : '—'); }).join(' | ');
+                var tip = euLines + '\nFR: ' + (p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '—')
+                    + (p.alerte ? '\n⚡ ' + p.alerte : '\nPas d\'écart ≥ 10%');
+                var content = p.alerte
+                    ? '<span class="text-amber-600 font-semibold">⚡ ' + p.alerte + '</span>'
+                    : '<span class="text-gray-300">—</span>';
+                return '<td class="p-3 text-center text-xs" title="' + tip.replace(/"/g, '&quot;') + '" style="cursor:help">' + content + '</td>';
+            })()
+            // 11 — Sourcing
             + '<td class="p-3 text-center">'
                 + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 Trouver</a>' : '<span class="text-gray-300 text-xs">—</span>')
             + '</td>'
-            + '<td class="p-3 text-center bg-indigo-50/30">'
-                + '<input type="number" step="0.01" min="0" placeholder="Prix €" value="' + currentPrix + '" '
-                + 'class="w-20 border border-gray-200 rounded px-1.5 py-0.5 text-sm text-center focus:border-indigo-400 outline-none bg-white" '
-                + 'onchange="saveOAPrixAchat(' + JSON.stringify(p.id) + ', parseFloat(this.value)||0)" />'
-            + '</td>'
-            + '<td class="p-3 text-center bg-green-50/30">' + profitCell + '</td>'
-            + '<td class="p-3 text-center bg-green-50/30">' + roiCell + '</td>'
-            + (function() {
-                if (!p.verdict) return '<td class="p-3 text-center"><span class="text-gray-300 text-xs">—</span></td>';
-                var cls = p.verdict === 'BUY'  ? 'bg-green-100 text-green-700 border border-green-300'
-                        : p.verdict === 'RISKY' ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                        : 'bg-red-100 text-red-600 border border-red-300';
-                var icon = p.verdict === 'BUY' ? '✅' : p.verdict === 'RISKY' ? '⚠️' : '❌';
-                var tip = p.analyseIa ? ' title="' + p.analyseIa.replace(/"/g, '&quot;') + '"' : '';
-                return '<td class="p-3 text-center"><span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '"' + tip + '>' + icon + ' ' + p.verdict + '</span></td>';
-            })()
+            // 12-18 — Frais (avec tooltips)
+            + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.referralFee, tipComm) + '</td>'
+            + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.fraisFba, tipFba) + '</td>'
+            + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.envoiFba, tipEnvoi) + '</td>'
+            + '<td class="p-3 text-center text-xs text-gray-400" title="' + tipStock + '" style="cursor:help">' + stk.toFixed(2) + '€</td>'
+            + '<td style="' + (_urssafOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + feeTip(p.urssaf, tipUrssaf) + '</td>'
+            + '<td style="' + (_prepOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (_prepFee.toFixed(2)) + '€</td>'
+            + '<td class="p-3 text-center text-xs text-red-600 font-semibold" title="' + tipTotal + '" style="cursor:help">' + dynTotal.toFixed(2) + '€</td>'
             + '</tr>';
     }).join('');
+}
+
+// ── Preview profit en temps réel (avant validation) ─────────────────────────
+function previewDealProfit(dealId, valStr, sellPrice, totalFrais) {
+    var prix = parseFloat(valStr) || 0;
+    var profitEl = document.getElementById('profit-cell-' + dealId);
+    var roiEl    = document.getElementById('roi-cell-' + dealId);
+    if (!profitEl || !roiEl) return;
+
+    if (prix <= 0 || !sellPrice) {
+        profitEl.innerHTML = '<span class="text-gray-300 text-xs">—</span>';
+        roiEl.innerHTML    = '<span class="text-gray-300 text-xs">—</span>';
+        return;
+    }
+
+    var profit = Math.round((sellPrice - totalFrais - prix) * 100) / 100;
+    var roi    = prix > 0 ? Math.round(profit / prix * 1000) / 10 : 0;
+    var color  = profit >= 3 && roi >= 25 ? 'text-green-600' : profit > 0 ? 'text-amber-600' : 'text-red-500';
+
+    profitEl.innerHTML = '<span class="font-bold ' + color + '">' + (profit >= 0 ? '+' : '') + profit.toFixed(2) + '€</span>';
+    roiEl.innerHTML    = '<span class="font-bold ' + color + '">' + roi.toFixed(0) + '%</span>';
 }
 
 // ── Sauvegarder prix_achat ────────────────────────────────────────────────────
@@ -693,8 +1097,132 @@ function saveOAPrixAchat(dealId, prix) {
         s('kpi-oa-avec-prix',  avecPrix);
         s('acc-kpi-avec-prix', avecPrix);
 
+        // Re-render avec sauvegarde du scroll
+        var container = document.getElementById('oa-tab-deals');
+        var scrollTop = container ? container.scrollTop : 0;
         renderDealsTab();
+        if (container) container.scrollTop = scrollTop;
+
+        // Lancer l'analyse IA si pas encore de verdict
+        var deal = _oaData.find(function(d) { return d.id === dealId; });
+        if (deal && !deal.verdict && prix > 0) {
+            analyseIA(deal);
+        }
     });
+}
+
+// ── Effacer prix_achat ────────────────────────────────────────────────────────
+function clearOAPrixAchat(dealId) {
+    var sb = _getOAClient();
+    if (!sb || !dealId) return;
+
+    sb.from('deals').update({ prix_achat: null, verdict: null, analyse_ia: null }).eq('id', dealId).then(function(res) {
+        if (res.error) { console.error('[OA] Clear error', res.error); return; }
+
+        for (var i = 0; i < _oaData.length; i++) {
+            if (_oaData[i].id === dealId) {
+                _oaData[i].prixAchat = 0;
+                _oaData[i].netProfit = null;
+                _oaData[i].roi = null;
+                _oaData[i].verdict = null;
+                _oaData[i].analyseIa = null;
+                break;
+            }
+        }
+
+        var avecPrix = _oaData.filter(function(d) { return d.prixAchat > 0; }).length;
+        var s = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+        s('kpi-oa-avec-prix',  avecPrix);
+        s('acc-kpi-avec-prix', avecPrix);
+
+        // Sauvegarder scroll, re-render, restaurer scroll
+        var container = document.getElementById('oa-tab-deals');
+        var scrollTop = container ? container.scrollTop : 0;
+        renderDealsTab();
+        if (container) container.scrollTop = scrollTop;
+    });
+}
+
+// ── Analyse IA (Claude Haiku) ─────────────────────────────────────────────────
+function analyseIA(deal) {
+    if (!ANTHROPIC_API_KEY) {
+        var k = prompt('Clé API Anthropic requise pour l\'analyse IA.\nCollez votre clé (sk-ant-...) :');
+        if (!k) return;
+        ANTHROPIC_API_KEY = k;
+        localStorage.setItem('oa_anthropic_key', k);
+    }
+    var moy = deal.moy90j || 0;
+    var min90 = deal.min90j || 0;
+    var actuel = deal.buyBoxFR || 0;
+    var instab = moy > 0 ? Math.round((moy - min90) / moy * 1000) / 10 : 0;
+    var tendance = moy > 0 ? Math.round((actuel - moy) / moy * 1000) / 10 : 0;
+    var tendanceLabel = tendance > 5 ? '↗️ Hausse (+' + tendance + '%)' : tendance < -5 ? '↘️ Baisse (' + tendance + '%)' : '→ Stable (' + tendance + '%)';
+
+    var prompt = 'Analyse ce produit Amazon FBA France et donne ton verdict.\n\n'
+        + 'Données :\n'
+        + '- Titre : ' + (deal.titre || '?') + '\n'
+        + '- Catégorie : ' + (deal.categorie || '?') + '\n'
+        + '- BSR FR : ' + (deal.bsr || '?') + '\n'
+        + '- Buy Box actuel : ' + actuel + '€\n'
+        + '- Buy Box moy 90j : ' + moy + '€\n'
+        + '- Buy Box min 90j : ' + min90 + '€ (instabilité prix : ' + instab + '%)\n'
+        + '- Tendance prix : ' + tendanceLabel + '\n'
+        + '- Vendeurs FBA : ' + (deal.vendeurs || '?') + '\n'
+        + '- Amazon vendeur : ' + (deal.amzEnStock || false) + '\n'
+        + '- Poids : ' + (deal.weightG || '?') + 'g | Taille : ' + (deal.sizeTier || '?') + '\n'
+        + '- Prix achat : ' + (deal.prixAchat || '?') + '€\n'
+        + '- ROI : ' + (deal.roi || '?') + '%\n'
+        + '- Profit net : ' + (deal.netProfit || '?') + '€\n'
+        + '- Score : ' + (deal.score || '?') + '/100\n'
+        + '- Alerte arbitrage : ' + (deal.alerte || 'Aucune') + '\n\n'
+        + 'Critères :\n'
+        + '- BUY : profit >= 5€ ET (ROI >= 20% OU profit >= 8€), BSR adapté à la catégorie (Kitchen/Home < 80k, Office/Luminaires < 50k, autres < 60k), 2-10 vendeurs FBA, prix stable (instabilité < 25%), tendance ≥ stable\n'
+        + '- RISKY : profit 3-5€, ou ROI 15-20%, ou instabilité 25-40%, ou tendance baissière > -10%, ou 1 vendeur FBA (PL possible), ou produit lourd (>2kg)\n'
+        + '- SKIP : profit < 3€, ou ROI < 15%, ou Amazon vendeur, ou tendance baissière > -15%, ou instabilité > 40%\n\n'
+        + 'Réponds en JSON : {"verdict": "BUY|RISKY|SKIP", "analyse": "1-2 phrases max en français expliquant pourquoi"}';
+
+    fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 200,
+            system: 'Tu es un expert Amazon OA France (Online Arbitrage FBA). Tu analyses des produits Amazon pour déterminer s\'ils sont rentables à revendre en FBA. Réponds UNIQUEMENT en JSON valide, sans markdown, sans texte autour.',
+            messages: [{ role: 'user', content: prompt }]
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.content || !data.content[0]) { console.error('[IA] Réponse vide', data); return; }
+        var raw = data.content[0].text.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+        try {
+            var result = JSON.parse(raw);
+        } catch(e) { console.error('[IA] JSON invalide', raw); return; }
+
+        var verdict = result.verdict;
+        if (['BUY', 'RISKY', 'SKIP'].indexOf(verdict) === -1) verdict = 'RISKY';
+        var analyse = result.analyse || '';
+
+        // Sauvegarder dans Supabase
+        var sb = _getOAClient();
+        sb.from('deals').update({ verdict: verdict, analyse_ia: analyse }).eq('id', deal.id).then(function() {
+            // Mettre à jour en mémoire
+            deal.verdict = verdict;
+            deal.analyseIa = analyse;
+
+            // Re-render avec scroll préservé
+            var container = document.getElementById('oa-tab-deals');
+            var scrollTop = container ? container.scrollTop : 0;
+            renderDealsTab();
+            if (container) container.scrollTop = scrollTop;
+        });
+    })
+    .catch(function(e) { console.error('[IA] Erreur', e); });
 }
 
 // ── Cross Border Tab ──────────────────────────────────────────────────────────
@@ -802,16 +1330,24 @@ function loadRunHistory() {
     var sb = _getOAClient();
     if (!sb) return;
 
+    var wrap = document.getElementById('rapport-content');
+    if (wrap) wrap.innerHTML = '<p class="text-center text-gray-400 py-10"><i class="fas fa-spinner fa-spin text-2xl block mb-3 text-gray-300"></i>Chargement...</p>';
+
     sb.from('runs')
       .select('*')
       .order('date', { ascending: false })
-      .limit(30)
+      .limit(100)
       .then(function(res) {
-          if (res.error) { console.error('[OA Runs]', res.error); return; }
+          if (res.error) {
+              if (wrap) wrap.innerHTML = '<p class="text-center text-red-400 py-10">Erreur : ' + res.error.message + '</p>';
+              return;
+          }
           _runData = res.data || [];
           renderRunTab();
       })
-      .catch(function(e) { console.error('[OA Runs]', e); });
+      .catch(function(e) {
+          if (wrap) wrap.innerHTML = '<p class="text-center text-red-400 py-10">Erreur connexion : ' + e.message + '</p>';
+      });
 }
 
 function renderRunTab() {

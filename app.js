@@ -658,6 +658,9 @@ function showSection(sectionName) {
     if (sectionName === 'oa-parametres' && typeof initOASettings === 'function') {
         initOASettings();
     }
+    if (sectionName === 'oa-accueil' && typeof loadCatalog === 'function') {
+        loadCatalog();
+    }
     if (sectionName === 'oa-catalogue' && typeof loadCatalog === 'function') {
         loadCatalog();
     }
@@ -727,6 +730,7 @@ function switchMode(mode) {
         const oaSection = document.getElementById('section-oa-accueil');
         if (oaSection) oaSection.classList.remove('hidden');
         if (typeof loadOAAccueil === 'function') loadOAAccueil();
+        if (typeof loadCatalog === 'function') loadCatalog();
 
         // Activer le bouton nav OA Accueil
         const firstOABtn = navOA.querySelector('.nav-btn[data-section]');

@@ -2942,7 +2942,7 @@
                         <h2 class="text-2xl font-bold text-gray-800">
                             <i class="fas fa-tachometer-alt text-indigo-600 mr-2"></i>Online Arbitrage
                         </h2>
-                        <p class="text-gray-500 text-sm mt-0.5">Vue d'ensemble du jour · <span id="accueil-date" class="font-medium text-gray-700"></span></p>
+                        <p class="text-gray-500 text-sm mt-0.5">Vue d'ensemble · <span id="accueil-date" class="font-medium text-gray-700"></span></p>
                     </div>
                     <div class="flex gap-2">
                         <button onclick="showSection('oa-sourcing');loadCatalog()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">
@@ -2951,59 +2951,55 @@
                     </div>
                 </div>
 
-                <!-- KPIs du jour -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
-                    <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center">
-                        <div class="text-2xl font-bold text-indigo-600" id="acc-kpi-total">—</div>
-                        <div class="text-xs text-gray-400 mt-1 font-medium uppercase tracking-wide">Scannés</div>
-                    </div>
-                    <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center">
-                        <div class="text-2xl font-bold text-green-600" id="acc-kpi-eligible">—</div>
-                        <div class="text-xs text-gray-400 mt-1 font-medium uppercase tracking-wide">Éligibles FBA</div>
-                    </div>
-                    <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center">
-                        <div class="text-2xl font-bold text-amber-500" id="acc-kpi-score70">—</div>
-                        <div class="text-xs text-gray-400 mt-1 font-medium uppercase tracking-wide">Score ≥ 70</div>
-                    </div>
+                <!-- KPIs principaux -->
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
                     <div class="bg-white rounded-xl p-4 border border-indigo-200 shadow-sm text-center bg-indigo-50">
-                        <div class="text-2xl font-bold text-indigo-700" id="acc-kpi-avec-prix">—</div>
-                        <div class="text-xs text-indigo-400 mt-1 font-medium uppercase tracking-wide">Prix renseigné</div>
+                        <div class="text-2xl font-bold text-indigo-700" id="acc-kpi-catalogue">—</div>
+                        <div class="text-xs text-indigo-400 mt-1 font-medium uppercase tracking-wide">Au catalogue</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-green-600" id="acc-kpi-profit">—</div>
+                        <div class="text-xs text-gray-400 mt-1 font-medium uppercase tracking-wide">Profit estimé</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-indigo-600" id="acc-kpi-roi">—</div>
+                        <div class="text-xs text-gray-400 mt-1 font-medium uppercase tracking-wide">ROI moyen</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-amber-500" id="acc-kpi-en-attente">—</div>
+                        <div class="text-xs text-gray-400 mt-1 font-medium uppercase tracking-wide">Deals en attente</div>
+                    </div>
+                    <div class="bg-white rounded-xl p-4 border border-gray-200 shadow-sm text-center">
+                        <div class="text-2xl font-bold text-gray-600" id="acc-kpi-tokens">—</div>
+                        <div class="text-xs text-gray-400 mt-1 font-medium uppercase tracking-wide">Tokens Keepa</div>
                     </div>
                 </div>
 
-                <!-- Script Python status + Top deals -->
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-
-                    <!-- Statut script Python -->
+                <!-- Graphiques -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
                     <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
-                        <h3 class="font-bold text-gray-700 text-sm mb-4"><i class="fas fa-terminal text-gray-500 mr-2"></i>Script Python</h3>
-                        <div class="space-y-3">
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-600">Dernier scan</span>
-                                <span id="acc-last-scan" class="text-sm font-semibold text-gray-700">—</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-600">Keepa</span>
-                                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">Actif</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-600">SellerAmp</span>
-                                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">Actif</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm text-gray-600">Supabase</span>
-                                <span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded font-semibold">Connecté</span>
-                            </div>
+                        <h3 class="font-bold text-gray-700 text-sm mb-3"><i class="fas fa-chart-bar text-indigo-500 mr-2"></i>Évolution des runs (14j)</h3>
+                        <div style="height:220px"><canvas id="acc-chart-runs"></canvas></div>
+                    </div>
+                    <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-100">
+                        <h3 class="font-bold text-gray-700 text-sm mb-3"><i class="fas fa-chart-pie text-indigo-500 mr-2"></i>Répartition par catégorie</h3>
+                        <div style="height:220px"><canvas id="acc-chart-categories"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Derniers runs + Top deals -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+                        <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
+                            <h3 class="font-bold text-gray-700 text-sm"><i class="fas fa-history text-gray-500 mr-2"></i>Derniers runs</h3>
                         </div>
-                        <div class="mt-4 pt-3 border-t border-gray-50 text-xs text-gray-400 text-center">
-                            <i class="fas fa-clock mr-1"></i>Lancement auto 7h00 via Task Scheduler
+                        <div id="acc-last-runs">
+                            <div class="text-center text-gray-400 text-sm py-8">Chargement…</div>
                         </div>
                     </div>
-
-                    <!-- Top deals du jour -->
-                    <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100 lg:col-span-2">
+                    <div class="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
                         <div class="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-                            <h3 class="font-bold text-gray-700 text-sm"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Top deals du jour</h3>
+                            <h3 class="font-bold text-gray-700 text-sm"><i class="fas fa-trophy text-yellow-500 mr-2"></i>Top deals par profit</h3>
                             <button onclick="showSection('oa-sourcing');loadCatalog()" class="text-xs text-indigo-500 hover:underline">Voir tout →</button>
                         </div>
                         <div id="acc-top-deals">
@@ -3011,40 +3007,73 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Statut système -->
+                <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 flex flex-wrap items-center justify-between gap-4 text-sm">
+                    <div class="flex items-center gap-2">
+                        <span class="text-gray-500">Dernier scan :</span>
+                        <span id="acc-last-scan" class="font-semibold text-gray-700">—</span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span>Keepa</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span>Supabase</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span>Railway</span>
+                    </div>
+                    <div class="text-xs text-gray-400"><i class="fas fa-clock mr-1"></i>Cron toutes les 20min via Railway</div>
+                </div>
             </section>
 
-            <!-- Section Catalogue (Agent Scraper) -->
+            <!-- Section Catalogue — Produits validés (avec prix d'achat) -->
                         <section id="section-oa-catalogue" class="content-section hidden">
                 <div class="mb-4 flex items-center justify-between flex-wrap gap-3">
                     <div>
                         <h2 class="text-2xl font-bold text-gray-800">
                             <i class="fas fa-store text-indigo-600 mr-2"></i>Catalogue
                         </h2>
-                        <p class="text-gray-500 text-sm">Tous les produits scannés · consultation et filtrage</p>
+                        <p class="text-gray-500 text-sm">Produits validés avec prix d'achat renseigné</p>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="text-sm text-gray-400">Dernier scan : <span id="catalog-last-run" class="font-semibold text-gray-600">—</span></span>
                         <button onclick="loadCatalog()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">
                             <i class="fas fa-sync-alt mr-1"></i>Actualiser
                         </button>
                     </div>
                 </div>
 
+                <!-- KPIs -->
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-4" id="cat-kpis"></div>
+
                 <!-- Filtres -->
                 <div class="bg-white rounded-xl shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2 border border-gray-100">
                     <input type="text" id="cat-search" placeholder="Rechercher titre ou ASIN…" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 w-52 focus:outline-none focus:border-indigo-300">
-                    <select id="cat-statut-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
-                        <option value="all">Tous les statuts</option>
-                        <option value="ELIGIBLE">Éligibles</option>
-                        <option value="RESTRICTED">Restreints</option>
+                    <select id="cat-cat-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
+                        <option value="all">Toutes catégories</option>
+                        <option value="Kitchen">Kitchen</option>
+                        <option value="Home & Garden">Home & Garden</option>
+                        <option value="Auto & Moto">Auto & Moto</option>
+                        <option value="Office Products">Office Products</option>
+                        <option value="Hygiène & Santé">Hygiène & Santé</option>
+                        <option value="Luminaires">Luminaires</option>
+                    </select>
+                    <select id="cat-verdict-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
+                        <option value="all">Tous avis IA</option>
+                        <option value="BUY">BUY</option>
+                        <option value="RISKY">RISKY</option>
+                        <option value="SKIP">SKIP</option>
+                    </select>
+                    <select id="cat-statut-achat-filter" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white">
+                        <option value="all">Tous statuts</option>
+                        <option value="a_commander">À commander</option>
+                        <option value="commande">Commandé</option>
+                        <option value="en_stock">En stock FBA</option>
+                        <option value="vendu">Vendu</option>
                     </select>
                     <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                        <span class="text-gray-500 text-xs whitespace-nowrap">Score ≥</span>
-                        <input type="number" id="cat-min-score" value="0" min="0" max="100" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
+                        <span class="text-gray-500 text-xs whitespace-nowrap">ROI ≥</span>
+                        <input type="number" id="cat-min-roi" placeholder="%" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                     </div>
                     <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5 bg-white">
-                        <span class="text-gray-500 text-xs whitespace-nowrap">BSR &lt;</span>
-                        <input type="number" id="cat-max-bsr" placeholder="∞" class="w-16 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
+                        <span class="text-gray-500 text-xs whitespace-nowrap">Profit ≥</span>
+                        <input type="number" id="cat-min-profit" placeholder="€" class="w-12 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                     </div>
                     <button onclick="applyCatalogFilters()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">
                         <i class="fas fa-filter mr-1 text-xs"></i>Filtrer
@@ -3054,27 +3083,31 @@
                 </div>
 
                 <!-- Tableau -->
-                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
                     <table class="w-full text-xs">
                         <thead>
                             <tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">
-                                <th class="p-2 font-semibold">Score</th>
-                                <th class="p-2 font-semibold">Produit</th>
+                                <th class="p-2 font-semibold">Titre</th>
+                                <th class="p-2 font-semibold">ASIN</th>
+                                <th class="p-2 font-semibold text-center">Catégorie</th>
                                 <th class="p-2 font-semibold text-center">BSR</th>
-                                <th class="p-2 font-semibold text-center">Vend. FBA</th>
-                                <th class="p-2 font-semibold text-center">Buy Box FR</th>
-                                <th class="p-2 font-semibold text-center">Moy 90j</th>
-                                <th class="p-2 font-semibold text-center">DE / IT / ES</th>
-                                <th class="p-2 font-semibold text-center">Frais</th>
+                                <th class="p-2 font-semibold text-center">Vend.</th>
+                                <th class="p-2 font-semibold text-center bg-indigo-50">Prix achat</th>
+                                <th class="p-2 font-semibold text-center">Prix vente</th>
+                                <th class="p-2 font-semibold text-center">Total frais</th>
+                                <th class="p-2 font-semibold text-center bg-green-50">Profit</th>
+                                <th class="p-2 font-semibold text-center bg-green-50">ROI</th>
+                                <th class="p-2 font-semibold text-center">Tendance</th>
+                                <th class="p-2 font-semibold text-center">Avis IA</th>
                                 <th class="p-2 font-semibold text-center">Statut</th>
-                                <th class="p-2 font-semibold text-center">Amazon</th>
+                                <th class="p-2 font-semibold text-center">Sourcing</th>
                             </tr>
                         </thead>
                         <tbody id="cat-tbody">
-                            <tr><td colspan="10" class="p-10 text-center text-gray-400">
+                            <tr><td colspan="14" class="p-10 text-center text-gray-400">
                                 <i class="fas fa-store text-3xl mb-3 block text-gray-300"></i>
                                 <p class="font-medium">Catalogue vide</p>
-                                <p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> pour remplir le catalogue</p>
+                                <p class="text-xs mt-1">Renseigne un prix d'achat dans l'onglet Deals pour ajouter un produit au catalogue</p>
                             </td></tr>
                         </tbody>
                     </table>
@@ -3187,14 +3220,6 @@
                             <span class="text-gray-500 text-xs whitespace-nowrap">BSR &lt;</span>
                             <input type="number" id="deal-max-bsr" placeholder="∞" class="w-16 text-center text-sm font-semibold text-gray-700 outline-none bg-transparent">
                         </div>
-                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 bg-white select-none">
-                            <input type="checkbox" id="deal-eligible-only" checked class="rounded">
-                            <span class="text-xs">Éligibles seulement</span>
-                        </label>
-                        <label class="flex items-center gap-1.5 border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-600 cursor-pointer hover:bg-gray-50 bg-white select-none">
-                            <input type="checkbox" id="deal-no-amz" class="rounded">
-                            <span class="text-xs">Sans Amazon</span>
-                        </label>
                         <button onclick="renderDealsTab()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">
                             <i class="fas fa-filter mr-1 text-xs"></i>Filtrer
                         </button>
@@ -3218,22 +3243,22 @@
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
                                     <th class="p-3 font-semibold">Titre</th>
                                     <th class="p-3 font-semibold">ASIN</th>
-                                    <th class="p-3 font-semibold text-center">Marketplace</th>
-                                    <th class="p-3 font-semibold text-center">Prix vente 90j moy</th>
-                                    <th class="p-3 font-semibold text-center text-orange-500" title="Commission Amazon (15%)">Commission</th>
-                                    <th class="p-3 font-semibold text-center text-orange-500">FBA</th>
-                                    <th class="p-3 font-semibold text-center text-orange-500">Envoi</th>
-                                    <th class="p-3 font-semibold text-center text-gray-400" title="Stockage estimé 30j">Stockage</th>
-                                    <th id="th-deals-urssaf" class="p-3 font-semibold text-center text-orange-500">URSSAF</th>
-                                    <th id="th-deals-prep" class="p-3 font-semibold text-center text-orange-500">Prep</th>
-                                    <th class="p-3 font-semibold text-center text-red-600">Total frais</th>
+                                    <th class="p-3 font-semibold text-center">MP</th>
+                                    <th class="p-3 font-semibold text-center">Prix 90j</th>
+                                    <th class="p-3 font-semibold text-center bg-indigo-50 text-indigo-600">Prix achat</th>
+                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">Profit</th>
+                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">ROI</th>
+                                    <th class="p-3 font-semibold text-center" title="Analyse IA automatique">Avis IA</th>
                                     <th class="p-3 font-semibold text-center">Score</th>
                                     <th class="p-3 font-semibold text-center">Alerte</th>
-                                    <th class="p-3 font-semibold text-center">Fournisseur</th>
-                                    <th class="p-3 font-semibold text-center bg-indigo-50 text-indigo-600">Prix achat (toi)</th>
-                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">Profit net</th>
-                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">ROI</th>
-                                    <th class="p-3 font-semibold text-center" title="Analyse IA — survole le badge pour l'explication">Avis IA</th>
+                                    <th class="p-3 font-semibold text-center">Sourcing</th>
+                                    <th class="p-3 font-semibold text-center text-orange-500" title="Commission Amazon (15%)">Comm.</th>
+                                    <th class="p-3 font-semibold text-center text-orange-500" title="Frais traitement FBA">FBA</th>
+                                    <th class="p-3 font-semibold text-center text-orange-500" title="Frais envoi entrepôt">Envoi</th>
+                                    <th class="p-3 font-semibold text-center text-gray-400" title="Stockage estimé">Stock.</th>
+                                    <th id="th-deals-urssaf" class="p-3 font-semibold text-center text-orange-500">URSSAF</th>
+                                    <th id="th-deals-prep" class="p-3 font-semibold text-center text-orange-500">Prep</th>
+                                    <th class="p-3 font-semibold text-center text-red-600">Total</th>
                                 </tr>
                             </thead>
                             <tbody id="deals-tbody">
