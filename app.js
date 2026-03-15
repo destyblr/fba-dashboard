@@ -661,6 +661,9 @@ function showSection(sectionName) {
     if (sectionName === 'oa-catalogue' && typeof loadCatalog === 'function') {
         loadCatalog();
     }
+    if (sectionName === 'oa-sourcing' && typeof loadCatalog === 'function') {
+        loadCatalog();
+    }
     if (sectionName === 'oa-retailers' && typeof loadRetailers === 'function') {
         loadRetailers();
     }
