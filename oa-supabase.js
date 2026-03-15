@@ -118,7 +118,7 @@ function _calcCBFees(d) {
     var tva      = Math.round(priceEU * tvaRate / (1 + tvaRate) * 100) / 100;
     var priceHT  = Math.round(priceEU / (1 + tvaRate) * 100) / 100;
 
-    var refRate  = (d.categorie && d.categorie.indexOf('Electronics') >= 0) ? 0.08 : 0.15;
+    var refRate  = 0.15;
     var commis   = Math.round(priceEU * refRate * 100) / 100;
     var fba      = d.fraisFba  || 7.50;
     var efn      = d.fraisEfn  || 5.00;
@@ -380,7 +380,7 @@ function _buildRawRow(p) {
     var tierLabel = p.sizeTier || '?';
     var wg = p.weightG || 0;
     var cartonKg = wg > 0 ? (wg / 1000 * 10).toFixed(2) : '?';
-    var refRate = p.categorie && (p.categorie.indexOf('Electronics') >= 0 || p.categorie.indexOf('Informatique') >= 0) ? '8%' : '15%';
+    var refRate = '15%';
     var tipReferral  = bb ? 'Buy Box moy 90j (' + bb.toFixed(2) + '€) × ' + refRate : 'Prix × ' + refRate;
     var tipFba       = 'Tier: ' + tierLabel + '\nGrille fixe Amazon selon poids/dimensions';
     var tipEnvoi     = wg ? wg + 'g × 10u/carton = ' + cartonKg + 'kg\nTarif colissimo au poids' : 'Tarif selon poids carton';
@@ -860,13 +860,12 @@ function renderRunTab() {
              : s === 'error'    ? '❌' : s === 'no_deals' ? '⚠️' : '—';
     };
     var catColors = {
-        'Toys & Games':     'bg-blue-100 text-blue-700',
-        'Sports & Outdoors':'bg-green-100 text-green-700',
         'Kitchen':          'bg-orange-100 text-orange-700',
         'Home & Garden':    'bg-purple-100 text-purple-700',
-        'Electronics':      'bg-cyan-100 text-cyan-700',
-        'Pet Supplies':     'bg-amber-100 text-amber-700',
+        'Auto & Moto':      'bg-blue-100 text-blue-700',
         'Office Products':  'bg-indigo-100 text-indigo-700',
+        'Hygiène & Santé':  'bg-green-100 text-green-700',
+        'Luminaires':       'bg-cyan-100 text-cyan-700',
     };
     var catColor = function(s) { return catColors[s] || 'bg-gray-100 text-gray-500'; };
 
@@ -979,7 +978,7 @@ function renderRunTab() {
 
 // ── Graphiques rapport ────────────────────────────────────────────────────────
 function _buildRunCharts() {
-    var KNOWN_CATS = ['Toys & Games','Sports & Outdoors','Kitchen','Home & Garden','Electronics','Pet Supplies','Office Products'];
+    var KNOWN_CATS = ['Kitchen','Home & Garden','Auto & Moto','Office Products','Hygiène & Santé','Luminaires'];
 
     // ── Graphique 1 : ELIGIBLE cumulé par catégorie ───────────────────────────
     var catElig = {};
