@@ -671,7 +671,7 @@ var STATUT_ACHAT_LABELS = {
 };
 
 function _getCatalogData() {
-    return _oaData.filter(function(p) { return p.prixAchat > 0; });
+    return _oaData.filter(function(p) { return p.prixAchat > 0 && !p.exclu; });
 }
 
 function renderCatalogTable(data) {
@@ -1162,6 +1162,7 @@ function excludeDeal(dealId) {
         }
         renderDealsTab();
         renderRawTab();
+        renderCatalogTable();
     });
 }
 
@@ -1176,6 +1177,7 @@ function restoreDeal(dealId) {
         }
         renderDealsTab();
         renderRawTab();
+        renderCatalogTable();
     });
 }
 
