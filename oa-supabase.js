@@ -245,9 +245,10 @@ function loadCatalog() {
           });
 
           var total     = _oaData.length;
-          var score70   = _oaData.filter(function(d) { return (d.score || 0) >= 70; }).length;
-          var eligible  = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE'; }).length;
-          var avecPrix  = _oaData.filter(function(d) { return d.prixAchat > 0; }).length;
+          var nonExclu  = _oaData.filter(function(d) { return !d.exclu; });
+          var score50   = nonExclu.filter(function(d) { return (d.score || 0) >= 50; }).length;
+          var eligible  = nonExclu.filter(function(d) { return d.statut === 'ELIGIBLE' && !d.amzEnStock; }).length;
+          var avecPrix  = nonExclu.filter(function(d) { return d.prixAchat > 0; }).length;
           var lastRun   = total > 0 && _oaData[0].dateScan
               ? new Date(_oaData[0].dateScan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})
               : 'Aucun run';
@@ -255,7 +256,7 @@ function loadCatalog() {
           // KPIs sourcing (section-oa-sourcing)
           var s = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
           s('kpi-oa-total',    total);
-          s('kpi-oa-score70',  score70);
+          s('kpi-oa-score70',  score50);
           s('kpi-oa-eligible', eligible);
           s('kpi-oa-avec-prix',avecPrix);
           s('catalog-last-run',  lastRun);
@@ -263,7 +264,7 @@ function loadCatalog() {
 
           // KPIs accueil
           var catalogData = _getCatalogData();
-          var enAttente = _oaData.filter(function(d) { return d.statut === 'ELIGIBLE' && !d.prixAchat; }).length;
+          var enAttente = nonExclu.filter(function(d) { return d.statut === 'ELIGIBLE' && !d.amzEnStock && !d.prixAchat; }).length;
           var totalProfit = 0, totalRoi = 0, roiCount = 0;
           catalogData.forEach(function(p) {
               var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
