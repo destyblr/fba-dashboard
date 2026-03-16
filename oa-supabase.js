@@ -1005,19 +1005,15 @@ function renderDealsTab() {
                    : 'bg-gray-100 text-gray-500';
 
         // Avis IA
-        var iaCriteres = 'Critères IA :\n'
-            + '• BUY : profit ≥ 5€ + (ROI ≥ 20% ou profit ≥ 8€), BSR adapté/catégorie, 2-10 vendeurs, prix stable, tendance ≥ stable\n'
-            + '• RISKY : profit 3-5€, ROI 15-20%, instab 25-40%, tendance baisse > -10%, 1 vendeur, ou poids > 2kg\n'
-            + '• SKIP : profit < 3€, ROI < 15%, Amazon vendeur, tendance baisse > -15%, ou instab > 40%';
         var iaCell;
         if (!p.verdict) {
-            iaCell = '<span class="text-gray-300 text-xs cursor-help" title="' + iaCriteres + '">en attente</span>';
+            iaCell = '<span class="text-gray-300 text-xs cursor-help" title="Entre un prix achat pour lancer l\'analyse IA">en attente</span>';
         } else {
             var cls = p.verdict === 'BUY' ? 'bg-green-100 text-green-700 border border-green-300'
                     : p.verdict === 'RISKY' ? 'bg-amber-100 text-amber-700 border border-amber-300'
                     : 'bg-red-100 text-red-600 border border-red-300';
             var icon = p.verdict === 'BUY' ? '✅' : p.verdict === 'RISKY' ? '⚠️' : '❌';
-            var iaTip = (p.analyseIa ? p.analyseIa.replace(/"/g, '&quot;') + '\n\n' : '') + iaCriteres;
+            var iaTip = p.analyseIa ? p.analyseIa.replace(/"/g, '&quot;').replace(/\\n/g, '\n') : 'Analyse IA en cours...';
             iaCell = '<span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '" title="' + iaTip + '">' + icon + ' ' + p.verdict + '</span>';
         }
 
@@ -1120,9 +1116,15 @@ function saveOAPrixAchat(dealId, prix) {
             if (_oaData[i].id === dealId) {
                 var p = _oaData[i];
                 p.prixAchat = prix;
-                if (prix > 0 && p.amzPrice && p.frais != null) {
-                    p.netProfit = Math.round((p.amzPrice - p.frais - prix) * 100) / 100;
-                    p.roi       = p.netProfit > 0 ? Math.round(p.netProfit / prix * 1000) / 10 : 0;
+                if (prix > 0 && p.moy90j) {
+                    // Calcul dynamique identique au renderDealsTab
+                    var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+                    var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+                    var dynTotal = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
+                        + (_urssafOn ? (p.urssaf || 0) : 0)
+                        + (_prepOn ? _prepFee : 0);
+                    p.netProfit = Math.round((p.moy90j - dynTotal - prix) * 100) / 100;
+                    p.roi       = prix > 0 ? Math.round(p.netProfit / prix * 1000) / 10 : 0;
                 } else {
                     p.netProfit = null;
                     p.roi       = null;
@@ -1213,43 +1215,76 @@ function clearOAPrixAchat(dealId) {
     });
 }
 
-// ── Analyse IA (Claude Haiku) ─────────────────────────────────────────────────
+// ── Analyse IA (Claude Haiku) — enrichie multi-axes ──────────────────────────
 function analyseIA(deal) {
     if (!ANTHROPIC_API_KEY) {
-        var k = prompt('Clé API Anthropic requise pour l\'analyse IA.\nCollez votre clé (sk-ant-...) :');
+        var k = window.prompt('Clé API Anthropic requise pour l\'analyse IA.\nCollez votre clé (sk-ant-...) :');
         if (!k) return;
         ANTHROPIC_API_KEY = k;
         localStorage.setItem('oa_anthropic_key', k);
     }
+
+    // Calcul dynamique profit/ROI (identique au renderDealsTab)
     var moy = deal.moy90j || 0;
     var min90 = deal.min90j || 0;
     var actuel = deal.buyBoxFR || 0;
-    var instab = moy > 0 ? Math.round((moy - min90) / moy * 1000) / 10 : 0;
-    var tendance = moy > 0 ? Math.round((actuel - moy) / moy * 1000) / 10 : 0;
-    var tendanceLabel = tendance > 5 ? '↗️ Hausse (+' + tendance + '%)' : tendance < -5 ? '↘️ Baisse (' + tendance + '%)' : '→ Stable (' + tendance + '%)';
+    var prix = deal.prixAchat || 0;
+    var vol = STORAGE_VOL_M3[deal.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
+    var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
+    var dynTotal = (deal.referralFee || 0) + (deal.fraisFba || 0) + (deal.envoiFba || 0) + stk
+        + (_urssafOn ? (deal.urssaf || 0) : 0)
+        + (_prepOn ? _prepFee : 0);
+    var profit = moy > 0 && prix > 0 ? Math.round((moy - dynTotal - prix) * 100) / 100 : null;
+    var roi = prix > 0 && profit != null ? Math.round(profit / prix * 1000) / 10 : null;
 
-    var iaPrompt = 'Analyse ce produit Amazon FBA France et donne ton verdict.\n\n'
-        + 'Données :\n'
-        + '- Titre : ' + (deal.titre || '?') + '\n'
-        + '- Catégorie : ' + (deal.categorie || '?') + '\n'
-        + '- BSR FR : ' + (deal.bsr || '?') + '\n'
-        + '- Buy Box actuel : ' + actuel + '€\n'
-        + '- Buy Box moy 90j : ' + moy + '€\n'
-        + '- Buy Box min 90j : ' + min90 + '€ (instabilité prix : ' + instab + '%)\n'
-        + '- Tendance prix : ' + tendanceLabel + '\n'
-        + '- Vendeurs FBA : ' + (deal.vendeurs || '?') + '\n'
-        + '- Amazon vendeur : ' + (deal.amzEnStock || false) + '\n'
-        + '- Poids : ' + (deal.weightG || '?') + 'g | Taille : ' + (deal.sizeTier || '?') + '\n'
-        + '- Prix achat : ' + (deal.prixAchat || '?') + '€\n'
-        + '- ROI : ' + (deal.roi || '?') + '%\n'
-        + '- Profit net : ' + (deal.netProfit || '?') + '€\n'
-        + '- Score : ' + (deal.score || '?') + '/100\n'
-        + '- Alerte arbitrage : ' + (deal.alerte || 'Aucune') + '\n\n'
-        + 'Critères :\n'
-        + '- BUY : profit >= 5€ ET (ROI >= 20% OU profit >= 8€), BSR adapté à la catégorie (Kitchen/Home < 80k, Toys/Luminaires < 50k, autres < 60k), 2-10 vendeurs FBA, prix stable (instabilité < 25%), tendance ≥ stable\n'
-        + '- RISKY : profit 3-5€, ou ROI 15-20%, ou instabilité 25-40%, ou tendance baissière > -10%, ou 1 vendeur FBA (PL possible), ou produit lourd (>2kg)\n'
-        + '- SKIP : profit < 3€, ou ROI < 15%, ou Amazon vendeur, ou tendance baissière > -15%, ou instabilité > 40%\n\n'
-        + 'Réponds en JSON : {"verdict": "BUY|RISKY|SKIP", "analyse": "1-2 phrases max en français expliquant pourquoi"}';
+    // Indicateurs dérivés
+    var instab = moy > 0 ? Math.round((moy - min90) / moy * 1000) / 10 : 0;
+    var tendance = moy > 0 && actuel > 0 ? Math.round((actuel - moy) / moy * 1000) / 10 : 0;
+    var margeSec = moy > 0 && prix > 0 ? Math.round((moy * 0.9 - dynTotal - prix) * 100) / 100 : null;
+    var ventesJour = '';
+    var bsr = deal.bsr || 0;
+    if (bsr > 0) {
+        if (bsr < 1000) ventesJour = '20+ ventes/jour';
+        else if (bsr < 5000) ventesJour = '5-20 ventes/jour';
+        else if (bsr < 15000) ventesJour = '2-5 ventes/jour';
+        else if (bsr < 50000) ventesJour = '1-2 ventes/jour';
+        else ventesJour = '< 1 vente/jour';
+    }
+
+    var iaPrompt = 'Tu es un expert Amazon OA (Online Arbitrage) FBA France avec 5 ans d\'expérience.\n'
+        + 'Analyse ce produit en profondeur et donne un verdict argumenté.\n\n'
+        + '=== PRODUIT ===\n'
+        + 'Titre : ' + (deal.titre || '?') + '\n'
+        + 'Catégorie : ' + (deal.categorie || '?') + '\n'
+        + 'ASIN : ' + (deal.asin || '?') + '\n\n'
+        + '=== DEMANDE ===\n'
+        + 'BSR FR : ' + (bsr ? '#' + bsr.toLocaleString('fr') : '?') + ' (' + ventesJour + ')\n\n'
+        + '=== PRIX & STABILITÉ ===\n'
+        + 'Buy Box actuel : ' + actuel.toFixed(2) + '€\n'
+        + 'Buy Box moy 90j : ' + moy.toFixed(2) + '€\n'
+        + 'Buy Box min 90j : ' + min90.toFixed(2) + '€\n'
+        + 'Instabilité prix : ' + instab + '% (écart moy vs min sur 90j)\n'
+        + 'Tendance : ' + (tendance > 5 ? 'HAUSSE +' + tendance + '%' : tendance < -5 ? 'BAISSE ' + tendance + '%' : 'STABLE ' + tendance + '%') + '\n\n'
+        + '=== CONCURRENCE ===\n'
+        + 'Vendeurs FBA : ' + (deal.vendeurs || '?') + '\n'
+        + 'Amazon vendeur : ' + (deal.amzEnStock ? 'OUI ⚠️' : 'NON ✅') + '\n\n'
+        + '=== RENTABILITÉ ===\n'
+        + 'Prix achat : ' + prix.toFixed(2) + '€\n'
+        + 'Total frais : ' + dynTotal.toFixed(2) + '€ (comm. + FBA + envoi + stockage' + (_urssafOn ? ' + URSSAF' : '') + (_prepOn ? ' + prep' : '') + ')\n'
+        + 'Profit net : ' + (profit != null ? profit.toFixed(2) : '?') + '€\n'
+        + 'ROI : ' + (roi != null ? roi.toFixed(1) : '?') + '%\n'
+        + 'Marge sécurité (si prix -10%) : ' + (margeSec != null ? margeSec.toFixed(2) : '?') + '€\n\n'
+        + '=== LOGISTIQUE ===\n'
+        + 'Poids : ' + (deal.weightG || '?') + 'g | Tier : ' + (deal.sizeTier || '?') + '\n\n'
+        + '=== ANALYSE DEMANDÉE ===\n'
+        + 'Évalue ces 5 axes avec un emoji (✅ bon, ⚠️ moyen, ❌ mauvais) :\n'
+        + '1. Demande : BSR et estimation ventes/jour\n'
+        + '2. Concurrence : nb vendeurs, risque PL, Amazon présent\n'
+        + '3. Stabilité : prix volatile ? risque de chute ? tendance\n'
+        + '4. Marge : profit suffisant ? marge de sécurité si prix baisse 10% ?\n'
+        + '5. Risques : produit fragile, retours probables, niche trop étroite, saisonnalité\n\n'
+        + 'Réponds UNIQUEMENT en JSON valide :\n'
+        + '{"verdict":"BUY|RISKY|SKIP","confiance":8,"analyse":"✅ Demande : ...\\n⚠️ Concurrence : ...\\n✅ Stabilité : ...\\n✅ Marge : ...\\n⚠️ Risques : ...\\nConclusion : ..."}';
 
     fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -1261,8 +1296,8 @@ function analyseIA(deal) {
         },
         body: JSON.stringify({
             model: 'claude-haiku-4-5-20251001',
-            max_tokens: 200,
-            system: 'Tu es un expert Amazon OA France (Online Arbitrage FBA). Tu analyses des produits Amazon pour déterminer s\'ils sont rentables à revendre en FBA. Réponds UNIQUEMENT en JSON valide, sans markdown, sans texte autour.',
+            max_tokens: 400,
+            system: 'Tu es un expert Amazon OA France (Online Arbitrage FBA) avec 5 ans d\'expérience en revente sur Amazon. Tu connais les marges, les risques, la saisonnalité et les pièges du métier. Analyse chaque produit comme si tu allais investir ton propre argent. Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, sans texte autour.',
             messages: [{ role: 'user', content: iaPrompt }]
         })
     })
@@ -1276,16 +1311,15 @@ function analyseIA(deal) {
 
         var verdict = result.verdict;
         if (['BUY', 'RISKY', 'SKIP'].indexOf(verdict) === -1) verdict = 'RISKY';
-        var analyse = result.analyse || '';
+        var confiance = result.confiance || '?';
+        var analyse = (result.analyse || '') + '\nConfiance : ' + confiance + '/10';
 
         // Sauvegarder dans Supabase
         var sb = _getOAClient();
         sb.from('deals').update({ verdict: verdict, analyse_ia: analyse }).eq('id', deal.id).then(function() {
-            // Mettre à jour en mémoire
             deal.verdict = verdict;
             deal.analyseIa = analyse;
 
-            // Re-render avec scroll préservé
             var container = document.getElementById('oa-tab-deals');
             var scrollTop = container ? container.scrollTop : 0;
             renderDealsTab();
