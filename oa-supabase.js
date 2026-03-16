@@ -1277,14 +1277,10 @@ function analyseIA(deal) {
         + '=== LOGISTIQUE ===\n'
         + 'Poids : ' + (deal.weightG || '?') + 'g | Tier : ' + (deal.sizeTier || '?') + '\n\n'
         + '=== ANALYSE DEMANDÉE ===\n'
-        + 'Évalue ces 5 axes avec un emoji (✅ bon, ⚠️ moyen, ❌ mauvais) :\n'
-        + '1. Demande : BSR et estimation ventes/jour\n'
-        + '2. Concurrence : nb vendeurs, risque PL, Amazon présent\n'
-        + '3. Stabilité : prix volatile ? risque de chute ? tendance\n'
-        + '4. Marge : profit suffisant ? marge de sécurité si prix baisse 10% ?\n'
-        + '5. Risques : produit fragile, retours probables, niche trop étroite, saisonnalité\n\n'
-        + 'Réponds UNIQUEMENT en JSON valide :\n'
-        + '{"verdict":"BUY|RISKY|SKIP","confiance":8,"analyse":"✅ Demande : ...\\n⚠️ Concurrence : ...\\n✅ Stabilité : ...\\n✅ Marge : ...\\n⚠️ Risques : ...\\nConclusion : ..."}';
+        + 'Évalue ces 5 axes. SOIS TRÈS CONCIS (max 10 mots par axe) :\n'
+        + '1. Demande 2. Concurrence 3. Stabilité 4. Marge 5. Risques\n\n'
+        + 'Réponds UNIQUEMENT en JSON valide, MAX 300 caractères pour analyse :\n'
+        + '{"verdict":"BUY|RISKY|SKIP","confiance":8,"analyse":"✅ Demande : BSR ok, 5-10 ventes/j\\n⚠️ Concurrence : 3 FBA, pas PL\\n✅ Stabilité : prix stable\\n❌ Marge : profit trop faible\\n✅ Risques : RAS\\n→ RISKY : marge insuffisante"}';
 
     fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -1296,8 +1292,8 @@ function analyseIA(deal) {
         },
         body: JSON.stringify({
             model: 'claude-haiku-4-5-20251001',
-            max_tokens: 400,
-            system: 'Tu es un expert Amazon OA France (Online Arbitrage FBA) avec 5 ans d\'expérience en revente sur Amazon. Tu connais les marges, les risques, la saisonnalité et les pièges du métier. Analyse chaque produit comme si tu allais investir ton propre argent. Réponds UNIQUEMENT en JSON valide, sans markdown, sans backticks, sans texte autour.',
+            max_tokens: 300,
+            system: 'Tu es un expert Amazon OA France (FBA). Analyse le produit. Réponds en JSON UNIQUEMENT, sans markdown, sans backticks. Sois ULTRA CONCIS : max 10 mots par axe, 300 caractères max pour analyse.',
             messages: [{ role: 'user', content: iaPrompt }]
         })
     })
