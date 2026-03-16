@@ -215,6 +215,7 @@ function _mapDeal(d) {
         analyseIa:    d.analyse_ia || null,
         dateScan:     d.date_scan  || null,
         statutAchat:  d.statut_achat || 'a_commander',
+        exclu:        d.exclu || false,
     };
 }
 
@@ -229,8 +230,8 @@ function loadCatalog() {
       .select('*')
       .gte('date_scan', since + 'T00:00:00')
       .or('source.is.null,source.neq.cross_border')
+      .order('date_scan', { ascending: false })
       .order('profit_net_fr', { ascending: false })
-      .order('score_deal', { ascending: false })
       .then(function(res) {
           if (res.error) { _showRawEmpty('Erreur : ' + res.error.message); return; }
 
@@ -307,12 +308,13 @@ function loadCrossBorderData() {
     sb.from('deals')
       .select('*')
       .or('source.eq.cross_border,buy_box_de.not.is.null,buy_box_it.not.is.null,buy_box_es.not.is.null')
+      .order('date_scan', { ascending: false })
       .order('roi_meilleur', { ascending: false })
       .limit(200)
       .then(function(res) {
           if (res.error) {
               var cbTb = document.getElementById('crossborder-tbody');
-              if (cbTb) cbTb.innerHTML = '<tr><td colspan="17" class="p-10 text-center text-red-400">Erreur : ' + res.error.message + '</td></tr>';
+              if (cbTb) cbTb.innerHTML = '<tr><td colspan="18" class="p-10 text-center text-red-400">Erreur : ' + res.error.message + '</td></tr>';
               return;
           }
           _cbData = (res.data || []).map(_mapDeal);
@@ -543,7 +545,9 @@ function _buildRawRow(p) {
 
     var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
 
-    var eligBadge = p.statut === 'ELIGIBLE'
+    var eligBadge = p.exclu
+        ? "<span class=\"bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-semibold\">Exclu <button onclick=\"restoreDeal('" + p.id + "')\" class=\"ml-1 text-indigo-500 hover:text-indigo-700\" title=\"Restaurer dans Deals\">↩️</button></span>"
+        : p.statut === 'ELIGIBLE'
         ? '<span class="bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-semibold">✓ Éligible</span>'
         : p.statut === 'RESTRICTED'
         ? '<span class="bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">✗ Restreint</span>'
@@ -604,7 +608,11 @@ function _buildRawRow(p) {
         ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 GS</a>'
         : '<span class="text-gray-300">—</span>';
 
+    var dateLabel = p.dateScan ? new Date(p.dateScan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) : '—';
+
     return '<tr class="border-b border-gray-50 hover:bg-gray-50/70 transition-colors">'
+        // 0 — Date
+        + '<td class="p-1.5 text-center text-[10px] text-gray-400 whitespace-nowrap">' + dateLabel + '</td>'
         // 1 — Score
         + '<td class="p-1.5 text-center"><span class="font-bold px-1.5 py-0.5 rounded text-[11px] ' + scoreColor + '" title="Score 0-100&#10;BSR &lt; 5k → +40pts | &lt; 20k → +30pts | &lt; 50k → +20pts&#10;ROI ≥ 50% → +40pts | ≥ 35% → +30pts | ≥ 25% → +20pts&#10;Vendeurs FBA ≤ 3 → +20pts | ≤ 8 → +10pts&#10;Score ≥ 70 = deal intéressant" style="cursor:help">' + (p.score || '?') + '</span></td>'
         // 2 — Statut
@@ -649,7 +657,7 @@ function renderRawTab() {
 
 function _showRawEmpty(msg) {
     var tbody = document.getElementById('raw-tbody');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="13" class="p-10 text-center text-gray-400">'
+    if (tbody) tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center text-gray-400">'
         + '<i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>'
         + '<p class="font-medium">' + msg + '</p></td></tr>';
 }
@@ -882,6 +890,7 @@ function renderDealsTab() {
     var maxBsr      = parseInt((document.getElementById('deal-max-bsr')      || {}).value) || 0;
 
     var data = _oaData.filter(function(p) {
+        if (p.exclu) return false;
         if (p.statut !== 'ELIGIBLE') return false;
         if (p.amzEnStock) return false;
         if ((p.score || 0) < minScore) return false;
@@ -893,7 +902,7 @@ function renderDealsTab() {
     if (label) label.textContent = data.length + ' deal' + (data.length !== 1 ? 's' : '');
 
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="19" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="20" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun deal avec ces filtres</p></td></tr>';
         return;
@@ -987,8 +996,12 @@ function renderDealsTab() {
             iaCell = '<span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '" title="' + iaTip + '">' + icon + ' ' + p.verdict + '</span>';
         }
 
-        // Colonnes réorganisées: Titre | ASIN | MP | Prix 90j | Prix achat | Profit | ROI | Avis IA | Score | Alerte | Sourcing | Frais...
+        var dateLabel = p.dateScan ? new Date(p.dateScan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) : '—';
+
+        // Colonnes réorganisées: Date | Titre | ASIN | MP | Prix 90j | Prix achat | Profit | ROI | Avis IA | Score | Alerte | Sourcing | Frais...
         return '<tr class="' + rowBorder + ' border-b border-gray-50 hover:bg-gray-50/50 transition-colors">'
+            // 0 — Date
+            + '<td class="p-3 text-center text-[10px] text-gray-400 whitespace-nowrap">' + dateLabel + '</td>'
             // 1 — Titre
             + '<td class="p-3">'
                 + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
@@ -1035,7 +1048,9 @@ function renderDealsTab() {
             + '<td class="p-3 text-center">'
                 + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 Trouver</a>' : '<span class="text-gray-300 text-xs">—</span>')
             + '</td>'
-            // 12-18 — Frais (avec tooltips)
+            // 12 — Exclure
+            + "<td class=\"p-3 text-center\"><button onclick=\"excludeDeal('" + p.id + "')\" class=\"text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-1.5 py-0.5 rounded\" title=\"Retirer des deals\">❌</button></td>"
+            // 13-19 — Frais (avec tooltips)
             + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.referralFee, tipComm) + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.fraisFba, tipFba) + '</td>'
             + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.envoiFba, tipEnvoi) + '</td>'
@@ -1112,6 +1127,34 @@ function saveOAPrixAchat(dealId, prix) {
 }
 
 // ── Effacer prix_achat ────────────────────────────────────────────────────────
+function excludeDeal(dealId) {
+    var sb = _getOAClient();
+    if (!sb || !dealId) return;
+
+    sb.from('deals').update({ exclu: true }).eq('id', dealId).then(function(res) {
+        if (res.error) { console.error('[OA] Exclude error', res.error); return; }
+        for (var i = 0; i < _oaData.length; i++) {
+            if (_oaData[i].id === dealId) { _oaData[i].exclu = true; break; }
+        }
+        renderDealsTab();
+        renderRawTab();
+    });
+}
+
+function restoreDeal(dealId) {
+    var sb = _getOAClient();
+    if (!sb || !dealId) return;
+
+    sb.from('deals').update({ exclu: false }).eq('id', dealId).then(function(res) {
+        if (res.error) { console.error('[OA] Restore error', res.error); return; }
+        for (var i = 0; i < _oaData.length; i++) {
+            if (_oaData[i].id === dealId) { _oaData[i].exclu = false; break; }
+        }
+        renderDealsTab();
+        renderRawTab();
+    });
+}
+
 function clearOAPrixAchat(dealId) {
     var sb = _getOAClient();
     if (!sb || !dealId) return;
@@ -1231,7 +1274,7 @@ function renderCrossBorderTab() {
     if (!tbody) return;
 
     if (!_cbData.length) {
-        tbody.innerHTML = '<tr><td colspan="17" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="18" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-globe-europe text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucune opportunité cross-border</p>'
             + '<p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> avec tokens &ge; 250 pour activer Agent 2 EU</p>'
@@ -1286,7 +1329,11 @@ function renderCrossBorderTab() {
             ? '<span class="bg-amber-100 text-amber-700 text-xs font-semibold px-2 py-0.5 rounded">⚡ ' + d.alerte + '</span>'
             : '<span class="text-gray-300">—</span>';
 
+        var dateLabel = d.dateScan ? new Date(d.dateScan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) : '—';
+
         return '<tr class="border-b border-gray-50 hover:bg-gray-50 transition">'
+            // Date
+            + '<td class="p-2 text-center text-[10px] text-gray-400 whitespace-nowrap">' + dateLabel + '</td>'
             // Titre
             + '<td class="p-2 max-w-[180px]"><a href="' + amzUrl + '" target="_blank" class="font-medium text-gray-800 hover:text-indigo-600 text-xs block truncate" title="' + (d.titre || '') + '">' + (d.titre || '').substring(0, 45) + '</a></td>'
             // ASIN
