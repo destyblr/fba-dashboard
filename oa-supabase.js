@@ -614,7 +614,7 @@ function _buildRawRow(p) {
         // 0 — Date
         + '<td class="p-1.5 text-center text-[10px] text-gray-400 whitespace-nowrap">' + dateLabel + '</td>'
         // 1 — Score
-        + '<td class="p-1.5 text-center"><span class="font-bold px-1.5 py-0.5 rounded text-[11px] ' + scoreColor + '" title="Score 0-100&#10;BSR &lt; 5k → +40pts | &lt; 20k → +30pts | &lt; 50k → +20pts&#10;ROI ≥ 50% → +40pts | ≥ 35% → +30pts | ≥ 25% → +20pts&#10;Vendeurs FBA ≤ 3 → +20pts | ≤ 8 → +10pts&#10;Score ≥ 70 = deal intéressant" style="cursor:help">' + (p.score || '?') + '</span></td>'
+        + '<td class="p-1.5 text-center"><span class="font-bold px-1.5 py-0.5 rounded text-[11px] ' + scoreColor + '" title="Score marché /70&#10;Demande (BSR) /25&#10;Concurrence /25&#10;Stabilité prix /15&#10;Tendance /10&#10;+ Rentabilité /30 (avec prix achat)" style="cursor:help">' + (p.score || '?') + '</span></td>'
         // 2 — Statut
         + '<td class="p-1.5 text-center">' + eligBadge + '</td>'
         // 3 — Titre
@@ -979,6 +979,30 @@ function renderDealsTab() {
             roiCell = '<span class="font-bold ' + profitColor + '" title="' + tipRoi + '" style="cursor:help">' + dynRoi.toFixed(0) + '%</span>';
         }
 
+        // Score dynamique : base (/70 backend) + rentabilité (/30 si prix achat)
+        var baseScore = p.score || 0;
+        var rentaBonus = 0;
+        if (hasPrix && dynProfit != null) {
+            if (dynProfit >= 8) rentaBonus += 15;
+            else if (dynProfit >= 5) rentaBonus += 10;
+            else if (dynProfit >= 3) rentaBonus += 5;
+            if (dynRoi >= 40) rentaBonus += 15;
+            else if (dynRoi >= 25) rentaBonus += 10;
+            else if (dynRoi >= 15) rentaBonus += 5;
+        }
+        var dynScore = Math.min(baseScore + rentaBonus, 100);
+        var scoreTip = 'Score marché : ' + baseScore + '/70'
+            + (rentaBonus > 0 ? '\nRentabilité : +' + rentaBonus + '/30' : '\nRentabilité : entre un prix achat')
+            + '\nTotal : ' + dynScore + '/100'
+            + '\n\nDétail marché :'
+            + '\n• Demande (BSR) : /25'
+            + '\n• Concurrence : /25'
+            + '\n• Stabilité prix : /15'
+            + '\n• Tendance prix : /10';
+        scoreColor = dynScore >= 60 ? 'bg-green-100 text-green-700'
+                   : dynScore >= 35 ? 'bg-amber-100 text-amber-700'
+                   : 'bg-gray-100 text-gray-500';
+
         // Avis IA
         var iaCriteres = 'Critères IA :\n'
             + '• BUY : profit ≥ 5€ + (ROI ≥ 20% ou profit ≥ 8€), BSR adapté/catégorie, 2-10 vendeurs, prix stable, tendance ≥ stable\n'
@@ -1031,8 +1055,8 @@ function renderDealsTab() {
             + '<td class="p-3 text-center bg-green-50/30" id="roi-cell-' + p.id + '">' + roiCell + '</td>'
             // 8 — Avis IA
             + '<td class="p-3 text-center">' + iaCell + '</td>'
-            // 9 — Score
-            + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded ' + scoreColor + '">' + (p.score || '?') + '</span></td>'
+            // 9 — Score (dynamique avec rentabilité)
+            + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded cursor-help ' + scoreColor + '" title="' + scoreTip + '">' + dynScore + '</span></td>'
             // 10 — Alerte
             + (function() {
                 var euLines = [['DE', p.buyBoxDE], ['IT', p.buyBoxIT], ['ES', p.buyBoxES]]
@@ -1201,7 +1225,7 @@ function analyseIA(deal) {
     var tendance = moy > 0 ? Math.round((actuel - moy) / moy * 1000) / 10 : 0;
     var tendanceLabel = tendance > 5 ? '↗️ Hausse (+' + tendance + '%)' : tendance < -5 ? '↘️ Baisse (' + tendance + '%)' : '→ Stable (' + tendance + '%)';
 
-    var prompt = 'Analyse ce produit Amazon FBA France et donne ton verdict.\n\n'
+    var iaPrompt = 'Analyse ce produit Amazon FBA France et donne ton verdict.\n\n'
         + 'Données :\n'
         + '- Titre : ' + (deal.titre || '?') + '\n'
         + '- Catégorie : ' + (deal.categorie || '?') + '\n'
@@ -1236,7 +1260,7 @@ function analyseIA(deal) {
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 200,
             system: 'Tu es un expert Amazon OA France (Online Arbitrage FBA). Tu analyses des produits Amazon pour déterminer s\'ils sont rentables à revendre en FBA. Réponds UNIQUEMENT en JSON valide, sans markdown, sans texte autour.',
-            messages: [{ role: 'user', content: prompt }]
+            messages: [{ role: 'user', content: iaPrompt }]
         })
     })
     .then(function(r) { return r.json(); })
