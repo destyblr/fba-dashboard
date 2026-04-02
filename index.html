@@ -3140,11 +3140,11 @@
                     </div>
                     <div class="bg-white rounded-xl p-3 border border-gray-200 shadow-sm text-center">
                         <div class="text-2xl font-bold text-green-600" id="kpi-oa-score70">0</div>
-                        <div class="text-xs text-gray-400 mt-1">Score ≥ 50</div>
+                        <div class="text-xs text-gray-400 mt-1">Non PL</div>
                     </div>
                     <div class="bg-white rounded-xl p-3 border border-gray-200 shadow-sm text-center">
                         <div class="text-2xl font-bold text-amber-600" id="kpi-oa-eligible">0</div>
-                        <div class="text-xs text-gray-400 mt-1">Éligibles FBA</div>
+                        <div class="text-xs text-gray-400 mt-1">Max Cost > 10€</div>
                     </div>
                     <div class="bg-white rounded-xl p-3 border border-indigo-200 shadow-sm text-center bg-indigo-50">
                         <div class="text-2xl font-bold text-indigo-700" id="kpi-oa-avec-prix">0</div>
@@ -3158,55 +3158,14 @@
                         class="px-5 py-2.5 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 -mb-px bg-white">
                         💼 Deals
                     </button>
-                    <button id="oa-tab-btn-crossborder" onclick="switchOATab('crossborder')"
-                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
-                        🌍 Cross Border
-                    </button>
-                    <button id="oa-tab-btn-raw" onclick="switchOATab('raw')"
-                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
-                        📊 Données brutes
-                    </button>
                     <button id="oa-tab-btn-rapport" onclick="switchOATab('rapport')"
                         class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
                         📋 Rapport
                     </button>
-                    <button id="oa-tab-btn-pool" onclick="switchOATab('pool')"
+                    <button id="oa-tab-btn-ungating" onclick="switchOATab('ungating')"
                         class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
-                        🎯 Pool ELIGIBLE
+                        🔓 Ungating
                     </button>
-                </div>
-
-                <!-- TAB : Analyse (full auto) -->
-                <div id="oa-tab-raw" class="hidden">
-                    <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
-                        <table class="text-xs w-full">
-                            <thead>
-                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-[11px] uppercase tracking-wide text-gray-500">
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-16">Date</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-10">Score</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-20">Statut</th>
-                                    <th class="p-1.5 md:p-2 font-semibold min-w-[140px]">Titre</th>
-                                    <th class="p-1.5 md:p-2 font-semibold hidden md:table-cell w-24">ASIN</th>
-                                    <th class="p-1.5 md:p-2 font-semibold hidden sm:table-cell w-24">Catégorie</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-16">BSR</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-12">FBA</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-12">Amz</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-16">BB FR</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-14">Moy 90j</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center hidden sm:table-cell w-14">Min 90j</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-20">Arbitrage</th>
-                                    <th class="p-1.5 md:p-2 font-semibold text-center w-14">Sourcing</th>
-                                </tr>
-                            </thead>
-                            <tbody id="raw-tbody">
-                                <tr><td colspan="14" class="p-10 text-center text-gray-400">
-                                    <i class="fas fa-database text-3xl mb-3 block text-gray-300"></i>
-                                    <p class="font-medium">Aucune donnée</p>
-                                    <p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> sur ton PC pour démarrer le sourcing</p>
-                                </td></tr>
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
 
                 <!-- TAB : Deals (éligibles seulement) -->
@@ -3224,16 +3183,6 @@
                         <button onclick="renderDealsTab()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700 transition">
                             <i class="fas fa-filter mr-1 text-xs"></i>Filtrer
                         </button>
-                        <div class="flex gap-1.5 ml-auto">
-                            <button id="btn-urssaf-toggle" onclick="toggleUrssaf()"
-                                class="text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer">
-                                Avec URSSAF
-                            </button>
-                            <button id="btn-prep-toggle" onclick="togglePrep()"
-                                class="text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer">
-                                Avec prep
-                            </button>
-                        </div>
                         <span class="text-xs text-gray-400 ml-1" id="deals-count-label"></span>
                     </div>
 
@@ -3245,76 +3194,21 @@
                                     <th class="p-3 font-semibold text-center w-16">Date</th>
                                     <th class="p-3 font-semibold">Titre</th>
                                     <th class="p-3 font-semibold">ASIN</th>
-                                    <th class="p-3 font-semibold text-center">MP</th>
-                                    <th class="p-3 font-semibold text-center">Prix 90j</th>
+                                    <th class="p-3 font-semibold text-center" title="Private Label">PL</th>
+                                    <th class="p-3 font-semibold text-center" title="Prix max d'achat rentable (SellerAmp)">Max Cost</th>
+                                    <th class="p-3 font-semibold text-center" title="Ventes estimées par mois (SellerAmp)">Sales/mo</th>
                                     <th class="p-3 font-semibold text-center bg-indigo-50 text-indigo-600">Prix achat</th>
                                     <th class="p-3 font-semibold text-center bg-green-50 text-green-700">Profit</th>
                                     <th class="p-3 font-semibold text-center bg-green-50 text-green-700">ROI</th>
-                                    <th class="p-3 font-semibold text-center" title="Analyse IA automatique">Avis IA</th>
                                     <th class="p-3 font-semibold text-center">Score</th>
-                                    <th class="p-3 font-semibold text-center">Alerte</th>
                                     <th class="p-3 font-semibold text-center">Sourcing</th>
                                     <th class="p-3 font-semibold text-center w-10" title="Exclure du tableau deals">✗</th>
-                                    <th class="p-3 font-semibold text-center text-orange-500" title="Commission Amazon (15%)">Comm.</th>
-                                    <th class="p-3 font-semibold text-center text-orange-500" title="Frais traitement FBA">FBA</th>
-                                    <th class="p-3 font-semibold text-center text-orange-500" title="Frais envoi entrepôt">Envoi</th>
-                                    <th class="p-3 font-semibold text-center text-gray-400" title="Stockage estimé">Stock.</th>
-                                    <th id="th-deals-urssaf" class="p-3 font-semibold text-center text-orange-500">URSSAF</th>
-                                    <th id="th-deals-prep" class="p-3 font-semibold text-center text-orange-500">Prep</th>
-                                    <th class="p-3 font-semibold text-center text-red-600">Total</th>
                                 </tr>
                             </thead>
                             <tbody id="deals-tbody">
-                                <tr><td colspan="20" class="p-10 text-center text-gray-400">
+                                <tr><td colspan="12" class="p-10 text-center text-gray-400">
                                     <i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>
                                     <p class="font-medium">Chargement des deals…</p>
-                                </td></tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- TAB : Cross Border (Agent 2) -->
-                <div id="oa-tab-crossborder" class="hidden">
-                    <div class="flex gap-1.5 mb-3">
-                        <button id="btn-urssaf-toggle-cb" onclick="toggleUrssaf()"
-                            class="text-xs px-3 py-1 rounded-full font-semibold bg-purple-100 text-purple-700 border border-purple-300 cursor-pointer">
-                            Avec URSSAF
-                        </button>
-                        <button id="btn-prep-toggle-cb" onclick="togglePrep()"
-                            class="text-xs px-3 py-1 rounded-full font-semibold bg-orange-100 text-orange-700 border border-orange-300 cursor-pointer">
-                            Avec prep
-                        </button>
-                    </div>
-                    <div class="bg-white rounded-xl shadow-sm overflow-x-auto">
-                        <table class="w-full text-sm" style="min-width:900px">
-                            <thead>
-                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
-                                    <th class="p-2 font-semibold text-center w-16">Date</th>
-                                    <th class="p-2 font-semibold">Titre</th>
-                                    <th class="p-2 font-semibold">ASIN</th>
-                                    <th class="p-2 font-semibold text-center">Prix FR</th>
-                                    <th class="p-2 font-semibold text-center">Prix EU</th>
-                                    <th class="p-2 font-semibold text-center text-orange-500" title="TVA locale déduite par Amazon">TVA</th>
-                                    <th class="p-2 font-semibold text-center text-orange-400" title="Commission Amazon sur prix TTC">Commission</th>
-                                    <th class="p-2 font-semibold text-center text-red-400">Traitement FBA</th>
-                                    <th class="p-2 font-semibold text-center text-red-400">EFN</th>
-                                    <th class="p-2 font-semibold text-center text-red-300">Envoi</th>
-                                    <th id="th-cb-urssaf" class="p-2 font-semibold text-center text-purple-500">URSSAF</th>
-                                    <th class="p-2 font-semibold text-center text-gray-400" title="Stockage estimé 30j">Stockage</th>
-                                    <th id="th-cb-prep" class="p-2 font-semibold text-center text-orange-400" title="Frais préparation/étiquetage (configurable dans Paramètres OA)">Prep</th>
-                                    <th class="p-2 font-semibold text-center text-red-500">Total frais</th>
-                                    <th class="p-2 font-semibold text-center">Profit net</th>
-                                    <th class="p-2 font-semibold text-center">ROI</th>
-                                    <th class="p-2 font-semibold text-center">Alerte</th>
-                                    <th class="p-2 font-semibold text-center">Sourcing</th>
-                                </tr>
-                            </thead>
-                            <tbody id="crossborder-tbody">
-                                <tr><td colspan="18" class="p-10 text-center text-gray-400">
-                                    <i class="fas fa-globe-europe text-3xl mb-3 block text-gray-300"></i>
-                                    <p class="font-medium">Aucune donnée cross-border</p>
-                                    <p class="text-xs mt-1">Lance <code class="bg-gray-100 px-1 rounded text-indigo-600">python main.py</code> pour enrichir les deals via l'Agent 2</p>
                                 </td></tr>
                             </tbody>
                         </table>
@@ -3331,23 +3225,37 @@
                     </div>
                 </div>
 
-                <!-- TAB : Pool ELIGIBLE -->
-                <div id="oa-tab-pool" class="hidden">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-800">Pool ELIGIBLE</h3>
-                            <p class="text-xs text-gray-400">ASINs confirmés vendables sur votre compte — accumulés depuis le départ, sans filtres Keepa</p>
+                <!-- TAB : Ungating -->
+                <div id="oa-tab-ungating" class="hidden">
+                    <div class="bg-white rounded-xl shadow-sm p-5">
+                        <!-- Curseur budget -->
+                        <div class="flex items-center gap-4 mb-6 p-4 bg-indigo-50 rounded-lg">
+                            <span class="text-sm font-semibold text-indigo-700">Budget :</span>
+                            <input type="range" id="ungating-budget" min="100" max="1000" step="50" value="200"
+                                class="flex-1 accent-indigo-600" oninput="updateUngatingBudget(this.value)">
+                            <span id="ungating-budget-label" class="text-lg font-bold text-indigo-700 min-w-[80px] text-right">200€</span>
+                            <span class="text-xs text-gray-500">(10 unités × <span id="ungating-unit-price">20€</span>/u max)</span>
                         </div>
-                        <button onclick="loadPoolData()" class="text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 hover:bg-indigo-100">
-                            Actualiser
-                        </button>
-                    </div>
-                    <div id="pool-stats" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5"></div>
-                    <div id="pool-table-container">
-                        <p class="text-center text-gray-400 py-10">
-                            <i class="fas fa-spinner fa-spin text-2xl block mb-3 text-gray-300"></i>
-                            Chargement du pool...
-                        </p>
+                        <!-- Tableau marques -->
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                                    <th class="p-3 font-semibold text-center">#</th>
+                                    <th class="p-3 font-semibold">Marque</th>
+                                    <th class="p-3 font-semibold text-center">ASINs bloqués</th>
+                                    <th class="p-3 font-semibold text-center">BSR moyen</th>
+                                    <th class="p-3 font-semibold text-center">FBA moyen</th>
+                                    <th class="p-3 font-semibold text-center">Produit suggéré</th>
+                                    <th class="p-3 font-semibold text-center">Prix estimé</th>
+                                    <th class="p-3 font-semibold text-center">Statut</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ungating-tbody">
+                                <tr><td colspan="8" class="p-10 text-center text-gray-400">
+                                    <p class="font-medium">Données insuffisantes — les marques s'enrichiront au fil des runs</p>
+                                </td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>

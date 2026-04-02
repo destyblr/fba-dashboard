@@ -64,7 +64,7 @@ function toggleUrssaf() {
     localStorage.setItem('oa_urssaf', _urssafOn ? 'true' : 'false');
     _syncToggleBtns();
     renderDealsTab();
-    renderCrossBorderTab();
+    // renderCrossBorderTab(); // supprimé
 }
 
 function togglePrep() {
@@ -72,7 +72,7 @@ function togglePrep() {
     localStorage.setItem('oa_prep', _prepOn ? 'true' : 'false');
     _syncToggleBtns();
     renderDealsTab();
-    renderCrossBorderTab();
+    // renderCrossBorderTab(); // supprimé
 }
 
 function updatePrepFee(val) {
@@ -86,9 +86,9 @@ function updatePrepFee(val) {
         if (el && parseFloat(el.value) !== v) el.value = v;
     });
     if (_prepOn) {
-        renderRawTab();
+        // renderRawTab(); // supprimé
         renderDealsTab();
-        renderCrossBorderTab();
+        // renderCrossBorderTab(); // supprimé
     }
 }
 
@@ -96,9 +96,7 @@ function updateStorageDays(val) {
     var v = parseInt(val);
     if (isNaN(v) || v < 1) return;
     STORAGE_DAYS = v;
-    renderRawTab();
     renderDealsTab();
-    renderCrossBorderTab();
 }
 
 function _initOAParamInputs() {
@@ -216,6 +214,21 @@ function _mapDeal(d) {
         dateScan:     d.date_scan  || null,
         statutAchat:  d.statut_achat || 'a_commander',
         exclu:        d.exclu || false,
+        // SellerAmp data
+        saMaxCost:       d.sa_max_cost       || null,
+        saTotalFees:     d.sa_total_fees     || null,
+        saSalePrice:     d.sa_sale_price     || null,
+        saPrivateLabel:  d.sa_private_label  || null,
+        saIpRisk:        d.sa_ip_risk        || null,
+        saAmazonBb:      d.sa_amazon_bb      || null,
+        saMeltable:      d.sa_meltable       || null,
+        saVariations:    d.sa_variations     || null,
+        saEstSales:      d.sa_est_sales      || null,
+        saBsr:           d.sa_bsr            || null,
+        saBreakeven:     d.sa_breakeven      || null,
+        saVatFees:       d.sa_vat_fees       || null,
+        saLowestFba:     d.sa_lowest_fba     || null,
+        saLowestFbm:     d.sa_lowest_fbm     || null,
     };
 }
 
@@ -246,8 +259,8 @@ function loadCatalog() {
 
           var total     = _oaData.length;
           var nonExclu  = _oaData.filter(function(d) { return !d.exclu; });
-          var score50   = nonExclu.filter(function(d) { return (d.score || 0) >= 50; }).length;
-          var eligible  = nonExclu.filter(function(d) { return d.statut === 'ELIGIBLE' && !d.amzEnStock; }).length;
+          var nonPL     = nonExclu.filter(function(d) { return d.saPrivateLabel === 'Unlikely' || !d.saPrivateLabel; }).length;
+          var maxCost10 = nonExclu.filter(function(d) { return (d.saMaxCost || 0) > 10; }).length;
           var avecPrix  = nonExclu.filter(function(d) { return d.prixAchat > 0; }).length;
           var lastRun   = total > 0 && _oaData[0].dateScan
               ? new Date(_oaData[0].dateScan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})
@@ -256,8 +269,8 @@ function loadCatalog() {
           // KPIs sourcing (section-oa-sourcing)
           var s = function(id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
           s('kpi-oa-total',    total);
-          s('kpi-oa-score70',  score50);
-          s('kpi-oa-eligible', eligible);
+          s('kpi-oa-score70',  nonPL);
+          s('kpi-oa-eligible', maxCost10);
           s('kpi-oa-avec-prix',avecPrix);
           s('catalog-last-run',  lastRun);
           s('sourcing-last-run', lastRun);
@@ -292,11 +305,11 @@ function loadCatalog() {
           }
 
           _initOAParamInputs();
-          renderRawTab();
+          // renderRawTab(); // supprimé
           renderDealsTab();
           renderCatalogTable();
           _renderAccueilTopDeals();
-          loadCrossBorderData();
+          // loadCrossBorderData(); // supprimé
       })
       .catch(function(e) { _showRawEmpty('Erreur connexion Supabase'); console.error('[OA]', e); });
 }
@@ -319,7 +332,7 @@ function loadCrossBorderData() {
               return;
           }
           _cbData = (res.data || []).map(_mapDeal);
-          renderCrossBorderTab();
+          // renderCrossBorderTab(); // supprimé
       })
       .catch(function(e) { console.error('[CB]', e); });
 }
@@ -329,13 +342,11 @@ function _renderAccueilTopDeals() {
     var el = document.getElementById('acc-top-deals');
     if (!el) return;
 
-    // Top 5 deals avec prix d'achat, triés par profit
+    // Top 5 deals avec prix d'achat, triés par profit (frais SA)
     var withPrix = _getCatalogData().map(function(p) {
-        var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
-        var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
-        var dt = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
-            + (_urssafOn ? (p.urssaf || 0) : 0) + (_prepOn ? _prepFee : 0);
-        p._dynProfit = Math.round(((p.moy90j || 0) - dt - p.prixAchat) * 100) / 100;
+        var totalFees = p.saTotalFees || p.frais || 0;
+        var sellPrice = p.saSalePrice || p.moy90j || p.buyBoxFR || 0;
+        p._dynProfit = Math.round((sellPrice - totalFees - p.prixAchat) * 100) / 100;
         p._dynRoi = p.prixAchat > 0 ? Math.round(p._dynProfit / p.prixAchat * 1000) / 10 : 0;
         return p;
     }).sort(function(a, b) { return b._dynProfit - a._dynProfit; });
@@ -519,7 +530,7 @@ function _loadAccueilRuns() {
 // ── Switcher onglets ──────────────────────────────────────────────────────────
 function switchOATab(tab) {
     _oaTab = tab;
-    var tabs = ['raw', 'deals', 'crossborder', 'rapport', 'pool'];
+    var tabs = ['deals', 'rapport', 'ungating'];
     tabs.forEach(function(t) {
         var el  = document.getElementById('oa-tab-' + t);
         var btn = document.getElementById('oa-tab-btn-' + t);
@@ -535,7 +546,6 @@ function switchOATab(tab) {
         }
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
-    if (tab === 'pool' && !_poolData.length) loadPoolData();
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────
@@ -882,7 +892,7 @@ function resetCatalogFilters() {
     renderCatalogTable();
 }
 
-// ── TAB : Deals (éligibles seulement) — 11 colonnes ──────────────────────────
+// ── TAB : Deals (éligibles + données SellerAmp) — 12 colonnes ───────────────
 function renderDealsTab() {
     var tbody = document.getElementById('deals-tbody');
     if (!tbody) return;
@@ -899,186 +909,115 @@ function renderDealsTab() {
         return true;
     });
 
+    // Trier par Max Cost décroissant (meilleurs deals en haut)
+    data.sort(function(a, b) { return (b.saMaxCost || 0) - (a.saMaxCost || 0); });
+
     var label = document.getElementById('deals-count-label');
     if (label) label.textContent = data.length + ' deal' + (data.length !== 1 ? 's' : '');
 
     if (!data.length) {
-        tbody.innerHTML = '<tr><td colspan="20" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="12" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search-dollar text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun deal avec ces filtres</p></td></tr>';
         return;
     }
 
     tbody.innerHTML = data.map(function(p) {
-        var scoreColor = (p.score || 0) >= 70 ? 'bg-green-100 text-green-700'
-                       : (p.score || 0) >= 40 ? 'bg-amber-100 text-amber-700'
-                       : 'bg-gray-100 text-gray-500';
+        // Frais SA (ou fallback calcul maison)
+        var totalFees = p.saTotalFees || p.frais || 0;
+        var sellPrice = p.saSalePrice || p.moy90j || p.buyBoxFR || 0;
 
         var hasPrix    = p.prixAchat > 0;
-        var profitable = hasPrix && (p.roi || 0) >= 25 && (p.netProfit || 0) >= 2;
-        var rowBorder  = profitable ? 'border-l-4 border-l-green-400 bg-green-50'
-                       : hasPrix && (p.netProfit || 0) > 0 ? 'border-l-4 border-l-amber-300 bg-amber-50'
-                       : hasPrix && (p.netProfit || 0) < 0 ? 'border-l-4 border-l-red-300 bg-red-50/40'
-                       : 'border-l-4 border-l-transparent';
-
-        var amzUrl = p.asin ? 'https://www.amazon.' + (MP_DOMAINS[p.mp] || 'fr') + '/dp/' + p.asin : '#';
-
-        var profitColor = profitable ? 'text-green-600'
-                        : (p.netProfit || 0) > 0 ? 'text-amber-600'
-                        : 'text-red-500';
-
-        var noPrix = '<span class="text-gray-300 text-xs" title="Entre le prix achat">—</span>';
-
-        var tipProfit = 'Entre le prix achat';
-        var tipRoi = 'Entre le prix achat';
-        var profitCell = noPrix;
-        var roiCell = noPrix;
-
-        var currentPrix = p.prixAchat ? p.prixAchat.toFixed(2) : '';
-
-        // Tooltips frais
-        var bb = p.moy90j || p.buyBoxFR || 0;
-        var tierLabel = p.sizeTier || '?';
-        var wg = p.weightG || 0;
-        var cartonKg = wg > 0 ? (wg / 1000 * 10).toFixed(1) : '?';
-        var tipComm   = bb ? 'Prix 90j (' + bb.toFixed(2) + '€) × 15%\n= ' + (bb * 0.15).toFixed(2) + '€' : 'Prix × 15%';
-        var tipFba    = 'Tier: ' + tierLabel + '\nGrille fixe Amazon selon poids/dimensions';
-        var tipEnvoi  = wg ? wg + 'g × 10u/carton = ' + cartonKg + 'kg\nTarif postal au poids' : 'Tarif selon poids carton';
-        var tipUrssaf = bb ? bb.toFixed(2) + '€ × 12.3% = ' + (bb * 0.123).toFixed(2) + '€' : 'Prix × 12.3%';
-        var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
-        var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
-        var tipStock  = 'Volume: ' + (vol * 1000000).toFixed(0) + 'cm³\n' + STORAGE_DAYS + 'j × ' + STORAGE_RATE + '€/m³/j = ' + stk.toFixed(2) + '€';
-        // Recalcul total dynamique avec toggles URSSAF/Prep
-        var dynTotal = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
-            + (_urssafOn ? (p.urssaf || 0) : 0)
-            + (_prepOn ? _prepFee : 0);
-        var tipTotal  = 'Comm. (' + (p.referralFee || 0).toFixed(2) + '€) + FBA (' + (p.fraisFba || 0).toFixed(2) + '€) + Envoi (' + (p.envoiFba || 0).toFixed(2) + '€) + Stock. (' + stk.toFixed(2) + '€)'
-            + (_urssafOn ? ' + URSSAF (' + (p.urssaf || 0).toFixed(2) + '€)' : '')
-            + (_prepOn ? ' + Prep (' + _prepFee.toFixed(2) + '€)' : '')
-            + '\n= ' + dynTotal.toFixed(2) + '€';
-        var feeTip = function(v, tip) { return '<span title="' + tip + '" style="cursor:help;border-bottom:1px dotted #ccc">' + (v != null ? v.toFixed(2) + '€' : '—') + '</span>'; };
-
-        // Recalcul profit/ROI dynamique avec dynTotal
-        var dynProfit = null, dynRoi = null;
-        if (hasPrix && p.moy90j) {
-            dynProfit = Math.round((p.moy90j - dynTotal - p.prixAchat) * 100) / 100;
+        var dynProfit  = null, dynRoi = null;
+        if (hasPrix && sellPrice > 0) {
+            dynProfit = Math.round((sellPrice - totalFees - p.prixAchat) * 100) / 100;
             dynRoi = p.prixAchat > 0 ? Math.round(dynProfit / p.prixAchat * 1000) / 10 : 0;
         }
+
         var dynProfitable = dynProfit != null && dynProfit >= 3 && dynRoi >= 25;
-        profitColor = dynProfitable ? 'text-green-600'
-                    : (dynProfit || 0) > 0 ? 'text-amber-600'
-                    : 'text-red-500';
-        rowBorder = dynProfitable ? 'border-l-4 border-l-green-400 bg-green-50'
-                  : hasPrix && (dynProfit || 0) > 0 ? 'border-l-4 border-l-amber-300 bg-amber-50'
-                  : hasPrix && (dynProfit || 0) < 0 ? 'border-l-4 border-l-red-300 bg-red-50/40'
-                  : 'border-l-4 border-l-transparent';
+        var profitColor = dynProfitable ? 'text-green-600'
+                        : (dynProfit || 0) > 0 ? 'text-amber-600'
+                        : 'text-red-500';
+        var rowBorder = dynProfitable ? 'border-l-4 border-l-green-400 bg-green-50'
+                      : hasPrix && (dynProfit || 0) > 0 ? 'border-l-4 border-l-amber-300 bg-amber-50'
+                      : hasPrix && (dynProfit || 0) < 0 ? 'border-l-4 border-l-red-300 bg-red-50/40'
+                      : 'border-l-4 border-l-transparent';
+
+        var amzUrl = p.asin ? 'https://www.amazon.fr/dp/' + p.asin : '#';
+        var noPrix = '<span class="text-gray-300 text-xs">—</span>';
+        var profitCell = noPrix, roiCell = noPrix;
 
         if (hasPrix && dynProfit != null) {
-            tipProfit = 'Prix 90j (' + (p.moy90j || 0).toFixed(2) + '€) − Frais (' + dynTotal.toFixed(2) + '€) − Achat (' + p.prixAchat.toFixed(2) + '€)\n= ' + (dynProfit >= 0 ? '+' : '') + dynProfit.toFixed(2) + '€';
-            tipRoi = 'Profit (' + (dynProfit >= 0 ? '+' : '') + dynProfit.toFixed(2) + '€) / Achat (' + p.prixAchat.toFixed(2) + '€)\n= ' + dynRoi.toFixed(1) + '%';
+            var tipProfit = 'Vente (' + sellPrice.toFixed(2) + '€) - Frais SA (' + totalFees.toFixed(2) + '€) - Achat (' + p.prixAchat.toFixed(2) + '€)\n= ' + (dynProfit >= 0 ? '+' : '') + dynProfit.toFixed(2) + '€';
+            var tipRoi = 'Profit / Achat = ' + dynRoi.toFixed(1) + '%';
             profitCell = '<span class="font-bold ' + profitColor + '" title="' + tipProfit + '" style="cursor:help">' + (dynProfit >= 0 ? '+' : '') + dynProfit.toFixed(2) + '€</span>';
             roiCell = '<span class="font-bold ' + profitColor + '" title="' + tipRoi + '" style="cursor:help">' + dynRoi.toFixed(0) + '%</span>';
         }
 
-        // Score dynamique : base (/70 backend) + rentabilité (/30 si prix achat)
+        var currentPrix = p.prixAchat ? p.prixAchat.toFixed(2) : '';
+
+        // PL cell
+        var plCell;
+        if (!p.saPrivateLabel) {
+            plCell = '<span class="text-gray-300 text-xs">—</span>';
+        } else if (p.saPrivateLabel === 'Unlikely') {
+            plCell = '<span class="text-xs font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700" title="Private Label: Unlikely">OK</span>';
+        } else {
+            plCell = '<span class="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600" title="Private Label: ' + p.saPrivateLabel + '">PL</span>';
+        }
+
+        // Max Cost cell
+        var maxCostCell;
+        if (p.saMaxCost != null) {
+            var mcColor = p.saMaxCost >= 15 ? 'text-green-600 font-bold' : p.saMaxCost >= 8 ? 'text-amber-600 font-semibold' : 'text-red-500';
+            var mcTip = 'Prix max d\'achat rentable\nFrais SA: ' + totalFees.toFixed(2) + '€\nPrix vente: ' + sellPrice.toFixed(2) + '€';
+            maxCostCell = '<span class="' + mcColor + '" title="' + mcTip + '" style="cursor:help">' + p.saMaxCost.toFixed(2) + '€</span>';
+        } else {
+            maxCostCell = '<span class="text-gray-300 text-xs" title="Check SellerAmp en attente">—</span>';
+        }
+
+        // Sales cell
+        var salesCell = p.saEstSales ? '<span class="font-semibold text-gray-700">' + p.saEstSales + '</span>' : '<span class="text-gray-300 text-xs">—</span>';
+
+        // Score
         var baseScore = p.score || 0;
         var rentaBonus = 0;
         if (hasPrix && dynProfit != null) {
-            if (dynProfit >= 8) rentaBonus += 15;
-            else if (dynProfit >= 5) rentaBonus += 10;
-            else if (dynProfit >= 3) rentaBonus += 5;
-            if (dynRoi >= 40) rentaBonus += 15;
-            else if (dynRoi >= 25) rentaBonus += 10;
-            else if (dynRoi >= 15) rentaBonus += 5;
+            if (dynProfit >= 8) rentaBonus += 15; else if (dynProfit >= 5) rentaBonus += 10; else if (dynProfit >= 3) rentaBonus += 5;
+            if (dynRoi >= 40) rentaBonus += 15; else if (dynRoi >= 25) rentaBonus += 10; else if (dynRoi >= 15) rentaBonus += 5;
         }
         var dynScore = Math.min(baseScore + rentaBonus, 100);
-        var scoreTip = 'Score marché : ' + baseScore + '/70'
-            + (rentaBonus > 0 ? '\nRentabilité : +' + rentaBonus + '/30' : '\nRentabilité : entre un prix achat')
-            + '\nTotal : ' + dynScore + '/100'
-            + '\n\nDétail marché :'
-            + '\n• Demande (BSR) : /25'
-            + '\n• Concurrence : /25'
-            + '\n• Stabilité prix : /15'
-            + '\n• Tendance prix : /10';
-        scoreColor = dynScore >= 60 ? 'bg-green-100 text-green-700'
-                   : dynScore >= 35 ? 'bg-amber-100 text-amber-700'
-                   : 'bg-gray-100 text-gray-500';
-
-        // Avis IA
-        var iaCell;
-        if (!p.verdict) {
-            iaCell = '<span class="text-gray-300 text-xs cursor-help" title="Entre un prix achat pour lancer l\'analyse IA">en attente</span>';
-        } else {
-            var cls = p.verdict === 'BUY' ? 'bg-green-100 text-green-700 border border-green-300'
-                    : p.verdict === 'RISKY' ? 'bg-amber-100 text-amber-700 border border-amber-300'
-                    : 'bg-red-100 text-red-600 border border-red-300';
-            var icon = p.verdict === 'BUY' ? '✅' : p.verdict === 'RISKY' ? '⚠️' : '❌';
-            var iaTip = p.analyseIa ? p.analyseIa.replace(/"/g, '&quot;').replace(/\\n/g, '\n') : 'Analyse IA en cours...';
-            iaCell = '<span class="text-xs font-bold px-2 py-0.5 rounded-full cursor-help ' + cls + '" title="' + iaTip + '">' + icon + ' ' + p.verdict + '</span>';
-        }
+        var scoreColor = dynScore >= 60 ? 'bg-green-100 text-green-700' : dynScore >= 35 ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-500';
+        var scoreTip = 'Score marche: ' + baseScore + '/70' + (rentaBonus > 0 ? ' + Renta: +' + rentaBonus : '') + ' = ' + dynScore + '/100';
 
         var dateLabel = p.dateScan ? new Date(p.dateScan).toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) : '—';
 
-        // Colonnes réorganisées: Date | Titre | ASIN | MP | Prix 90j | Prix achat | Profit | ROI | Avis IA | Score | Alerte | Sourcing | Frais...
+        // 12 colonnes: Date | Titre | ASIN | PL | Max Cost | Sales/mo | Prix achat | Profit | ROI | Score | Sourcing | ✗
         return '<tr class="' + rowBorder + ' border-b border-gray-50 hover:bg-gray-50/50 transition-colors">'
-            // 0 — Date
             + '<td class="p-3 text-center text-[10px] text-gray-400 whitespace-nowrap">' + dateLabel + '</td>'
-            // 1 — Titre
-            + '<td class="p-3">'
-                + '<a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '') + '">' + (p.titre || '').slice(0, 55) + '</a>'
-            + '</td>'
-            // 2 — ASIN
+            + '<td class="p-3"><a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '').replace(/"/g, '&quot;') + '">' + (p.titre || '').slice(0, 55) + '</a></td>'
             + '<td class="p-3 font-mono text-xs text-gray-500">' + (p.asin || '—') + '</td>'
-            // 3 — MP
-            + '<td class="p-3 text-center"><span class="font-semibold text-sm">' + (MP_FLAGS[p.mp] || '') + ' ' + (p.mp || '—') + '</span></td>'
-            // 4 — Prix 90j
-            + '<td class="p-3 text-center font-bold text-gray-800">' + (p.moy90j ? p.moy90j.toFixed(2) + '€' : '<span class="text-gray-300 text-xs">—</span>') + '</td>'
-            // 5 — Prix achat (input + bouton valider)
+            + '<td class="p-3 text-center">' + plCell + '</td>'
+            + '<td class="p-3 text-center">' + maxCostCell + '</td>'
+            + '<td class="p-3 text-center text-xs">' + salesCell + '</td>'
             + '<td class="p-3 text-center bg-indigo-50/30">'
                 + '<div class="flex items-center justify-center gap-1">'
                 + '<input type="number" step="0.01" min="0" placeholder="€" value="' + currentPrix + '" '
                 + 'id="prix-input-' + p.id + '" '
                 + 'class="w-16 border border-gray-200 rounded px-1 py-0.5 text-sm text-center focus:border-indigo-400 outline-none bg-white" '
-                + "oninput=\"previewDealProfit('" + p.id + "', this.value, " + (p.moy90j || 0) + ', ' + dynTotal + ')\" />'
+                + "oninput=\"previewDealProfit('" + p.id + "', this.value, " + sellPrice + ', ' + totalFees + ')\" />'
                 + "<button onclick=\"saveOAPrixAchat('" + p.id + "', parseFloat(document.getElementById('prix-input-" + p.id + "').value)||0)\" "
                 + 'class="text-xs bg-indigo-500 text-white px-1.5 py-0.5 rounded hover:bg-indigo-600" title="Valider le prix">OK</button>'
-                + (currentPrix ? "<button onclick=\"clearOAPrixAchat('" + p.id + "')\" "
-                + 'class="text-xs bg-red-100 text-red-500 px-1 py-0.5 rounded hover:bg-red-200" title="Effacer le prix">✗</button>' : '')
+                + (currentPrix ? "<button onclick=\"clearOAPrixAchat('" + p.id + "')\" class=\"text-xs bg-red-100 text-red-500 px-1 py-0.5 rounded hover:bg-red-200\" title=\"Effacer\">✗</button>" : '')
                 + '</div>'
             + '</td>'
-            // 6 — Profit
             + '<td class="p-3 text-center bg-green-50/30" id="profit-cell-' + p.id + '">' + profitCell + '</td>'
-            // 7 — ROI
             + '<td class="p-3 text-center bg-green-50/30" id="roi-cell-' + p.id + '">' + roiCell + '</td>'
-            // 8 — Avis IA
-            + '<td class="p-3 text-center">' + iaCell + '</td>'
-            // 9 — Score (dynamique avec rentabilité)
             + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded cursor-help ' + scoreColor + '" title="' + scoreTip + '">' + dynScore + '</span></td>'
-            // 10 — Alerte
-            + (function() {
-                var euLines = [['DE', p.buyBoxDE], ['IT', p.buyBoxIT], ['ES', p.buyBoxES]]
-                    .map(function(x) { return x[0] + ': ' + (x[1] ? x[1].toFixed(2) + '€' : '—'); }).join(' | ');
-                var tip = euLines + '\nFR: ' + (p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '—')
-                    + (p.alerte ? '\n⚡ ' + p.alerte : '\nPas d\'écart ≥ 10%');
-                var content = p.alerte
-                    ? '<span class="text-amber-600 font-semibold">⚡ ' + p.alerte + '</span>'
-                    : '<span class="text-gray-300">—</span>';
-                return '<td class="p-3 text-center text-xs" title="' + tip.replace(/"/g, '&quot;') + '" style="cursor:help">' + content + '</td>';
-            })()
-            // 11 — Sourcing
             + '<td class="p-3 text-center">'
-                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">🔍 Trouver</a>' : '<span class="text-gray-300 text-xs">—</span>')
+                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">Trouver</a>' : noPrix)
             + '</td>'
-            // 12 — Exclure
-            + "<td class=\"p-3 text-center\"><button onclick=\"excludeDeal('" + p.id + "')\" class=\"text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-1.5 py-0.5 rounded\" title=\"Retirer des deals\">❌</button></td>"
-            // 13-19 — Frais (avec tooltips)
-            + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.referralFee, tipComm) + '</td>'
-            + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.fraisFba, tipFba) + '</td>'
-            + '<td class="p-3 text-center text-xs text-orange-500">' + feeTip(p.envoiFba, tipEnvoi) + '</td>'
-            + '<td class="p-3 text-center text-xs text-gray-400" title="' + tipStock + '" style="cursor:help">' + stk.toFixed(2) + '€</td>'
-            + '<td style="' + (_urssafOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + feeTip(p.urssaf, tipUrssaf) + '</td>'
-            + '<td style="' + (_prepOn ? '' : 'display:none') + '" class="p-3 text-center text-xs text-orange-500">' + (_prepFee.toFixed(2)) + '€</td>'
-            + '<td class="p-3 text-center text-xs text-red-600 font-semibold" title="' + tipTotal + '" style="cursor:help">' + dynTotal.toFixed(2) + '€</td>'
+            + "<td class=\"p-3 text-center\"><button onclick=\"excludeDeal('" + p.id + "')\" class=\"text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-1.5 py-0.5 rounded\" title=\"Retirer\">X</button></td>"
             + '</tr>';
     }).join('');
 }
@@ -1116,14 +1055,10 @@ function saveOAPrixAchat(dealId, prix) {
             if (_oaData[i].id === dealId) {
                 var p = _oaData[i];
                 p.prixAchat = prix;
-                if (prix > 0 && p.moy90j) {
-                    // Calcul dynamique identique au renderDealsTab
-                    var vol = STORAGE_VOL_M3[p.sizeTier] || STORAGE_VOL_M3['large_standard_400'];
-                    var stk = Math.round(vol * STORAGE_RATE * STORAGE_DAYS * 100) / 100;
-                    var dynTotal = (p.referralFee || 0) + (p.fraisFba || 0) + (p.envoiFba || 0) + stk
-                        + (_urssafOn ? (p.urssaf || 0) : 0)
-                        + (_prepOn ? _prepFee : 0);
-                    p.netProfit = Math.round((p.moy90j - dynTotal - prix) * 100) / 100;
+                var totalFees = p.saTotalFees || p.frais || 0;
+                var sellPrice = p.saSalePrice || p.moy90j || p.buyBoxFR || 0;
+                if (prix > 0 && sellPrice > 0) {
+                    p.netProfit = Math.round((sellPrice - totalFees - prix) * 100) / 100;
                     p.roi       = prix > 0 ? Math.round(p.netProfit / prix * 1000) / 10 : 0;
                 } else {
                     p.netProfit = null;
@@ -1164,7 +1099,7 @@ function excludeDeal(dealId) {
             if (_oaData[i].id === dealId) { _oaData[i].exclu = true; break; }
         }
         renderDealsTab();
-        renderRawTab();
+        // renderRawTab(); // supprimé
         renderCatalogTable();
     });
 }
@@ -1179,7 +1114,7 @@ function restoreDeal(dealId) {
             if (_oaData[i].id === dealId) { _oaData[i].exclu = false; break; }
         }
         renderDealsTab();
-        renderRawTab();
+        // renderRawTab(); // supprimé
         renderCatalogTable();
     });
 }
@@ -1433,6 +1368,16 @@ function renderCrossBorderTab() {
             + '<td class="p-2 text-center">' + gsCell + '</td>'
             + '</tr>';
     }).join('');
+}
+
+// ── TAB : Ungating — curseur budget ──────────────────────────────────────────
+function updateUngatingBudget(val) {
+    var budget = parseInt(val) || 200;
+    var unitPrice = Math.floor(budget / 10);
+    var el = document.getElementById('ungating-budget-label');
+    if (el) el.textContent = budget + '€';
+    var up = document.getElementById('ungating-unit-price');
+    if (up) up.textContent = unitPrice + '€';
 }
 
 // ── TAB : Rapport — historique des runs ───────────────────────────────────────
@@ -1708,7 +1653,7 @@ function loadPoolData() {
               return;
           }
           _poolData = res.data || [];
-          renderPoolTab();
+          // renderPoolTab(); // supprimé
       })
       .catch(function(e) { console.error('[Pool]', e); });
 }
