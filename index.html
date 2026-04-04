@@ -233,6 +233,9 @@
                     <button class="nav-btn" data-section="oa-parametres" onclick="showSection('oa-parametres')">
                         <i class="fas fa-sliders sm:mr-1"></i><span class="hidden sm:inline">Paramètres</span>
                     </button>
+                    <button class="nav-btn" data-section="agents" onclick="showSection('agents');loadAgents()">
+                        <i class="fas fa-robot sm:mr-1"></i><span class="hidden sm:inline">Agents</span>
+                    </button>
                 </nav>
 
                 <!-- ====== NAV PRIVATE LABEL ====== -->
@@ -282,6 +285,9 @@
                     </div>
                     <button class="nav-btn" data-section="parametres" onclick="showSection('parametres')">
                         <i class="fas fa-cog sm:mr-1"></i><span class="hidden sm:inline">Parametres</span>
+                    </button>
+                    <button class="nav-btn" data-section="agents" onclick="showSection('agents');loadAgents()">
+                        <i class="fas fa-robot sm:mr-1"></i><span class="hidden sm:inline">Agents</span>
                     </button>
                 </nav>
 
@@ -3492,6 +3498,22 @@
                 <div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-700">
                     <i class="fas fa-exclamation-triangle mr-2"></i>
                     Valeurs en lecture seule. Pour modifier, édite <code class="bg-amber-100 px-1 rounded">oa_tool/config.py</code> dans VS Code et relance <code class="bg-amber-100 px-1 rounded">python main.py</code>.
+                </div>
+            </section>
+
+            <!-- ====== SECTION AGENTS PAPERCLIP ====== -->
+            <section id="section-agents" class="content-section hidden">
+                <div class="mb-5">
+                    <h2 class="text-2xl font-bold text-gray-800">
+                        <i class="fas fa-robot text-indigo-600 mr-2"></i>Agents Paperclip
+                    </h2>
+                    <p class="text-gray-500 text-sm">Status des agents IA sur le serveur — mis à jour en temps réel depuis Paperclip</p>
+                </div>
+                <div id="agents-container" class="space-y-6">
+                    <div class="text-center py-12 text-gray-400">
+                        <i class="fas fa-spinner fa-spin text-2xl mb-3"></i>
+                        <p>Chargement des agents...</p>
+                    </div>
                 </div>
             </section>
 

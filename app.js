@@ -679,6 +679,9 @@ function showSection(sectionName) {
     if (sectionName === 'oa-accueil' && typeof loadOAAccueil === 'function') {
         loadOAAccueil();
     }
+    if (sectionName === 'agents' && typeof loadAgents === 'function') {
+        loadAgents();
+    }
 }
 
 // ===========================
@@ -4882,4 +4885,97 @@ function copierDeclaration() {
     }).catch(() => {
         showNotification('Erreur lors de la copie', 'error');
     });
+}
+
+// ===========================
+// AGENTS PAPERCLIP
+// ===========================
+
+const PAPERCLIP_URL = 'https://195.201.133.225.nip.io:3101/api';
+
+const ROLE_LABELS = { ceo: 'Directeur', engineer: 'Ingénieur', researcher: 'Analyste', pm: 'Manager' };
+const ROLE_COLORS = { ceo: 'indigo', engineer: 'blue', researcher: 'green', pm: 'amber' };
+const STATUS_LABELS = { active: 'Actif', idle: 'En veille', running: 'En cours', error: 'Erreur', paused: 'En pause' };
+const STATUS_DOTS = { active: 'bg-green-500', idle: 'bg-gray-400', running: 'bg-blue-500 animate-pulse', error: 'bg-red-500', paused: 'bg-yellow-500' };
+
+async function loadAgents() {
+    const container = document.getElementById('agents-container');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-12 text-gray-400"><i class="fas fa-spinner fa-spin text-2xl mb-3"></i><p>Chargement...</p></div>';
+
+    try {
+        const res = await fetch(`${PAPERCLIP_URL}/companies`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const companies = await res.json();
+
+        let html = '';
+        for (const company of companies) {
+            const agentsRes = await fetch(`${PAPERCLIP_URL}/companies/${company.id}/agents`);
+            const agents = await agentsRes.json();
+            const budget = (company.budgetMonthlyCents / 100).toFixed(2);
+            const spent = (company.spentMonthlyCents / 100).toFixed(2);
+            const pct = company.budgetMonthlyCents > 0 ? Math.round(company.spentMonthlyCents / company.budgetMonthlyCents * 100) : 0;
+
+            html += `
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-5 border-b border-gray-100 flex items-center justify-between">
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-lg flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full ${company.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}"></span>
+                            ${company.name}
+                            <span class="text-xs font-mono bg-gray-100 text-gray-500 px-2 py-0.5 rounded">${company.issuePrefix}</span>
+                        </h3>
+                        <p class="text-sm text-gray-500 mt-1">${company.description || ''}</p>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <div class="text-sm font-semibold text-gray-700">${spent}€ / ${budget}€</div>
+                        <div class="w-24 h-1.5 bg-gray-200 rounded-full mt-1">
+                            <div class="h-1.5 rounded-full ${pct > 80 ? 'bg-red-500' : pct > 50 ? 'bg-amber-500' : 'bg-green-500'}" style="width:${Math.min(pct, 100)}%"></div>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-0.5">${pct}% utilisé</div>
+                    </div>
+                </div>
+                <div class="divide-y divide-gray-50">
+                    ${agents.map(a => {
+                        const role = ROLE_LABELS[a.role] || a.role;
+                        const color = ROLE_COLORS[a.role] || 'gray';
+                        const status = STATUS_LABELS[a.status] || a.status;
+                        const dot = STATUS_DOTS[a.status] || 'bg-gray-400';
+                        const agentBudget = (a.budgetMonthlyCents / 100).toFixed(2);
+                        const boss = a.reportsTo ? '' : '<span class="text-xs bg-indigo-100 text-indigo-600 px-1.5 py-0.5 rounded font-medium">Lead</span>';
+                        return `
+                        <div class="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition">
+                            <div class="flex items-center gap-3">
+                                <span class="w-2.5 h-2.5 rounded-full ${dot} shrink-0"></span>
+                                <div>
+                                    <div class="font-medium text-gray-800 flex items-center gap-2">
+                                        ${a.name} ${boss}
+                                    </div>
+                                    <div class="text-xs text-gray-500">${a.title || role}</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 text-sm">
+                                <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-${color}-100 text-${color}-700">${role}</span>
+                                <span class="text-gray-500">${agentBudget}€/m</span>
+                                <span class="text-xs ${a.status === 'error' ? 'text-red-600 font-semibold' : 'text-gray-400'}">${status}</span>
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </div>
+            </div>`;
+        }
+
+        container.innerHTML = html || '<p class="text-center text-gray-400 py-12">Aucun projet trouvé sur Paperclip</p>';
+    } catch (err) {
+        container.innerHTML = `
+            <div class="text-center py-12">
+                <i class="fas fa-exclamation-triangle text-red-400 text-3xl mb-3"></i>
+                <p class="text-red-500 font-medium">Impossible de contacter Paperclip</p>
+                <p class="text-gray-400 text-sm mt-1">${err.message}</p>
+                <button onclick="loadAgents()" class="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition">
+                    <i class="fas fa-redo mr-1"></i>Réessayer
+                </button>
+            </div>`;
+    }
 }
