@@ -4909,8 +4909,15 @@ async function loadAgents() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const companies = await res.json();
 
-        let html = '';
-        for (const company of companies) {
+        // Filtrer : uniquement OA et PL (pas VintedBot)
+        const filtered = companies.filter(c => c.issuePrefix === 'OAS' || c.issuePrefix === 'NEX');
+
+        let html = `<div class="flex justify-end mb-2">
+            <a href="https://195.201.133.225.nip.io:3101" target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 transition">
+                <i class="fas fa-external-link-alt"></i>Ouvrir Paperclip
+            </a>
+        </div>`;
+        for (const company of filtered) {
             const agentsRes = await fetch(`${PAPERCLIP_URL}/companies/${company.id}/agents`);
             const agents = await agentsRes.json();
             const budget = (company.budgetMonthlyCents / 100).toFixed(2);
