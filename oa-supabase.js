@@ -982,10 +982,14 @@ function renderDealsTab() {
         } else {
             maxCostCell = '<span class="text-gray-300 text-xs" title="Check SellerAmp en attente">—</span>';
         }
-        // Price Drop badge
+        // Price Drop badge avec détail prix
         var dropBadge = '';
         if (p.priceDrop) {
-            dropBadge = ' <span class="text-[10px] font-bold px-1 py-0.5 rounded bg-orange-100 text-orange-700" title="Prix actuel en chute de ' + Math.abs(p.priceDropPct || 0) + '% vs moyenne 90j">PROMO</span>';
+            var bbActuel = p.buyBoxFR ? p.buyBoxFR.toFixed(2) + '€' : '?';
+            var bbMoy = p.moy90j ? p.moy90j.toFixed(2) + '€' : '?';
+            var dropPct = Math.abs(p.priceDropPct || 0);
+            var dropTip = 'Prix actuel: ' + bbActuel + '\nMoyenne 90j: ' + bbMoy + '\nChute: -' + dropPct + '%';
+            dropBadge = '<br><span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 cursor-help" title="' + dropTip + '">⚡ ' + bbActuel + ' (moy ' + bbMoy + ', -' + dropPct + '%)</span>';
         }
 
         // Sales cell
