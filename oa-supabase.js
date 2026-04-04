@@ -229,6 +229,13 @@ function _mapDeal(d) {
         saVatFees:       d.sa_vat_fees       || null,
         saLowestFba:     d.sa_lowest_fba     || null,
         saLowestFbm:     d.sa_lowest_fbm     || null,
+        // Price Drop
+        priceDrop:       d.price_drop        || false,
+        priceDropPct:    d.price_drop_pct    || null,
+        // Source
+        sourcePrix:      d.source_prix       || null,
+        sourceNom:       d.source_nom        || null,
+        sourceUrl:       d.source_url        || null,
     };
 }
 
@@ -966,7 +973,7 @@ function renderDealsTab() {
             plCell = '<span class="text-xs font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-600" title="Private Label: ' + p.saPrivateLabel + '">PL</span>';
         }
 
-        // Max Cost cell
+        // Max Cost cell + Price Drop badge
         var maxCostCell;
         if (p.saMaxCost != null) {
             var mcColor = p.saMaxCost >= 15 ? 'text-green-600 font-bold' : p.saMaxCost >= 8 ? 'text-amber-600 font-semibold' : 'text-red-500';
@@ -974,6 +981,11 @@ function renderDealsTab() {
             maxCostCell = '<span class="' + mcColor + '" title="' + mcTip + '" style="cursor:help">' + p.saMaxCost.toFixed(2) + '€</span>';
         } else {
             maxCostCell = '<span class="text-gray-300 text-xs" title="Check SellerAmp en attente">—</span>';
+        }
+        // Price Drop badge
+        var dropBadge = '';
+        if (p.priceDrop) {
+            dropBadge = ' <span class="text-[10px] font-bold px-1 py-0.5 rounded bg-orange-100 text-orange-700" title="Prix actuel en chute de ' + Math.abs(p.priceDropPct || 0) + '% vs moyenne 90j">PROMO</span>';
         }
 
         // Sales cell
@@ -998,7 +1010,7 @@ function renderDealsTab() {
             + '<td class="p-3"><a href="' + amzUrl + '" target="_blank" class="font-semibold text-gray-800 hover:text-indigo-600 text-xs leading-tight block truncate max-w-xs" title="' + (p.titre || '').replace(/"/g, '&quot;') + '">' + (p.titre || '').slice(0, 55) + '</a></td>'
             + '<td class="p-3 font-mono text-xs text-gray-500">' + (p.asin || '—') + '</td>'
             + '<td class="p-3 text-center">' + plCell + '</td>'
-            + '<td class="p-3 text-center">' + maxCostCell + '</td>'
+            + '<td class="p-3 text-center">' + maxCostCell + dropBadge + '</td>'
             + '<td class="p-3 text-center text-xs">' + salesCell + '</td>'
             + '<td class="p-3 text-center bg-indigo-50/30">'
                 + '<div class="flex items-center justify-center gap-1">'
@@ -1015,7 +1027,19 @@ function renderDealsTab() {
             + '<td class="p-3 text-center bg-green-50/30" id="roi-cell-' + p.id + '">' + roiCell + '</td>'
             + '<td class="p-3 text-center"><span class="text-xs font-bold px-1.5 py-0.5 rounded cursor-help ' + scoreColor + '" title="' + scoreTip + '">' + dynScore + '</span></td>'
             + '<td class="p-3 text-center">'
-                + (p.lienGS ? '<a href="' + p.lienGS + '" target="_blank" class="inline-flex items-center gap-1 text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap">Trouver</a>' : noPrix)
+                + (function() {
+                    // Si prix source trouvé → afficher
+                    if (p.sourcePrix && p.sourceNom) {
+                        var srcColor = (p.saMaxCost && p.sourcePrix < p.saMaxCost) ? 'text-green-600 bg-green-50 border-green-200' : 'text-red-500 bg-red-50 border-red-200';
+                        var srcTip = p.sourcePrix.toFixed(2) + '€ chez ' + p.sourceNom + (p.saMaxCost ? ' (Max Cost: ' + p.saMaxCost.toFixed(2) + '€)' : '');
+                        var srcLink = p.sourceUrl ? ' href="' + p.sourceUrl + '" target="_blank"' : '';
+                        return '<a' + srcLink + ' class="text-xs font-bold px-2 py-0.5 rounded border ' + srcColor + '" title="' + srcTip + '">' + p.sourcePrix.toFixed(2) + '€ ' + p.sourceNom.slice(0, 12) + '</a>';
+                    }
+                    // Sinon → bouton multi-onglets
+                    var titre = encodeURIComponent((p.titre || '').slice(0, 50));
+                    var asin = p.asin || '';
+                    return "<button onclick=\"openSourcing('" + asin + "', '" + titre + "')\" class=\"text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded hover:bg-indigo-100 font-semibold whitespace-nowrap\">Sourcer</button>";
+                })()
             + '</td>'
             + "<td class=\"p-3 text-center\"><button onclick=\"excludeDeal('" + p.id + "')\" class=\"text-xs text-red-400 hover:text-red-600 hover:bg-red-50 px-1.5 py-0.5 rounded\" title=\"Retirer\">X</button></td>"
             + '</tr>';
@@ -1368,6 +1392,15 @@ function renderCrossBorderTab() {
             + '<td class="p-2 text-center">' + gsCell + '</td>'
             + '</tr>';
     }).join('');
+}
+
+// ── Sourcing multi-onglets ───────────────────────────────────────────────────
+function openSourcing(asin, titre) {
+    var q = decodeURIComponent(titre);
+    window.open('https://www.google.fr/search?q=' + encodeURIComponent(asin) + '&tbm=shop&hl=fr', '_blank');
+    window.open('https://www.cdiscount.com/search/10/' + encodeURIComponent(q) + '.html', '_blank');
+    window.open('https://www.fnac.com/SearchResult/ResultList.aspx?Search=' + encodeURIComponent(q), '_blank');
+    window.open('https://fr.shopping.rakuten.com/search/' + encodeURIComponent(q), '_blank');
 }
 
 // ── TAB : Ungating — curseur budget ──────────────────────────────────────────
