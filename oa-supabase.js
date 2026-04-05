@@ -553,6 +553,7 @@ function switchOATab(tab) {
         }
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
+    if (tab === 'ungating' && !_ungatingData.length) loadUngatingData();
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────
@@ -1408,6 +1409,8 @@ function openSourcing(asin, titre) {
 }
 
 // ── TAB : Ungating — curseur budget ──────────────────────────────────────────
+var _ungatingData = [];
+
 function updateUngatingBudget(val) {
     var budget = parseInt(val) || 200;
     var unitPrice = Math.floor(budget / 10);
@@ -1415,6 +1418,101 @@ function updateUngatingBudget(val) {
     if (el) el.textContent = budget + '€';
     var up = document.getElementById('ungating-unit-price');
     if (up) up.textContent = unitPrice + '€';
+    renderUngatingTable(unitPrice);
+}
+
+function loadUngatingData() {
+    var sb = _getOAClient();
+    if (!sb) return;
+
+    sb.from('skipped_asins')
+      .select('brand, titre, buy_box, bsr, asin')
+      .not('brand', 'is', null)
+      .order('brand', { ascending: true })
+      .limit(1000)
+      .then(function(res) {
+          if (res.error) { console.error('[Ungating]', res.error); return; }
+          _ungatingData = res.data || [];
+          var budget = parseInt((document.getElementById('ungating-budget') || {}).value) || 200;
+          renderUngatingTable(Math.floor(budget / 10));
+      });
+}
+
+function renderUngatingTable(maxUnitPrice) {
+    var tbody = document.getElementById('ungating-tbody');
+    if (!tbody) return;
+
+    if (!_ungatingData.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="p-10 text-center text-gray-400">'
+            + '<p class="font-medium">Données insuffisantes — les marques s\'enrichiront au fil des runs</p></td></tr>';
+        return;
+    }
+
+    // Grouper par marque
+    var brands = {};
+    _ungatingData.forEach(function(d) {
+        var b = d.brand || '';
+        if (!b) return;
+        if (!brands[b]) brands[b] = { count: 0, bsr_sum: 0, bsr_count: 0, products: [] };
+        brands[b].count++;
+        if (d.bsr) { brands[b].bsr_sum += d.bsr; brands[b].bsr_count++; }
+        brands[b].products.push(d);
+    });
+
+    // Trier par nombre d'ASINs décroissant
+    var sorted = Object.entries(brands)
+        .map(function(e) {
+            var b = e[0], v = e[1];
+            var avgBsr = v.bsr_count > 0 ? Math.round(v.bsr_sum / v.bsr_count) : null;
+            // Trouver le meilleur produit pour ungating (buy_box <= maxUnitPrice, bon BSR)
+            var suggested = v.products
+                .filter(function(p) { return p.buy_box && p.buy_box <= maxUnitPrice; })
+                .sort(function(a, b) { return (a.bsr || 99999) - (b.bsr || 99999); })[0] || null;
+            return { brand: b, count: v.count, avgBsr: avgBsr, suggested: suggested, products: v.products };
+        })
+        .filter(function(x) { return x.count >= 2; }) // Min 2 ASINs pour être intéressant
+        .sort(function(a, b) { return b.count - a.count; });
+
+    if (!sorted.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="p-10 text-center text-gray-400">'
+            + '<p class="font-medium">Aucune marque avec assez de données</p></td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = sorted.slice(0, 20).map(function(m, i) {
+        var bsrCell = m.avgBsr ? m.avgBsr.toLocaleString('fr-FR') : '—';
+        var sugCell = '—', priceCell = '—';
+
+        if (m.suggested) {
+            var sugTitre = (m.suggested.titre || '').slice(0, 40);
+            var sugAsin = m.suggested.asin;
+            sugCell = '<a href="https://amazon.fr/dp/' + sugAsin + '" target="_blank" class="text-xs text-indigo-600 hover:underline" title="' + sugTitre + '">' + sugAsin + '</a>';
+            priceCell = '<span class="text-green-600 font-semibold">' + m.suggested.buy_box.toFixed(2) + '€</span>';
+        } else {
+            // Chercher le produit le moins cher meme au dessus du budget
+            var cheapest = m.products.filter(function(p) { return p.buy_box; })
+                .sort(function(a, b) { return a.buy_box - b.buy_box; })[0];
+            if (cheapest) {
+                sugCell = '<a href="https://amazon.fr/dp/' + cheapest.asin + '" target="_blank" class="text-xs text-gray-400 hover:underline">' + cheapest.asin + '</a>';
+                priceCell = '<span class="text-red-500">' + cheapest.buy_box.toFixed(2) + '€</span>';
+            }
+        }
+
+        var hasSuggested = m.suggested != null;
+        var rowClass = hasSuggested ? 'bg-green-50/30' : '';
+        var rankColor = i < 3 ? 'text-indigo-600 font-bold' : 'text-gray-500';
+
+        return '<tr class="border-b border-gray-50 hover:bg-gray-50/50 ' + rowClass + '">'
+            + '<td class="p-3 text-center ' + rankColor + '">' + (i + 1) + '</td>'
+            + '<td class="p-3 font-semibold text-gray-800">' + m.brand + '</td>'
+            + '<td class="p-3 text-center"><span class="font-bold text-indigo-600">' + m.count + '</span></td>'
+            + '<td class="p-3 text-center text-sm text-gray-600">' + bsrCell + '</td>'
+            + '<td class="p-3 text-center text-sm text-gray-600">—</td>'
+            + '<td class="p-3 text-center">' + sugCell + '</td>'
+            + '<td class="p-3 text-center">' + priceCell + '</td>'
+            + '<td class="p-3 text-center">—</td>'
+            + '</tr>';
+    }).join('');
 }
 
 // ── TAB : Rapport — historique des runs ───────────────────────────────────────
