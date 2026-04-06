@@ -1402,10 +1402,10 @@ function renderCrossBorderTab() {
 // ── Sourcing multi-onglets ───────────────────────────────────────────────────
 function openSourcing(asin, titre) {
     var q = decodeURIComponent(titre);
-    window.open('https://www.google.fr/search?q=' + encodeURIComponent(asin) + '&tbm=shop&hl=fr', '_blank');
+    window.open('https://www.amazon.de/dp/' + asin, '_blank');
+    window.open('https://www.amazon.es/dp/' + asin, '_blank');
     window.open('https://www.cdiscount.com/search/10/' + encodeURIComponent(q) + '.html', '_blank');
-    window.open('https://www.fnac.com/SearchResult/ResultList.aspx?Search=' + encodeURIComponent(q), '_blank');
-    window.open('https://fr.shopping.rakuten.com/search/' + encodeURIComponent(q), '_blank');
+    window.open('https://www.google.fr/search?q=' + encodeURIComponent(asin) + '&tbm=shop&hl=fr', '_blank');
 }
 
 // ── TAB : Ungating — curseur budget ──────────────────────────────────────────
