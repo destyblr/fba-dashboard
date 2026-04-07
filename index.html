@@ -3238,31 +3238,46 @@
                 <!-- TAB : Ungating -->
                 <div id="oa-tab-ungating" class="hidden">
                     <div class="bg-white rounded-xl shadow-sm p-5">
-                        <!-- Curseur budget -->
-                        <div class="flex items-center gap-4 mb-6 p-4 bg-indigo-50 rounded-lg">
-                            <span class="text-sm font-semibold text-indigo-700">Budget :</span>
-                            <input type="range" id="ungating-budget" min="100" max="1000" step="50" value="200"
-                                class="flex-1 accent-indigo-600" oninput="updateUngatingBudget(this.value)">
-                            <span id="ungating-budget-label" class="text-lg font-bold text-indigo-700 min-w-[80px] text-right">200€</span>
-                            <span class="text-xs text-gray-500">(10 unités × <span id="ungating-unit-price">20€</span>/u max)</span>
+                        <!-- Header stats + filtres -->
+                        <div class="flex flex-wrap items-center gap-4 mb-6 p-4 bg-indigo-50 rounded-lg">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-unlock-alt text-indigo-600"></i>
+                                <span class="text-sm font-semibold text-indigo-700">
+                                    <span id="ungating-brand-count">0</span> marques retail gatées
+                                </span>
+                            </div>
+                            <div class="flex items-center gap-2 ml-auto">
+                                <span class="text-xs text-gray-500">Filtre :</span>
+                                <button onclick="filterUngating('all')" id="ung-filter-all" class="text-xs px-3 py-1 rounded-full bg-indigo-600 text-white">Toutes</button>
+                                <button onclick="filterUngating('a_acheter')" id="ung-filter-a_acheter" class="text-xs px-3 py-1 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300">À acheter</button>
+                                <button onclick="filterUngating('en_attente')" id="ung-filter-en_attente" class="text-xs px-3 py-1 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300">En attente</button>
+                                <button onclick="filterUngating('ungated')" id="ung-filter-ungated" class="text-xs px-3 py-1 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300">✅ Ungated</button>
+                            </div>
+                        </div>
+                        <!-- Info grossistes -->
+                        <div class="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <strong>Stratégie :</strong> Achète 1 produit par marque chez un grossiste agréé (facture avec SIRET). Upload la facture sur Seller Central → toute la marque est débloquée.
                         </div>
                         <!-- Tableau marques -->
                         <table class="w-full text-sm">
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
-                                    <th class="p-3 font-semibold text-center">#</th>
+                                    <th class="p-3 font-semibold text-center w-10">#</th>
                                     <th class="p-3 font-semibold">Marque</th>
-                                    <th class="p-3 font-semibold text-center">ASINs bloqués</th>
-                                    <th class="p-3 font-semibold text-center">BSR moyen</th>
-                                    <th class="p-3 font-semibold text-center">FBA moyen</th>
-                                    <th class="p-3 font-semibold text-center">Produit suggéré</th>
-                                    <th class="p-3 font-semibold text-center">Prix estimé</th>
-                                    <th class="p-3 font-semibold text-center">Statut</th>
+                                    <th class="p-3 font-semibold text-center">ASINs gatés</th>
+                                    <th class="p-3 font-semibold text-center">Score</th>
+                                    <th class="p-3 font-semibold text-center">BSR moy.</th>
+                                    <th class="p-3 font-semibold text-center">Produit ungating</th>
+                                    <th class="p-3 font-semibold text-center">Prix</th>
+                                    <th class="p-3 font-semibold text-center">Source grossiste</th>
+                                    <th class="p-3 font-semibold text-center w-36">Statut</th>
                                 </tr>
                             </thead>
                             <tbody id="ungating-tbody">
-                                <tr><td colspan="8" class="p-10 text-center text-gray-400">
-                                    <p class="font-medium">Données insuffisantes — les marques s'enrichiront au fil des runs</p>
+                                <tr><td colspan="9" class="p-10 text-center text-gray-400">
+                                    <i class="fas fa-spinner fa-spin text-2xl block mb-3 text-gray-300"></i>
+                                    <p class="font-medium">Chargement des marques gatées...</p>
                                 </td></tr>
                             </tbody>
                         </table>
