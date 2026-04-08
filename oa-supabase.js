@@ -553,7 +553,7 @@ function switchOATab(tab) {
         }
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
-    if (tab === 'ungating' && !_ungatingData.length) loadUngatingData();
+    if (tab === 'ungating' && !_ungatingData.length) loadUngatingOpportunities();
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────
@@ -1837,4 +1837,114 @@ function renderPoolTab() {
         + '<th class="p-2 text-center">Catégorie</th><th class="p-2 text-center">Marque</th>'
         + '<th class="p-2 text-center">Date</th><th class="p-2 text-center">Nb vus</th>'
         + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+}
+
+// ── TAB : Ungating Opportunities ───────────────────────────────────────────────
+var _ungatingData = [];
+
+function loadUngatingOpportunities() {
+    var sb = _getOAClient();
+    if (!sb) return;
+
+    var container = document.getElementById('ungating-brands-container');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Chargement...</p></div>';
+
+    sb.from('ungating_opportunities')
+      .select('*')
+      .order('brand', { ascending: true })
+      .order('rank', { ascending: true })
+      .then(function(res) {
+          if (res.error) {
+              container.innerHTML = '<div class="text-center py-10 text-red-400">Erreur : ' + res.error.message + '</div>';
+              return;
+          }
+
+          _ungatingData = res.data || [];
+          renderUngatingOpportunities();
+      })
+      .catch(function(e) {
+          container.innerHTML = '<div class="text-center py-10 text-red-400">Erreur : ' + e.message + '</div>';
+      });
+}
+
+function renderUngatingOpportunities() {
+    var container = document.getElementById('ungating-brands-container');
+    if (!container) return;
+
+    if (!_ungatingData.length) {
+        container.innerHTML = '<div class="text-center py-10 text-gray-400"><p>Aucune donnée</p></div>';
+        return;
+    }
+
+    var byBrand = {};
+    _ungatingData.forEach(function(row) {
+        if (!byBrand[row.brand]) {
+            byBrand[row.brand] = {
+                brand: row.brand,
+                sector: row.sector || '—',
+                promoFreq: row.promo_freq || '—',
+                grossiste: row.grossiste || '—',
+                products: []
+            };
+        }
+        byBrand[row.brand].products.push(row);
+    });
+
+    var brands = Object.values(byBrand);
+    var html = '<div class="space-y-3">';
+
+    brands.forEach(function(brandData, idx) {
+        var avgFba = Math.round(brandData.products.reduce(function(sum, p) { return sum + (p.fba_sellers || 0); }, 0) / brandData.products.length);
+        var avgBsr = Math.round(brandData.products.reduce(function(sum, p) { return sum + (p.bsr || 0); }, 0) / brandData.products.length);
+        var brandId = 'brand-' + idx;
+
+        html += '<div class="border border-gray-200 rounded-lg overflow-hidden">';
+        html += '<div class="bg-gradient-to-r from-gray-50 to-gray-100 p-4 cursor-pointer hover:bg-gray-100" onclick="toggleBrandProducts(\'' + brandId + '\')">';
+        html += '<div class="flex items-center justify-between">';
+        html += '<div class="flex items-center gap-4"><div class="text-2xl font-bold text-indigo-600">' + (idx + 1) + '</div><div><div class="font-bold text-lg">' + brandData.brand + '</div><div class="text-xs text-gray-500">' + brandData.sector + '</div></div></div>';
+        html += '<div class="flex gap-6"><div class="text-center"><div class="text-xs text-gray-500">FBA</div><div class="font-semibold">' + avgFba + '</div></div>';
+        html += '<div class="text-center"><div class="text-xs text-gray-500">BSR</div><div class="font-semibold">' + avgBsr.toLocaleString() + '</div></div>';
+        html += '<div class="text-center"><div class="text-xs text-gray-500">Grossiste</div><div class="text-xs font-semibold text-indigo-600">' + brandData.grossiste + '</div></div>';
+        html += '<i id="' + brandId + '-icon" class="fas fa-chevron-down text-gray-400"></i></div></div></div>';
+
+        html += '<div id="' + brandId + '-products" class="hidden bg-white"><table class="w-full text-sm"><thead><tr class="bg-gray-50 border-b text-xs text-gray-500">';
+        html += '<th class="p-2">Rank</th><th class="p-2">ASIN</th><th class="p-2">Titre</th><th class="p-2">Prix</th><th class="p-2">FBA</th><th class="p-2">BSR</th><th class="p-2">Max Cost</th><th class="p-2">Amazon</th><th class="p-2">Score</th></tr></thead><tbody>';
+
+        brandData.products.forEach(function(p) {
+            var rankBadge = p.rank === 1 ? '🥇' : p.rank === 2 ? '🥈' : '🥉';
+            var maxCostClass = (p.max_cost && p.max_cost > 0) ? 'text-green-600 font-bold' : 'text-red-500';
+            var maxCostText = p.max_cost != null ? ((p.max_cost > 0 ? '+' : '') + p.max_cost.toFixed(2) + '€') : '—';
+            var amazonText = p.amazon_seller && p.amazon_seller.toLowerCase().includes('not seen') ? '<span class="text-green-600">Non</span>' : '<span class="text-red-500">Oui</span>';
+            var scoreClass = p.score >= 100 ? 'bg-green-100 text-green-700' : p.score >= 80 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600';
+
+            html += '<tr class="border-b hover:bg-gray-50"><td class="p-2 text-center">' + rankBadge + '</td>';
+            html += '<td class="p-2"><a href="https://amazon.fr/dp/' + p.asin + '" target="_blank" class="text-indigo-600 hover:underline">' + p.asin + '</a></td>';
+            html += '<td class="p-2 max-w-xs truncate">' + (p.title || '—').substring(0, 50) + '</td>';
+            html += '<td class="p-2 text-center font-semibold">' + (p.price ? p.price.toFixed(2) + '€' : '—') + '</td>';
+            html += '<td class="p-2 text-center">' + (p.fba_sellers || '—') + '</td>';
+            html += '<td class="p-2 text-center">' + (p.bsr ? p.bsr.toLocaleString() : '—') + '</td>';
+            html += '<td class="p-2 text-center ' + maxCostClass + '">' + maxCostText + '</td>';
+            html += '<td class="p-2 text-center">' + amazonText + '</td>';
+            html += '<td class="p-2 text-center"><span class="px-2 py-1 rounded text-xs font-semibold ' + scoreClass + '">' + (p.score || 0) + '</span></td></tr>';
+        });
+
+        html += '</tbody></table></div></div>';
+    });
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
+function toggleBrandProducts(brandId) {
+    var productsDiv = document.getElementById(brandId + '-products');
+    var icon = document.getElementById(brandId + '-icon');
+    if (productsDiv.classList.contains('hidden')) {
+        productsDiv.classList.remove('hidden');
+        icon.classList.add('rotate-180');
+    } else {
+        productsDiv.classList.add('hidden');
+        icon.classList.remove('rotate-180');
+    }
 }
