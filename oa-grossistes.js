@@ -19,6 +19,7 @@ function loadGrossistesData() {
 
     sb.from('grossiste_products')
         .select('*')
+        .eq('source', 'EXTENSION')  // FILTRE PAR SOURCE (Extension Chrome uniquement)
         .gte('analyzed_at', dateLimit.toISOString())
         .order('analyzed_at', { ascending: false })
         .then(function(res) {
