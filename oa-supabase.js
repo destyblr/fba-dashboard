@@ -537,7 +537,7 @@ function _loadAccueilRuns() {
 // ── Switcher onglets ──────────────────────────────────────────────────────────
 function switchOATab(tab) {
     _oaTab = tab;
-    var tabs = ['deals', 'rapport', 'ungating'];
+    var tabs = ['deals', 'rapport', 'ungating', 'grossistes'];
     tabs.forEach(function(t) {
         var el  = document.getElementById('oa-tab-' + t);
         var btn = document.getElementById('oa-tab-btn-' + t);
@@ -554,6 +554,7 @@ function switchOATab(tab) {
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
     if (tab === 'ungating' && !_ungatingData.length) loadUngatingOpportunities();
+    if (tab === 'grossistes' && !_grossistesData.length) loadGrossistesData();
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────

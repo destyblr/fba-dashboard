@@ -2274,82 +2274,69 @@
             </section>
 
             <!-- Section Gestion Stock -->
+            <!-- Section Stock Vinted -->
             <section id="section-stock" class="content-section hidden">
                 <div class="mb-6">
-                    <h2 class="text-3xl font-bold text-gray-800">Gestion du Stock</h2>
-                    <p class="text-gray-500">Suivez vos stocks, anticipez les ruptures et optimisez vos couts FBA</p>
+                    <h2 class="text-3xl font-bold text-gray-800">📦 Stock Vinted</h2>
+                    <p class="text-gray-500">Gérez vos achats et ventes Vinted / Zalando / eBay</p>
                 </div>
 
-                <!-- KPIs Stock -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                    <div class="stat-card card">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-gray-600 text-sm font-medium">Valeur Stock</span>
-                            <i class="fas fa-euro-sign text-blue-500 text-xl"></i>
+                <!-- Indicateur Stock -->
+                <div class="mb-8" id="vinted-stock-indicator">
+                    <div class="bg-white p-6 rounded-xl shadow-md">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-700 mb-2">Niveau de Stock Actuel</h3>
+                                <div class="flex items-center gap-4">
+                                    <div class="text-5xl font-bold" id="vinted-stock-count">-</div>
+                                    <div>
+                                        <div class="text-sm font-medium" id="vinted-stock-message">Chargement...</div>
+                                        <div class="text-xs text-gray-500">Articles en stock (bought/received)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <div class="w-24 h-24 rounded-full flex items-center justify-center text-4xl" id="vinted-stock-badge">
+                                    ⚪
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-3xl font-bold text-gray-800" id="stock-kpi-valeur">0 EUR</div>
-                        <div class="mt-2 text-sm text-gray-500" id="stock-kpi-unites">0 unites totales</div>
-                    </div>
-
-                    <div class="stat-card card">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-gray-600 text-sm font-medium">Cout Stockage/Mois</span>
-                            <i class="fas fa-warehouse text-orange-500 text-xl"></i>
-                        </div>
-                        <div class="text-3xl font-bold text-gray-800" id="stock-kpi-cout">0 EUR</div>
-                        <div class="mt-2 text-sm text-orange-600" id="stock-kpi-cout-unite">0 EUR/unite</div>
-                    </div>
-
-                    <div class="stat-card card">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-gray-600 text-sm font-medium">Alertes Stock</span>
-                            <i class="fas fa-exclamation-triangle text-red-500 text-xl"></i>
-                        </div>
-                        <div class="text-3xl font-bold" id="stock-kpi-alertes">0</div>
-                        <div class="mt-2 text-sm text-gray-500" id="stock-kpi-alertes-detail">Aucune alerte</div>
-                    </div>
-
-                    <div class="stat-card card">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-gray-600 text-sm font-medium">Rotation Moyenne</span>
-                            <i class="fas fa-sync-alt text-green-500 text-xl"></i>
-                        </div>
-                        <div class="text-3xl font-bold text-gray-800" id="stock-kpi-rotation">0x</div>
-                        <div class="mt-2 text-sm text-green-600">par mois</div>
                     </div>
                 </div>
 
-                <!-- Navigation Sous-sections -->
+                <!-- Navigation Tabs -->
                 <div class="mb-6 flex flex-wrap gap-2">
-                    <button onclick="showStockTab('vue-ensemble')" id="stock-tab-vue-ensemble" class="stock-tab px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold transition">
-                        <i class="fas fa-th-list mr-2"></i>Vue d'ensemble
+                    <button onclick="showVintedTab('achats')" id="vinted-tab-achats" class="vinted-tab px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold transition">
+                        <i class="fas fa-shopping-cart mr-2"></i>Achats (<span id="vinted-count-achats">0</span>)
                     </button>
-                    <button onclick="showStockTab('reappro')" id="stock-tab-reappro" class="stock-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
-                        <i class="fas fa-truck mr-2"></i>Reapprovisionnements
+                    <button onclick="showVintedTab('ventes')" id="vinted-tab-ventes" class="vinted-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                        <i class="fas fa-euro-sign mr-2"></i>Ventes (<span id="vinted-count-ventes">0</span>)
                     </button>
-                    <button onclick="showStockTab('packaging')" id="stock-tab-packaging" class="stock-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
-                        <i class="fas fa-box-open mr-2"></i>Simulateur Packaging
-                    </button>
-                    <button onclick="showStockTab('graphiques')" id="stock-tab-graphiques" class="stock-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
-                        <i class="fas fa-chart-area mr-2"></i>Graphiques
+                    <button onclick="showVintedTab('recap')" id="vinted-tab-recap" class="vinted-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                        <i class="fas fa-link mr-2"></i>Recap & Matching
                     </button>
                 </div>
 
-                <!-- Sous-section: Vue d'ensemble -->
-                <div id="stock-content-vue-ensemble" class="stock-content">
-                    <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                <!-- Tab: Achats -->
+                <div id="vinted-content-achats" class="vinted-content">
+                    <div class="bg-white p-6 rounded-xl shadow-md">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-xl font-bold text-gray-800">
-                                <i class="fas fa-boxes text-purple-500 mr-2"></i>
-                                Stock par Produit
+                                <i class="fas fa-shopping-cart text-purple-500 mr-2"></i>
+                                Liste des Achats
                             </h3>
                             <div class="flex gap-2">
-                                <select id="stock-filtre-statut" onchange="renderStockTable()" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm">
-                                    <option value="">Tous les statuts</option>
-                                    <option value="critique">Critique</option>
-                                    <option value="attention">A surveiller</option>
-                                    <option value="ok">OK</option>
-                                    <option value="surstock">Surstock</option>
+                                <select id="achats-filter-source" onchange="loadVintedPurchases()" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm">
+                                    <option value="">Toutes sources</option>
+                                    <option value="vinted">Vinted</option>
+                                    <option value="zalando">Zalando</option>
+                                    <option value="ebay">eBay</option>
+                                </select>
+                                <select id="achats-filter-status" onchange="loadVintedPurchases()" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm">
+                                    <option value="">Tous statuts</option>
+                                    <option value="bought">Acheté</option>
+                                    <option value="received">Reçu</option>
+                                    <option value="returned">Retourné</option>
                                 </select>
                             </div>
                         </div>
@@ -2358,395 +2345,147 @@
                             <table class="w-full">
                                 <thead>
                                     <tr class="bg-gray-100 text-left text-sm">
-                                        <th class="p-3 font-semibold">Produit</th>
-                                        <th class="p-3 font-semibold text-center">Stock Actuel</th>
-                                        <th class="p-3 font-semibold text-center">En Transit</th>
-                                        <th class="p-3 font-semibold text-center">Ventes/Sem</th>
-                                        <th class="p-3 font-semibold text-center">Jours Restants</th>
-                                        <th class="p-3 font-semibold text-center">Rupture Estimee</th>
+                                        <th class="p-3 font-semibold">ID</th>
+                                        <th class="p-3 font-semibold">Titre</th>
+                                        <th class="p-3 font-semibold">Source</th>
+                                        <th class="p-3 font-semibold text-right">Prix</th>
+                                        <th class="p-3 font-semibold">Date</th>
                                         <th class="p-3 font-semibold text-center">Statut</th>
                                         <th class="p-3 font-semibold text-center">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody id="stock-table-body">
-                                    <!-- Lignes generees dynamiquement -->
+                                <tbody id="vinted-achats-tbody">
+                                    <tr>
+                                        <td colspan="7" class="p-8 text-center text-gray-500">
+                                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                                            <p>Chargement...</p>
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
-                        </div>
-
-                        <div id="stock-empty-message" class="hidden text-center py-8 text-gray-500">
-                            <i class="fas fa-box-open text-4xl mb-3"></i>
-                            <p>Aucun produit avec stock configure.</p>
-                            <p class="text-sm">Ajoutez des produits dans "Gestion Produits" puis configurez leur stock ici.</p>
-                        </div>
-                    </div>
-
-                    <!-- Modal Edition Stock -->
-                    <div id="stock-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-                            <div class="p-6 border-b border-gray-200">
-                                <h3 class="text-xl font-bold text-gray-800" id="stock-modal-title">Configurer le Stock</h3>
-                            </div>
-                            <div class="p-6 space-y-4">
-                                <input type="hidden" id="stock-edit-id">
-
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Stock Actuel (unites)</label>
-                                        <input type="number" id="stock-edit-actuel" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Stock En Transit</label>
-                                        <input type="number" id="stock-edit-transit" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Cout d'achat unitaire (EUR)</label>
-                                        <input type="number" id="stock-edit-cout" step="0.01" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Stock de securite (jours)</label>
-                                        <input type="number" id="stock-edit-securite" min="0" value="14" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                </div>
-
-                                <div class="border-t border-gray-200 pt-4 mt-4">
-                                    <h4 class="font-semibold text-gray-800 mb-3">
-                                        <i class="fas fa-truck text-blue-500 mr-2"></i>
-                                        Informations Fournisseur
-                                    </h4>
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Nom du Fournisseur</label>
-                                            <input type="text" id="stock-edit-fournisseur" placeholder="Ex: Ali Express, 1688..." class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Delai de livraison (jours)</label>
-                                            <input type="number" id="stock-edit-delai" min="1" value="21" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                    </div>
-                                    <div class="grid grid-cols-2 gap-4 mt-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">MOQ (Quantite min.)</label>
-                                            <input type="number" id="stock-edit-moq" min="1" value="100" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Contact / Notes</label>
-                                            <input type="text" id="stock-edit-contact" placeholder="WeChat, email..." class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="border-t border-gray-200 pt-4 mt-4">
-                                    <h4 class="font-semibold text-gray-800 mb-3">
-                                        <i class="fas fa-ruler-combined text-green-500 mr-2"></i>
-                                        Dimensions Produit (pour frais FBA)
-                                    </h4>
-                                    <div class="grid grid-cols-4 gap-4">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Longueur (cm)</label>
-                                            <input type="number" id="stock-edit-longueur" step="0.1" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Largeur (cm)</label>
-                                            <input type="number" id="stock-edit-largeur" step="0.1" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Hauteur (cm)</label>
-                                            <input type="number" id="stock-edit-hauteur" step="0.1" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Poids (kg)</label>
-                                            <input type="number" id="stock-edit-poids" step="0.01" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="p-6 border-t border-gray-200 flex gap-3">
-                                <button onclick="saveStockConfig()" class="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
-                                    <i class="fas fa-save mr-2"></i>Enregistrer
-                                </button>
-                                <button onclick="closeStockModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
-                                    Annuler
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Sous-section: Reapprovisionnements -->
-                <div id="stock-content-reappro" class="stock-content hidden">
-                    <!-- Recommandations automatiques -->
-                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 mb-6">
-                        <h3 class="text-xl font-bold text-gray-800 mb-4">
-                            <i class="fas fa-robot text-blue-500 mr-2"></i>
-                            Recommandations de Commande
-                        </h3>
-                        <div id="stock-recommandations" class="space-y-3">
-                            <p class="text-gray-500">Aucune recommandation pour le moment.</p>
-                        </div>
-                    </div>
-
-                    <!-- Commandes en cours -->
-                    <div class="bg-white p-6 rounded-xl shadow-md mb-6">
+                <!-- Tab: Ventes -->
+                <div id="vinted-content-ventes" class="vinted-content hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-md">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-xl font-bold text-gray-800">
-                                <i class="fas fa-shipping-fast text-green-500 mr-2"></i>
-                                Commandes en Cours
+                                <i class="fas fa-euro-sign text-green-500 mr-2"></i>
+                                Liste des Ventes
                             </h3>
-                            <button onclick="openCommandeModal()" class="bg-gradient-to-r from-green-600 to-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition">
-                                <i class="fas fa-plus mr-2"></i>Nouvelle Commande
-                            </button>
+                            <div class="flex gap-2">
+                                <select id="ventes-filter-status" onchange="loadVintedSales()" class="px-3 py-2 border-2 border-gray-200 rounded-lg text-sm">
+                                    <option value="">Tous statuts</option>
+                                    <option value="sold">Vendu</option>
+                                    <option value="completed">Finalisé</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="overflow-x-auto">
                             <table class="w-full">
                                 <thead>
                                     <tr class="bg-gray-100 text-left text-sm">
-                                        <th class="p-3 font-semibold">Date Commande</th>
-                                        <th class="p-3 font-semibold">Produit</th>
-                                        <th class="p-3 font-semibold">Fournisseur</th>
-                                        <th class="p-3 font-semibold text-center">Quantite</th>
-                                        <th class="p-3 font-semibold text-right">Cout Total</th>
-                                        <th class="p-3 font-semibold text-center">Livraison Estimee</th>
+                                        <th class="p-3 font-semibold">ID</th>
+                                        <th class="p-3 font-semibold">Titre</th>
+                                        <th class="p-3 font-semibold text-right">Prix</th>
+                                        <th class="p-3 font-semibold">Acheteur</th>
+                                        <th class="p-3 font-semibold">Date</th>
                                         <th class="p-3 font-semibold text-center">Statut</th>
                                         <th class="p-3 font-semibold text-center">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody id="stock-commandes-body">
-                                    <!-- Lignes generees dynamiquement -->
+                                <tbody id="vinted-ventes-tbody">
+                                    <tr>
+                                        <td colspan="7" class="p-8 text-center text-gray-500">
+                                            <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                                            <p>Chargement...</p>
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
-                        </div>
-                        <div id="stock-commandes-empty" class="hidden text-center py-8 text-gray-500">
-                            <i class="fas fa-truck text-4xl mb-3"></i>
-                            <p>Aucune commande en cours.</p>
-                        </div>
-                    </div>
-
-                    <!-- Modal Nouvelle Commande -->
-                    <div id="commande-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                        <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
-                            <div class="p-6 border-b border-gray-200">
-                                <h3 class="text-xl font-bold text-gray-800">Nouvelle Commande Fournisseur</h3>
-                            </div>
-                            <div class="p-6 space-y-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Produit</label>
-                                    <select id="commande-produit" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500" onchange="prefillCommandeInfo()">
-                                        <option value="">Selectionner un produit...</option>
-                                    </select>
-                                </div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Quantite</label>
-                                        <input type="number" id="commande-quantite" min="1" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Cout Total (EUR)</label>
-                                        <input type="number" id="commande-cout" step="0.01" min="0" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Date de livraison estimee</label>
-                                    <input type="date" id="commande-livraison" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                                    <input type="text" id="commande-notes" placeholder="Reference, tracking..." class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-green-500">
-                                </div>
-                            </div>
-                            <div class="p-6 border-t border-gray-200 flex gap-3">
-                                <button onclick="saveCommande()" class="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
-                                    <i class="fas fa-save mr-2"></i>Enregistrer
-                                </button>
-                                <button onclick="closeCommandeModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
-                                    Annuler
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Sous-section: Simulateur Packaging -->
-                <div id="stock-content-packaging" class="stock-content hidden">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Formulaire Simulateur -->
-                        <div class="bg-white p-6 rounded-xl shadow-md">
-                            <h3 class="text-xl font-bold text-gray-800 mb-4">
-                                <i class="fas fa-box-open text-purple-500 mr-2"></i>
-                                Simulateur de Frais FBA
-                            </h3>
-                            <p class="text-sm text-gray-500 mb-4">Calculez vos frais FBA et optimisez vos dimensions pour reduire les couts.</p>
-
-                            <div class="space-y-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Produit (optionnel)</label>
-                                    <select id="packaging-produit" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg" onchange="prefillPackagingDimensions()">
-                                        <option value="">Saisie manuelle...</option>
-                                    </select>
-                                </div>
-
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Longueur (cm)</label>
-                                        <input type="number" id="packaging-longueur" step="0.1" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Largeur (cm)</label>
-                                        <input type="number" id="packaging-largeur" step="0.1" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                </div>
-                                <div class="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Hauteur (cm)</label>
-                                        <input type="number" id="packaging-hauteur" step="0.1" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Poids (kg)</label>
-                                        <input type="number" id="packaging-poids" step="0.01" min="0" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">Ventes estimees / mois</label>
-                                    <input type="number" id="packaging-ventes" min="0" value="100" oninput="calculatePackaging()" class="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Resultats -->
-                        <div class="space-y-6">
-                            <!-- Tier Actuel -->
-                            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200">
-                                <h4 class="font-bold text-gray-800 mb-3">Classification Amazon</h4>
-                                <div class="flex items-center gap-4">
-                                    <div class="text-4xl" id="packaging-tier-icon">📦</div>
-                                    <div>
-                                        <div class="text-2xl font-bold" id="packaging-tier-name">-</div>
-                                        <div class="text-sm text-gray-600" id="packaging-tier-dimensions">Entrez les dimensions</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Frais Estimes -->
-                            <div class="bg-white p-6 rounded-xl shadow-md">
-                                <h4 class="font-bold text-gray-800 mb-3">Frais FBA Estimes</h4>
-                                <div class="space-y-3">
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                                        <span class="text-gray-600">Frais expedition/unite</span>
-                                        <span class="text-xl font-bold" id="packaging-frais-expedition">0 EUR</span>
-                                    </div>
-                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                                        <span class="text-gray-600">Stockage/unite/mois</span>
-                                        <span class="text-xl font-bold" id="packaging-frais-stockage">0 EUR</span>
-                                    </div>
-                                    <div class="flex justify-between items-center p-3 bg-orange-50 rounded-lg border-2 border-orange-200">
-                                        <span class="text-orange-800 font-medium">Total mensuel estime</span>
-                                        <span class="text-2xl font-bold text-orange-600" id="packaging-frais-total">0 EUR</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Optimisation -->
-                            <div id="packaging-optimisation" class="hidden bg-gradient-to-r from-green-50 to-emerald-50 p-6 rounded-xl border-2 border-green-200">
-                                <h4 class="font-bold text-gray-800 mb-3">
-                                    <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
-                                    Suggestion d'Optimisation
-                                </h4>
-                                <div id="packaging-suggestion" class="text-sm text-gray-700"></div>
-                                <div class="mt-3 p-3 bg-white rounded-lg">
-                                    <div class="flex justify-between items-center">
-                                        <span class="text-gray-600">Economie potentielle/mois</span>
-                                        <span class="text-xl font-bold text-green-600" id="packaging-economie">0 EUR</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Reference des Tiers Amazon -->
-                    <div class="mt-6 bg-white p-6 rounded-xl shadow-md">
-                        <h3 class="text-xl font-bold text-gray-800 mb-4">
+                <!-- Tab: Recap & Matching -->
+                <div id="vinted-content-recap" class="vinted-content hidden">
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-xl border-2 border-blue-200 mb-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-2">
                             <i class="fas fa-info-circle text-blue-500 mr-2"></i>
-                            Reference des Tiers Amazon FBA (France)
+                            Matching Manuel Achats ↔ Ventes
                         </h3>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-sm">
-                                <thead>
-                                    <tr class="bg-gray-100">
-                                        <th class="p-3 text-left font-semibold">Tier</th>
-                                        <th class="p-3 text-left font-semibold">Dimensions Max</th>
-                                        <th class="p-3 text-left font-semibold">Poids Max</th>
-                                        <th class="p-3 text-right font-semibold">Frais Expedition</th>
-                                        <th class="p-3 text-right font-semibold">Stockage/m3/mois</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr class="border-b hover:bg-green-50">
-                                        <td class="p-3 font-medium text-green-700">Small Standard</td>
-                                        <td class="p-3">38 x 26 x 5 cm</td>
-                                        <td class="p-3">0.5 kg</td>
-                                        <td class="p-3 text-right font-semibold">2.50 EUR</td>
-                                        <td class="p-3 text-right">26 EUR</td>
-                                    </tr>
-                                    <tr class="border-b hover:bg-blue-50">
-                                        <td class="p-3 font-medium text-blue-700">Large Standard</td>
-                                        <td class="p-3">45 x 34 x 26 cm</td>
-                                        <td class="p-3">12 kg</td>
-                                        <td class="p-3 text-right font-semibold">3.50 - 5.50 EUR</td>
-                                        <td class="p-3 text-right">26 EUR</td>
-                                    </tr>
-                                    <tr class="border-b hover:bg-orange-50">
-                                        <td class="p-3 font-medium text-orange-700">Small Oversize</td>
-                                        <td class="p-3">61 x 46 x 46 cm</td>
-                                        <td class="p-3">2 kg</td>
-                                        <td class="p-3 text-right font-semibold">6.50 EUR</td>
-                                        <td class="p-3 text-right">36 EUR</td>
-                                    </tr>
-                                    <tr class="border-b hover:bg-red-50">
-                                        <td class="p-3 font-medium text-red-700">Large Oversize</td>
-                                        <td class="p-3">120 x 60 x 60 cm</td>
-                                        <td class="p-3">30 kg</td>
-                                        <td class="p-3 text-right font-semibold">9 - 15 EUR</td>
-                                        <td class="p-3 text-right">36 EUR</td>
-                                    </tr>
-                                    <tr class="hover:bg-purple-50">
-                                        <td class="p-3 font-medium text-purple-700">Special Oversize</td>
-                                        <td class="p-3">> 120 cm</td>
-                                        <td class="p-3">> 30 kg</td>
-                                        <td class="p-3 text-right font-semibold">Sur devis</td>
-                                        <td class="p-3 text-right">Sur devis</td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <p class="text-sm text-gray-600">
+                            Ici, vous pouvez lier manuellement vos ventes à leurs achats correspondants pour calculer les profits.
+                            Sélectionnez un achat et une vente, puis cliquez sur "Lier" pour les associer.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Achats non matchés -->
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h4 class="font-bold text-gray-800 mb-4">
+                                <i class="fas fa-shopping-bag text-purple-500 mr-2"></i>
+                                Achats Disponibles
+                            </h4>
+                            <div id="recap-achats-list" class="space-y-2 max-h-96 overflow-y-auto">
+                                <p class="text-gray-500 text-sm">Chargement...</p>
+                            </div>
+                        </div>
+
+                        <!-- Ventes non matchées -->
+                        <div class="bg-white p-6 rounded-xl shadow-md">
+                            <h4 class="font-bold text-gray-800 mb-4">
+                                <i class="fas fa-tag text-green-500 mr-2"></i>
+                                Ventes Disponibles
+                            </h4>
+                            <div id="recap-ventes-list" class="space-y-2 max-h-96 overflow-y-auto">
+                                <p class="text-gray-500 text-sm">Chargement...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bouton de matching -->
+                    <div class="mt-6 flex justify-center">
+                        <button id="btn-link-articles" onclick="linkSelectedArticles()" class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <i class="fas fa-link mr-2"></i>Lier l'achat et la vente sélectionnés
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Modal Détail Article -->
+                <div id="vinted-detail-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                            <h3 class="text-xl font-bold text-gray-800">
+                                <i class="fas fa-info-circle text-blue-500 mr-2"></i>
+                                Détail de l'Article
+                            </h3>
+                            <button onclick="closeVintedDetailModal()" class="text-gray-500 hover:text-gray-700 text-2xl">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+
+                        <div class="p-6" id="vinted-detail-content">
+                            <p class="text-gray-500">Chargement...</p>
+                        </div>
+
+                        <div class="p-6 border-t border-gray-200 flex gap-3">
+                            <button onclick="showEditPartialRefund()" id="btn-edit-refund" class="hidden flex-1 bg-gradient-to-r from-orange-600 to-red-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                                <i class="fas fa-coins mr-2"></i>Remboursement Partiel
+                            </button>
+                            <button onclick="deleteArticle()" id="btn-delete-article" class="flex-1 bg-gradient-to-r from-red-600 to-pink-600 text-white py-3 rounded-lg font-semibold hover:shadow-lg transition">
+                                <i class="fas fa-trash mr-2"></i>Supprimer
+                            </button>
+                            <button onclick="closeVintedDetailModal()" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition">
+                                Fermer
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Sous-section: Graphiques Stock -->
-                <div id="stock-content-graphiques" class="stock-content hidden">
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div class="bg-white p-6 rounded-xl shadow-md">
-                            <h3 class="text-lg font-bold text-gray-800 mb-4">Evolution du Stock</h3>
-                            <canvas id="chart-stock-evolution"></canvas>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-md">
-                            <h3 class="text-lg font-bold text-gray-800 mb-4">Repartition Valeur Stock</h3>
-                            <canvas id="chart-stock-valeur"></canvas>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-md">
-                            <h3 class="text-lg font-bold text-gray-800 mb-4">Previsions de Rupture</h3>
-                            <canvas id="chart-stock-rupture"></canvas>
-                        </div>
-                        <div class="bg-white p-6 rounded-xl shadow-md">
-                            <h3 class="text-lg font-bold text-gray-800 mb-4">Couts de Stockage</h3>
-                            <canvas id="chart-stock-couts"></canvas>
-                        </div>
-                    </div>
-                </div>
             </section>
 
             <!-- Section Suivi Hebdomadaire -->
@@ -3172,6 +2911,10 @@
                         class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
                         🔓 Ungating
                     </button>
+                    <button id="oa-tab-btn-grossistes" onclick="switchOATab('grossistes')"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        🏪 Grossistes
+                    </button>
                     <a href="http://195.201.133.225:3101/OAS/dashboard" target="_blank"
                         class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600 ml-auto">
                         🤖 Agents
@@ -3257,6 +3000,91 @@
                                 <p>Chargement des opportunités...</p>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- TAB : Grossistes (NOUVEAU) -->
+                <div id="oa-tab-grossistes" class="hidden">
+                    <!-- Stats header -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Produits analysés</div>
+                            <div class="text-2xl font-bold text-gray-800" id="grossistes-stat-total">0</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Rentables (profit > 0)</div>
+                            <div class="text-2xl font-bold text-green-600" id="grossistes-stat-profitable">0</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">ROI moyen</div>
+                            <div class="text-2xl font-bold text-indigo-600" id="grossistes-stat-roi">0%</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Dernière analyse</div>
+                            <div class="text-sm font-semibold text-gray-700" id="grossistes-stat-date">—</div>
+                        </div>
+                    </div>
+
+                    <!-- Filtres -->
+                    <div class="bg-white rounded-lg shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2 border border-gray-100">
+                        <select id="grossiste-filter-site" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
+                            <option value="">Tous les sites</option>
+                            <option value="metro">Metro</option>
+                            <option value="faire">Faire</option>
+                        </select>
+                        <select id="grossiste-filter-brand" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
+                            <option value="">Toutes les marques</option>
+                            <option value="Oral-B">Oral-B</option>
+                            <option value="Pampers">Pampers</option>
+                            <option value="Philips">Philips</option>
+                            <option value="Lego">Lego</option>
+                            <option value="Bosch">Bosch</option>
+                        </select>
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5">
+                            <span class="text-gray-500 text-xs">ROI ≥</span>
+                            <input type="number" id="grossiste-filter-roi" value="15" class="w-12 text-center text-sm outline-none">
+                            <span class="text-xs">%</span>
+                        </div>
+                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5">
+                            <span class="text-gray-500 text-xs">Profit ≥</span>
+                            <input type="number" id="grossiste-filter-profit" value="3" class="w-12 text-center text-sm outline-none">
+                            <span class="text-xs">€</span>
+                        </div>
+                        <button onclick="renderGrossistesTab()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700">
+                            <i class="fas fa-filter mr-1"></i>Filtrer
+                        </button>
+                        <span class="text-xs text-gray-400 ml-1" id="grossistes-count-label"></span>
+                    </div>
+
+                    <!-- Tableau produits -->
+                    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+                        <table class="w-full text-sm" style="min-width:1000px">
+                            <thead>
+                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                                    <th class="p-3 font-semibold">Site</th>
+                                    <th class="p-3 font-semibold">Marque</th>
+                                    <th class="p-3 font-semibold">Produit</th>
+                                    <th class="p-3 font-semibold text-center">ASIN</th>
+                                    <th class="p-3 font-semibold text-center" title="Score de confiance matching titre">Match</th>
+                                    <th class="p-3 font-semibold text-center bg-blue-50 text-blue-600">Prix grossiste</th>
+                                    <th class="p-3 font-semibold text-center">Max Cost</th>
+                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">Profit</th>
+                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">ROI</th>
+                                    <th class="p-3 font-semibold text-center">FBA</th>
+                                    <th class="p-3 font-semibold text-center">BSR</th>
+                                    <th class="p-3 font-semibold text-center">Amazon</th>
+                                    <th class="p-3 font-semibold text-center">Score</th>
+                                    <th class="p-3 font-semibold text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="grossistes-tbody">
+                                <tr><td colspan="14" class="p-10 text-center text-gray-400">
+                                    <i class="fas fa-store text-3xl mb-3 block text-gray-300"></i>
+                                    <p class="font-medium">Chargement des produits grossistes...</p>
+                                    <p class="text-xs mt-2">Lancer: <code class="bg-gray-100 px-2 py-1 rounded">python scripts/analyze_grossistes.py</code></p>
+                                </td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </section>
@@ -3546,6 +3374,7 @@
 
     <!-- OA Supabase — remplace Netlify Blobs par notre Python+Supabase -->
     <script src="oa-supabase.js?v=3"></script>
+    <script src="oa-grossistes.js?v=1"></script>
 
 </body>
 </html>
