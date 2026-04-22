@@ -20,8 +20,7 @@ function loadGrossistesData() {
     sb.from('grossiste_products')
         .select('*')
         .gte('analyzed_at', dateLimit.toISOString())
-        .order('score', { ascending: false })
-        .order('profit_net', { ascending: false })
+        .order('analyzed_at', { ascending: false })
         .then(function(res) {
             if (res.error) {
                 console.error('[Grossistes] Erreur chargement:', res.error);
@@ -60,7 +59,7 @@ function renderGrossistesTab() {
     if (!tbody) return;
 
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="15" class="p-10 text-center text-gray-400">'
             + '<p class="font-medium">Aucun produit ne correspond aux filtres</p></td></tr>';
         return;
     }
@@ -68,11 +67,24 @@ function renderGrossistesTab() {
     var html = '';
 
     filtered.forEach(function(p) {
+        // Badge statut analyse
+        var statusBadge = '';
+        var status = (p.analysis_status || 'ANALYZED').toUpperCase();
+        if (status === 'SCRAPED') {
+            statusBadge = '<span class="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">🟡 En attente</span>';
+        } else if (status === 'ANALYZING') {
+            statusBadge = '<span class="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">🔵 Analyse...</span>';
+        } else if (status === 'ANALYZED') {
+            statusBadge = '<span class="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">✅ Analysé</span>';
+        } else if (status === 'ERROR') {
+            statusBadge = '<span class="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded">❌ Erreur</span>';
+        }
+
         // Badge site
         var siteBadge = '';
-        if (p.site === 'metro') {
+        if (p.site === 'METRO' || p.site === 'metro') {
             siteBadge = '<span class="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded">Metro</span>';
-        } else if (p.site === 'faire') {
+        } else if (p.site === 'FAIRE' || p.site === 'faire') {
             siteBadge = '<span class="inline-block px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-semibold rounded">Faire</span>';
         } else {
             siteBadge = '<span class="inline-block px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-semibold rounded">' + (p.site || 'N/A') + '</span>';
@@ -123,6 +135,7 @@ function renderGrossistesTab() {
         }
 
         html += '<tr class="border-b border-gray-100 hover:bg-gray-50">';
+        html += '<td class="p-3">' + statusBadge + '</td>';
         html += '<td class="p-3">' + siteBadge + '</td>';
         html += '<td class="p-3"><span class="font-semibold text-gray-700 text-xs">' + (p.brand || '—') + '</span></td>';
         html += '<td class="p-3 text-gray-700 max-w-xs truncate" title="' + (p.product_name || '') + '">' + (p.product_name || '—').substring(0, 50) + '</td>';
@@ -153,6 +166,7 @@ function renderGrossistesTab() {
  * Applique les filtres grossistes
  */
 function _applyGrossistesFilters(data) {
+    var status = document.getElementById('grossiste-filter-status');
     var site = document.getElementById('grossiste-filter-site');
     var brand = document.getElementById('grossiste-filter-brand');
     var roiMin = document.getElementById('grossiste-filter-roi');
@@ -160,10 +174,17 @@ function _applyGrossistesFilters(data) {
 
     var filtered = data;
 
+    // Filtre statut analyse
+    if (status && status.value) {
+        filtered = filtered.filter(function(p) {
+            return (p.analysis_status || 'ANALYZED').toUpperCase() === status.value;
+        });
+    }
+
     // Filtre site
     if (site && site.value) {
         filtered = filtered.filter(function(p) {
-            return p.site === site.value;
+            return (p.site || '').toUpperCase() === site.value.toUpperCase();
         });
     }
 
@@ -198,6 +219,10 @@ function _applyGrossistesFilters(data) {
  */
 function _updateGrossistesStats(data) {
     var total = data.length;
+    var scraped = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'SCRAPED'; }).length;
+    var analyzing = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'ANALYZING'; }).length;
+    var analyzed = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'ANALYZED'; }).length;
+    var errors = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'ERROR'; }).length;
     var profitable = data.filter(function(p) { return (p.profit_net || 0) > 0; }).length;
 
     var roiSum = 0;
@@ -224,11 +249,19 @@ function _updateGrossistesStats(data) {
 
     // Update DOM
     var statTotal = document.getElementById('grossistes-stat-total');
+    var statScraped = document.getElementById('grossistes-stat-scraped');
+    var statAnalyzing = document.getElementById('grossistes-stat-analyzing');
+    var statAnalyzed = document.getElementById('grossistes-stat-analyzed');
+    var statErrors = document.getElementById('grossistes-stat-errors');
     var statProfitable = document.getElementById('grossistes-stat-profitable');
     var statRoi = document.getElementById('grossistes-stat-roi');
     var statDate = document.getElementById('grossistes-stat-date');
 
     if (statTotal) statTotal.textContent = total;
+    if (statScraped) statScraped.textContent = scraped;
+    if (statAnalyzing) statAnalyzing.textContent = analyzing;
+    if (statAnalyzed) statAnalyzed.textContent = analyzed;
+    if (statErrors) statErrors.textContent = errors;
     if (statProfitable) statProfitable.textContent = profitable;
     if (statRoi) statRoi.textContent = avgRoi.toFixed(0) + '%';
     if (statDate) statDate.textContent = dateText;
@@ -240,7 +273,7 @@ function _updateGrossistesStats(data) {
 function _showGrossistesError(msg) {
     var tbody = document.getElementById('grossistes-tbody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center text-red-400">'
+        tbody.innerHTML = '<tr><td colspan="15" class="p-10 text-center text-red-400">'
             + '<i class="fas fa-exclamation-triangle text-3xl mb-3 block"></i>'
             + '<p class="font-medium">' + msg + '</p></td></tr>';
     }
@@ -252,20 +285,28 @@ function _showGrossistesError(msg) {
 function _showGrossistesEmpty() {
     var tbody = document.getElementById('grossistes-tbody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="14" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="15" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-store text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun produit grossiste analysé</p>'
-            + '<p class="text-xs mt-2">Lancer: <code class="bg-gray-100 px-2 py-1 rounded">python scripts/analyze_grossistes.py</code></p>'
+            + '<p class="text-xs mt-2">Utilise l\'extension Chrome pour scraper Metro/Faire</p>'
             + '</td></tr>';
     }
 
     // Reset stats
     var statTotal = document.getElementById('grossistes-stat-total');
+    var statScraped = document.getElementById('grossistes-stat-scraped');
+    var statAnalyzing = document.getElementById('grossistes-stat-analyzing');
+    var statAnalyzed = document.getElementById('grossistes-stat-analyzed');
+    var statErrors = document.getElementById('grossistes-stat-errors');
     var statProfitable = document.getElementById('grossistes-stat-profitable');
     var statRoi = document.getElementById('grossistes-stat-roi');
     var statDate = document.getElementById('grossistes-stat-date');
 
     if (statTotal) statTotal.textContent = '0';
+    if (statScraped) statScraped.textContent = '0';
+    if (statAnalyzing) statAnalyzing.textContent = '0';
+    if (statAnalyzed) statAnalyzed.textContent = '0';
+    if (statErrors) statErrors.textContent = '0';
     if (statProfitable) statProfitable.textContent = '0';
     if (statRoi) statRoi.textContent = '0%';
     if (statDate) statDate.textContent = '—';

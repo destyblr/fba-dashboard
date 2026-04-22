@@ -3006,31 +3006,46 @@
                 <!-- TAB : Grossistes (NOUVEAU) -->
                 <div id="oa-tab-grossistes" class="hidden">
                     <!-- Stats header -->
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                            <div class="text-xs text-gray-500 mb-1">Produits analysés</div>
-                            <div class="text-2xl font-bold text-gray-800" id="grossistes-stat-total">0</div>
+                    <div class="grid grid-cols-2 md:grid-cols-6 gap-3 mb-4">
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Total produits</div>
+                            <div class="text-xl font-bold text-gray-800" id="grossistes-stat-total">0</div>
                         </div>
-                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                            <div class="text-xs text-gray-500 mb-1">Rentables (profit > 0)</div>
-                            <div class="text-2xl font-bold text-green-600" id="grossistes-stat-profitable">0</div>
+                        <div class="bg-yellow-50 p-3 rounded-lg shadow-sm border border-yellow-200">
+                            <div class="text-xs text-yellow-700 mb-1">🟡 En attente</div>
+                            <div class="text-xl font-bold text-yellow-600" id="grossistes-stat-scraped">0</div>
                         </div>
-                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                            <div class="text-xs text-gray-500 mb-1">ROI moyen</div>
-                            <div class="text-2xl font-bold text-indigo-600" id="grossistes-stat-roi">0%</div>
+                        <div class="bg-blue-50 p-3 rounded-lg shadow-sm border border-blue-200">
+                            <div class="text-xs text-blue-700 mb-1">🔵 Analyse...</div>
+                            <div class="text-xl font-bold text-blue-600" id="grossistes-stat-analyzing">0</div>
                         </div>
-                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-                            <div class="text-xs text-gray-500 mb-1">Dernière analyse</div>
-                            <div class="text-sm font-semibold text-gray-700" id="grossistes-stat-date">—</div>
+                        <div class="bg-green-50 p-3 rounded-lg shadow-sm border border-green-200">
+                            <div class="text-xs text-green-700 mb-1">✅ Analysés</div>
+                            <div class="text-xl font-bold text-green-600" id="grossistes-stat-analyzed">0</div>
+                        </div>
+                        <div class="bg-red-50 p-3 rounded-lg shadow-sm border border-red-200">
+                            <div class="text-xs text-red-700 mb-1">❌ Erreurs</div>
+                            <div class="text-xl font-bold text-red-600" id="grossistes-stat-errors">0</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">💰 Profitables</div>
+                            <div class="text-xl font-bold text-green-600" id="grossistes-stat-profitable">0</div>
                         </div>
                     </div>
 
                     <!-- Filtres -->
                     <div class="bg-white rounded-lg shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2 border border-gray-100">
+                        <select id="grossiste-filter-status" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-semibold">
+                            <option value="">Tous les statuts</option>
+                            <option value="SCRAPED">🟡 En attente</option>
+                            <option value="ANALYZING">🔵 En cours</option>
+                            <option value="ANALYZED">✅ Analysés</option>
+                            <option value="ERROR">❌ Erreurs</option>
+                        </select>
                         <select id="grossiste-filter-site" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
                             <option value="">Tous les sites</option>
-                            <option value="metro">Metro</option>
-                            <option value="faire">Faire</option>
+                            <option value="METRO">Metro</option>
+                            <option value="FAIRE">Faire</option>
                         </select>
                         <select id="grossiste-filter-brand" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
                             <option value="">Toutes les marques</option>
@@ -3058,9 +3073,10 @@
 
                     <!-- Tableau produits -->
                     <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
-                        <table class="w-full text-sm" style="min-width:1000px">
+                        <table class="w-full text-sm" style="min-width:1100px">
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                                    <th class="p-3 font-semibold">Statut</th>
                                     <th class="p-3 font-semibold">Site</th>
                                     <th class="p-3 font-semibold">Marque</th>
                                     <th class="p-3 font-semibold">Produit</th>
@@ -3078,7 +3094,7 @@
                                 </tr>
                             </thead>
                             <tbody id="grossistes-tbody">
-                                <tr><td colspan="14" class="p-10 text-center text-gray-400">
+                                <tr><td colspan="15" class="p-10 text-center text-gray-400">
                                     <i class="fas fa-store text-3xl mb-3 block text-gray-300"></i>
                                     <p class="font-medium">Chargement des produits grossistes...</p>
                                     <p class="text-xs mt-2">Lancer: <code class="bg-gray-100 px-2 py-1 rounded">python scripts/analyze_grossistes.py</code></p>
