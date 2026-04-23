@@ -537,7 +537,7 @@ function _loadAccueilRuns() {
 // ── Switcher onglets ──────────────────────────────────────────────────────────
 function switchOATab(tab) {
     _oaTab = tab;
-    var tabs = ['deals', 'rapport', 'ungating', 'grossistes', 'metro-auto'];
+    var tabs = ['deals', 'rapport', 'ungating', 'grossistes', 'metro-auto', 'analysis'];
     tabs.forEach(function(t) {
         var el  = document.getElementById('oa-tab-' + t);
         var btn = document.getElementById('oa-tab-btn-' + t);
@@ -553,9 +553,13 @@ function switchOATab(tab) {
         }
     });
     if (tab === 'rapport' && !_runData.length) loadRunHistory();
-    if (tab === 'ungating' && !_ungatingData.length) loadUngatingOpportunities();
+    if (tab === 'ungating') {
+        if (typeof loadUnlockedBrands === 'function') loadUnlockedBrands();
+        if (typeof loadAnalysisData === 'function') loadAnalysisData();  // Pour les recommandations
+    }
     if (tab === 'grossistes' && !_grossistesData.length) loadGrossistesData();
     if (tab === 'metro-auto' && !_metroAutoData.length) loadMetroAutoData();
+    if (tab === 'analysis') loadAnalysisData();  // Toujours recharger pour voir les nouveaux matchs
 }
 
 // ── Helpers row builders ──────────────────────────────────────────────────────

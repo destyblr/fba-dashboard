@@ -13,14 +13,11 @@ function loadMetroAutoData() {
 
     console.log('[Metro Auto] Chargement des produits...');
 
-    var dateLimit = new Date();
-    dateLimit.setDate(dateLimit.getDate() - 30);
-
     sb.from('grossiste_products')
         .select('*')
         .eq('source', 'SCRIPT_UNDETECTED')  // FILTRE PAR SOURCE
-        .gte('analyzed_at', dateLimit.toISOString())
-        .order('analyzed_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(500)  // Augmente limite pour voir tous les produits
         .then(function(res) {
             if (res.error) {
                 console.error('[Metro Auto] Erreur:', res.error);
@@ -40,85 +37,74 @@ function loadMetroAutoData() {
 }
 
 /**
+ * Remplit le filtre marques
+ */
+function _populateBrandFilter(data) {
+    var brands = new Set();
+    data.forEach(function(p) {
+        if (p.brand) brands.add(p.brand);
+    });
+
+    var select = document.getElementById('metro-auto-filter-brand');
+    if (!select) return;
+
+    var currentValue = select.value;
+    select.innerHTML = '<option value="">Toutes les marques</option>';
+
+    Array.from(brands).sort().forEach(function(brand) {
+        var opt = document.createElement('option');
+        opt.value = brand;
+        opt.textContent = brand;
+        select.appendChild(opt);
+    });
+
+    if (currentValue) select.value = currentValue;
+}
+
+/**
  * Rend le tableau Metro Auto
  */
 function renderMetroAutoTab() {
+    console.log('[Metro Auto] renderMetroAutoTab called, data length:', _metroAutoData.length);
+
     if (!_metroAutoData.length) {
         _showMetroAutoEmpty();
         return;
     }
 
+    // Rempli filtre marques
+    _populateBrandFilter(_metroAutoData);
+
     var filtered = _applyMetroAutoFilters(_metroAutoData);
+    console.log('[Metro Auto] After filters, filtered length:', filtered.length);
     _updateMetroAutoStats(filtered);
 
     var tbody = document.getElementById('metro-auto-tbody');
     if (!tbody) return;
 
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="13" class="p-10 text-center text-gray-400">'
-            + '<p class="font-medium">Aucun produit ne correspond aux filtres</p></td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="p-10 text-center text-gray-400">'
+            + '<p class="font-medium">Aucun produit</p></td></tr>';
         return;
     }
 
     var html = '';
 
     filtered.forEach(function(p) {
-        // Badge statut
-        var statusBadge = '';
-        var status = (p.analysis_status || 'ANALYZED').toUpperCase();
-        if (status === 'SCRAPED') {
-            statusBadge = '<span class="inline-block px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded">🟡 En attente</span>';
-        } else if (status === 'ANALYZING') {
-            statusBadge = '<span class="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded">🔵 Analyse...</span>';
-        } else if (status === 'ANALYZED') {
-            statusBadge = '<span class="inline-block px-2 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded">✅ Analysé</span>';
-        } else if (status === 'ERROR') {
-            statusBadge = '<span class="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded">❌ Erreur</span>';
-        }
-
-        // Confiance matching
-        var confidence = p.matching_confidence || 0;
-        var confidenceClass = confidence >= 0.9 ? 'text-green-600' : confidence >= 0.75 ? 'text-yellow-600' : 'text-red-500';
-        var confidenceBadge = '<span class="' + confidenceClass + ' font-semibold">' + Math.round(confidence * 100) + '%</span>';
-
-        // Profit & ROI
-        var profit = p.profit_net || 0;
-        var profitClass = profit > 0 ? 'text-green-600 font-bold' : 'text-red-500';
-        var profitText = (profit > 0 ? '+' : '') + profit.toFixed(2) + '€';
-
-        var roi = p.roi || 0;
-        var roiClass = roi > 20 ? 'text-green-600 font-bold' : roi > 10 ? 'text-yellow-600' : 'text-gray-500';
-        var roiText = roi.toFixed(0) + '%';
-
-        // Score
-        var scoreClass = p.score >= 100 ? 'bg-green-100 text-green-700'
-                       : p.score >= 80 ? 'bg-blue-100 text-blue-700'
-                       : p.score >= 50 ? 'bg-yellow-100 text-yellow-700'
-                       : 'bg-gray-100 text-gray-600';
-        var scoreBadge = '<span class="inline-block px-2 py-1 rounded text-xs font-bold ' + scoreClass + '">' + (p.score || 0) + '</span>';
+        // Date
+        var date = p.analyzed_at ? new Date(p.analyzed_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) : '—';
 
         // Actions
         var actionsHtml = '';
         if (p.url_grossiste) {
-            actionsHtml += '<a href="' + p.url_grossiste + '" target="_blank" class="text-indigo-600 hover:underline text-xs mr-2">🛒 Metro</a>';
-        }
-        if (p.asin) {
-            actionsHtml += '<a href="https://amazon.fr/dp/' + p.asin + '" target="_blank" class="text-gray-500 hover:underline text-xs">Amazon</a>';
+            actionsHtml += '<a href="' + p.url_grossiste + '" target="_blank" class="text-indigo-600 hover:underline text-xs font-semibold">🛒 Voir sur Metro</a>';
         }
 
         html += '<tr class="border-b border-gray-100 hover:bg-gray-50">';
-        html += '<td class="p-3">' + statusBadge + '</td>';
+        html += '<td class="p-3 text-xs text-gray-500">' + date + '</td>';
         html += '<td class="p-3"><span class="font-semibold text-gray-700 text-xs">' + (p.brand || '—') + '</span></td>';
-        html += '<td class="p-3 text-gray-700 max-w-xs truncate" title="' + (p.product_name || '') + '">' + (p.product_name || '—').substring(0, 50) + '</td>';
-        html += '<td class="p-3 text-center"><a href="https://amazon.fr/dp/' + (p.asin || '') + '" target="_blank" class="text-indigo-600 hover:underline text-xs font-mono">' + (p.asin || '—') + '</a></td>';
-        html += '<td class="p-3 text-center">' + confidenceBadge + '</td>';
-        html += '<td class="p-3 text-center font-semibold text-blue-600">' + (p.price_grossiste ? p.price_grossiste.toFixed(2) + '€' : '—') + '</td>';
-        html += '<td class="p-3 text-center font-semibold">' + (p.max_cost ? p.max_cost.toFixed(2) + '€' : '—') + '</td>';
-        html += '<td class="p-3 text-center ' + profitClass + '">' + profitText + '</td>';
-        html += '<td class="p-3 text-center ' + roiClass + '">' + roiText + '</td>';
-        html += '<td class="p-3 text-center text-sm">' + (p.fba_sellers || '—') + '</td>';
-        html += '<td class="p-3 text-center text-sm">' + (p.bsr ? p.bsr.toLocaleString() : '—') + '</td>';
-        html += '<td class="p-3 text-center">' + scoreBadge + '</td>';
+        html += '<td class="p-3 text-gray-700" title="' + (p.product_name || '') + '">' + (p.product_name || '—') + '</td>';
+        html += '<td class="p-3 text-center font-bold text-blue-600 text-lg">' + (p.price_grossiste ? p.price_grossiste.toFixed(2) + '€' : '—') + '</td>';
         html += '<td class="p-3 text-center text-sm">' + actionsHtml + '</td>';
         html += '</tr>';
     });
@@ -135,28 +121,12 @@ function renderMetroAutoTab() {
  * Applique les filtres
  */
 function _applyMetroAutoFilters(data) {
-    var status = document.getElementById('metro-auto-filter-status');
     var brand = document.getElementById('metro-auto-filter-brand');
-    var roiMin = document.getElementById('metro-auto-filter-roi');
-
     var filtered = data;
-
-    if (status && status.value) {
-        filtered = filtered.filter(function(p) {
-            return (p.analysis_status || 'ANALYZED').toUpperCase() === status.value;
-        });
-    }
 
     if (brand && brand.value) {
         filtered = filtered.filter(function(p) {
             return p.brand === brand.value;
-        });
-    }
-
-    if (roiMin && roiMin.value) {
-        var minRoi = parseFloat(roiMin.value);
-        filtered = filtered.filter(function(p) {
-            return (p.roi || 0) >= minRoi;
         });
     }
 

@@ -143,7 +143,7 @@
     <script>
     (function() {
         var token = localStorage.getItem('fba_auth_token');
-        var isLocal = location.protocol === 'file:';
+        var isLocal = location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 
         function showApp() {
             var ls = document.getElementById('login-screen');
@@ -2919,6 +2919,10 @@
                         class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
                         🤖 Metro Auto
                     </button>
+                    <button id="oa-tab-btn-analysis" onclick="switchOATab('analysis')"
+                        class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600">
+                        🎯 Analyse OA
+                    </button>
                     <a href="http://195.201.133.225:3101/OAS/dashboard" target="_blank"
                         class="px-5 py-2.5 text-sm font-semibold text-gray-400 border-b-2 border-transparent -mb-px bg-white hover:text-gray-600 ml-auto">
                         🤖 Agents
@@ -2984,24 +2988,79 @@
 
                 <!-- TAB : Ungating -->
                 <div id="oa-tab-ungating" class="hidden">
-                    <div class="bg-white rounded-xl shadow-sm p-5">
-                        <!-- Header avec budget -->
-                        <div class="flex items-center justify-between mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg">
-                            <div>
-                                <h3 class="text-lg font-bold text-gray-800">Opportunités Ungating</h3>
-                                <p class="text-sm text-gray-600">Top 5 marques retail avec produits vérifiés SellerAmp</p>
-                            </div>
-                            <div class="text-right">
-                                <div class="text-sm text-gray-500">Budget disponible</div>
-                                <div class="text-2xl font-bold text-indigo-600">200€</div>
-                            </div>
+                    <!-- Stats Ungating -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Marques débloquées</div>
+                            <div class="text-2xl font-bold text-green-600" id="ungating-stat-unlocked">0</div>
                         </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Budget utilisé</div>
+                            <div class="text-2xl font-bold text-orange-600" id="ungating-stat-budget">0€ / 200€</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Produits achetés</div>
+                            <div class="text-2xl font-bold text-blue-600" id="ungating-stat-units">0</div>
+                        </div>
+                        <div class="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Marques disponibles</div>
+                            <div class="text-2xl font-bold text-gray-800" id="ungating-stat-available">0</div>
+                        </div>
+                    </div>
 
-                        <!-- Tableau marques -->
-                        <div id="ungating-brands-container">
-                            <div class="text-center py-10 text-gray-400">
-                                <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
-                                <p>Chargement des opportunités...</p>
+                    <!-- Barre de progression budget -->
+                    <div class="bg-white p-4 rounded-lg shadow-sm mb-4 border border-gray-100">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-700">Progression Budget Ungating</span>
+                            <span class="text-xs text-gray-500">Max: 200€</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                            <div id="ungating-budget-progress" class="h-full bg-green-500 rounded-full transition-all" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <!-- Marques débloquées -->
+                    <div class="bg-white rounded-lg shadow-sm mb-4 overflow-hidden">
+                        <div class="p-4 bg-green-50 border-b border-green-200">
+                            <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-check-circle text-green-600"></i>
+                                Marques Débloquées
+                            </h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                                        <th class="p-3 font-semibold">Date</th>
+                                        <th class="p-3 font-semibold">Marque</th>
+                                        <th class="p-3 font-semibold">Produit utilisé</th>
+                                        <th class="p-3 font-semibold text-center">Coût total</th>
+                                        <th class="p-3 font-semibold text-center">ASIN</th>
+                                        <th class="p-3 font-semibold text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="unlocked-brands-tbody">
+                                    <tr><td colspan="6" class="p-10 text-center text-gray-400">
+                                        <i class="fas fa-lock-open text-3xl mb-3 block text-gray-300"></i>
+                                        <p class="font-medium">Aucune marque débloquée</p>
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Recommandations Ungating -->
+                    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                        <div class="p-4 bg-blue-50 border-b border-blue-200">
+                            <h3 class="font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fas fa-lightbulb text-yellow-500"></i>
+                                🎯 Meilleures Opportunités Ungating (≤30€)
+                            </h3>
+                            <p class="text-xs text-gray-600 mt-1">Marques avec le meilleur rapport coût/potentiel</p>
+                        </div>
+                        <div class="p-4">
+                            <div id="ungating-recommendations">
+                                <p class="text-gray-400 text-center py-6">Chargement des recommandations...</p>
                             </div>
                         </div>
                     </div>
@@ -3143,29 +3202,11 @@
                         </div>
                     </div>
 
-                    <!-- Filtres (sans filtre source puisque déjà filtré) -->
+                    <!-- Filtres simples -->
                     <div class="bg-white rounded-lg shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2 border border-gray-100">
-                        <select id="metro-auto-filter-status" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-semibold">
-                            <option value="">Tous les statuts</option>
-                            <option value="SCRAPED">🟡 En attente</option>
-                            <option value="ANALYZING">🔵 En cours</option>
-                            <option value="ANALYZED">✅ Analysés</option>
-                            <option value="ERROR">❌ Erreurs</option>
-                        </select>
-                        <select id="metro-auto-filter-brand" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm">
+                        <select id="metro-auto-filter-brand" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderMetroAutoTab()">
                             <option value="">Toutes les marques</option>
-                            <option value="Oral-B">Oral-B</option>
-                            <option value="Pampers">Pampers</option>
-                            <option value="Philips">Philips</option>
                         </select>
-                        <div class="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1.5">
-                            <span class="text-gray-500 text-xs">ROI ≥</span>
-                            <input type="number" id="metro-auto-filter-roi" value="15" class="w-12 text-center text-sm outline-none">
-                            <span class="text-xs">%</span>
-                        </div>
-                        <button onclick="renderMetroAutoTab()" class="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-semibold hover:bg-indigo-700">
-                            <i class="fas fa-filter mr-1"></i>Filtrer
-                        </button>
                         <span class="text-xs text-gray-400 ml-1" id="metro-auto-count-label"></span>
                     </div>
 
@@ -3174,26 +3215,118 @@
                         <table class="w-full text-sm" style="min-width:1100px">
                             <thead>
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
-                                    <th class="p-3 font-semibold">Statut</th>
+                                    <th class="p-3 font-semibold">Date</th>
                                     <th class="p-3 font-semibold">Marque</th>
                                     <th class="p-3 font-semibold">Produit</th>
-                                    <th class="p-3 font-semibold text-center">ASIN</th>
-                                    <th class="p-3 font-semibold text-center">Match</th>
                                     <th class="p-3 font-semibold text-center bg-blue-50 text-blue-600">Prix Metro</th>
-                                    <th class="p-3 font-semibold text-center">Max Cost</th>
-                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">Profit</th>
-                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-700">ROI</th>
-                                    <th class="p-3 font-semibold text-center">FBA</th>
-                                    <th class="p-3 font-semibold text-center">BSR</th>
-                                    <th class="p-3 font-semibold text-center">Score</th>
                                     <th class="p-3 font-semibold text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="metro-auto-tbody">
-                                <tr><td colspan="13" class="p-10 text-center text-gray-400">
+                                <tr><td colspan="5" class="p-10 text-center text-gray-400">
                                     <i class="fas fa-robot text-3xl mb-3 block text-gray-300"></i>
                                     <p class="font-medium">Aucun produit auto-scrapé</p>
                                     <p class="text-xs mt-2">Lancer: <code class="bg-gray-100 px-2 py-1 rounded">python metro_scraper.py --brand "Oral-B"</code></p>
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- TAB : Analyse OA (Produits matchés avec ASIN) -->
+                <div id="oa-tab-analysis" class="hidden">
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                        <p class="text-green-700 font-semibold">🎯 Produits Metro matchés avec Amazon (ASIN trouvé)</p>
+                        <p class="text-green-600 text-sm mt-1">Affiche uniquement les produits pour lesquels un ASIN Amazon a été trouvé</p>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">Total matchés</div>
+                            <div class="text-xl font-bold text-gray-800" id="analysis-stat-total">0</div>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-lg shadow-sm border border-blue-200">
+                            <div class="text-xs text-blue-700 mb-1">🔵 Matchés</div>
+                            <div class="text-xl font-bold text-blue-600" id="analysis-stat-matched">0</div>
+                        </div>
+                        <div class="bg-green-50 p-3 rounded-lg shadow-sm border border-green-200">
+                            <div class="text-xs text-green-700 mb-1">✅ Analysés</div>
+                            <div class="text-xl font-bold text-green-600" id="analysis-stat-analyzed">0</div>
+                        </div>
+                        <div class="bg-orange-50 p-3 rounded-lg shadow-sm border border-orange-200">
+                            <div class="text-xs text-orange-700 mb-1">⚠️ À vérifier</div>
+                            <div class="text-xl font-bold text-orange-600" id="analysis-stat-manual">0</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                            <div class="text-xs text-gray-500 mb-1">🎯 Haute confiance</div>
+                            <div class="text-xl font-bold text-green-600" id="analysis-stat-highconf">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Filtres -->
+                    <div class="bg-white rounded-lg shadow-sm mb-4 p-3 flex flex-wrap items-center gap-2 border border-gray-100">
+                        <label class="text-xs text-gray-600">Source:</label>
+                        <select id="analysis-filter-source" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
+                            <option value="">Toutes</option>
+                            <option value="METRO">Metro</option>
+                            <option value="FAIRE">Faire</option>
+                            <option value="CDISCOUNT">Cdiscount</option>
+                        </select>
+
+                        <label class="text-xs text-gray-600 ml-3">Confiance min:</label>
+                        <select id="analysis-filter-confidence" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
+                            <option value="">Toutes</option>
+                            <option value="0.9">≥ 90%</option>
+                            <option value="0.85" selected>≥ 85%</option>
+                            <option value="0.7">≥ 70%</option>
+                            <option value="0.5">≥ 50%</option>
+                        </select>
+
+                        <label class="text-xs text-gray-600 ml-3">Statut:</label>
+                        <select id="analysis-filter-status" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
+                            <option value="">Tous</option>
+                            <option value="MATCHED">Matché</option>
+                            <option value="ANALYZED">Analysé</option>
+                            <option value="MANUAL_VALIDATION">À vérifier</option>
+                        </select>
+
+                        <label class="text-xs text-gray-600 ml-3">Bon pour ungating:</label>
+                        <select id="analysis-filter-ungating" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
+                            <option value="">Tous</option>
+                            <option value="yes">≤ 30€ perte</option>
+                        </select>
+
+                        <span class="text-xs text-gray-400 ml-auto" id="analysis-count-label"></span>
+                    </div>
+
+                    <!-- Tableau -->
+                    <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
+                        <table class="w-full text-sm" style="min-width:1500px">
+                            <thead>
+                                <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
+                                    <th class="p-3 font-semibold">Date</th>
+                                    <th class="p-3 font-semibold text-center">Source</th>
+                                    <th class="p-3 font-semibold">Marque</th>
+                                    <th class="p-3 font-semibold">Produit</th>
+                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-600">Confiance</th>
+                                    <th class="p-3 font-semibold text-center">Statut</th>
+                                    <th class="p-3 font-semibold text-center bg-blue-50 text-blue-600">Prix Metro</th>
+                                    <th class="p-3 font-semibold text-center bg-purple-50 text-purple-600">Max Cost</th>
+                                    <th class="p-3 font-semibold text-center bg-orange-50 text-orange-600">Breakeven</th>
+                                    <th class="p-3 font-semibold text-center bg-red-50 text-red-600">Coût Ungating</th>
+                                    <th class="p-3 font-semibold text-center bg-yellow-50 text-yellow-600">ROI</th>
+                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-600">Profit</th>
+                                    <th class="p-3 font-semibold text-center bg-gray-50 text-gray-600">Fees</th>
+                                    <th class="p-3 font-semibold text-center">BSR</th>
+                                    <th class="p-3 font-semibold text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analysis-tbody">
+                                <tr><td colspan="15" class="p-10 text-center text-gray-400">
+                                    <i class="fas fa-search text-3xl mb-3 block text-gray-300"></i>
+                                    <p class="font-medium">Aucun produit analysé</p>
+                                    <p class="text-xs mt-2">Lance le worker pour matcher les ASINs</p>
                                 </td></tr>
                             </tbody>
                         </table>
@@ -3487,7 +3620,9 @@
     <!-- OA Supabase — remplace Netlify Blobs par notre Python+Supabase -->
     <script src="oa-supabase.js?v=3"></script>
     <script src="oa-grossistes.js?v=2"></script>
-    <script src="oa-metro-auto.js?v=1"></script>
+    <script src="oa-metro-auto.js?v=3"></script>
+    <script src="oa-analysis.js?v=1"></script>
+    <script src="ungating.js?v=1"></script>
 
 </body>
 </html>
