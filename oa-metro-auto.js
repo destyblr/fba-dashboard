@@ -138,18 +138,7 @@ function _applyMetroAutoFilters(data) {
  */
 function _updateMetroAutoStats(data) {
     var total = data.length;
-    var scraped = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'SCRAPED'; }).length;
-    var analyzing = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'ANALYZING'; }).length;
-    var analyzed = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'ANALYZED'; }).length;
-    var errors = data.filter(function(p) { return (p.analysis_status || 'ANALYZED') === 'ERROR'; }).length;
-    var profitable = data.filter(function(p) { return (p.profit_net || 0) > 0; }).length;
-
     document.getElementById('metro-auto-stat-total').textContent = total;
-    document.getElementById('metro-auto-stat-scraped').textContent = scraped;
-    document.getElementById('metro-auto-stat-analyzing').textContent = analyzing;
-    document.getElementById('metro-auto-stat-analyzed').textContent = analyzed;
-    document.getElementById('metro-auto-stat-errors').textContent = errors;
-    document.getElementById('metro-auto-stat-profitable').textContent = profitable;
 }
 
 /**
@@ -178,9 +167,4 @@ function _showMetroAutoEmpty() {
     }
 
     document.getElementById('metro-auto-stat-total').textContent = '0';
-    document.getElementById('metro-auto-stat-scraped').textContent = '0';
-    document.getElementById('metro-auto-stat-analyzing').textContent = '0';
-    document.getElementById('metro-auto-stat-analyzed').textContent = '0';
-    document.getElementById('metro-auto-stat-errors').textContent = '0';
-    document.getElementById('metro-auto-stat-profitable').textContent = '0';
 }
