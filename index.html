@@ -3256,9 +3256,9 @@
 
                         <label class="text-xs text-gray-600 ml-3">Confiance min:</label>
                         <select id="analysis-filter-confidence" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
-                            <option value="">Toutes</option>
+                            <option value="" selected>Toutes</option>
                             <option value="0.9">≥ 90%</option>
-                            <option value="0.85" selected>≥ 85%</option>
+                            <option value="0.85">≥ 85%</option>
                             <option value="0.7">≥ 70%</option>
                             <option value="0.5">≥ 50%</option>
                         </select>
@@ -3275,6 +3275,16 @@
                         <select id="analysis-filter-ungating" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
                             <option value="">Tous</option>
                             <option value="yes">≤ 30€ perte</option>
+                            <option value="profit">Profit uniquement</option>
+                        </select>
+
+                        <label class="text-xs text-gray-600 ml-3">Trier par:</label>
+                        <select id="analysis-filter-sort" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
+                            <option value="date">Plus récent</option>
+                            <option value="price_asc">Prix Metro (↑ moins cher)</option>
+                            <option value="price_desc">Prix Metro (↓ plus cher)</option>
+                            <option value="roi_desc">ROI (↓ meilleur)</option>
+                            <option value="profit_desc">Profit (↓ meilleur)</option>
                         </select>
 
                         <span class="text-xs text-gray-400 ml-auto" id="analysis-count-label"></span>
@@ -3283,7 +3293,7 @@
                     <!-- Tableau -->
                     <div class="bg-white rounded-lg shadow-sm overflow-x-auto">
                         <table class="w-full text-sm" style="min-width:1500px">
-                            <thead>
+                            <thead style="position: sticky; top: 0; z-index: 10;">
                                 <tr class="bg-gray-50 text-left border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500">
                                     <th class="p-3 font-semibold">Date</th>
                                     <th class="p-3 font-semibold text-center">Source</th>
@@ -3291,14 +3301,15 @@
                                     <th class="p-3 font-semibold">Produit</th>
                                     <th class="p-3 font-semibold text-center bg-green-50 text-green-600">Confiance</th>
                                     <th class="p-3 font-semibold text-center">Statut</th>
-                                    <th class="p-3 font-semibold text-center bg-blue-50 text-blue-600">Prix Metro</th>
-                                    <th class="p-3 font-semibold text-center bg-purple-50 text-purple-600">Max Cost</th>
-                                    <th class="p-3 font-semibold text-center bg-orange-50 text-orange-600">Breakeven</th>
-                                    <th class="p-3 font-semibold text-center bg-red-50 text-red-600">Coût Ungating</th>
-                                    <th class="p-3 font-semibold text-center bg-yellow-50 text-yellow-600">ROI</th>
-                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-600">Profit</th>
-                                    <th class="p-3 font-semibold text-center bg-gray-50 text-gray-600">Fees</th>
-                                    <th class="p-3 font-semibold text-center">BSR</th>
+                                    <th class="p-3 font-semibold text-center bg-blue-50 text-blue-600" title="Prix d'achat sur Metro">Prix Metro</th>
+                                    <th class="p-3 font-semibold text-center bg-indigo-50 text-indigo-600" title="Prix de vente Amazon actuel (récupéré par SellerAmp)">Prix Amazon</th>
+                                    <th class="p-3 font-semibold text-center bg-purple-50 text-purple-600" title="Prix max d'achat pour avoir ~30% de ROI">Max Cost</th>
+                                    <th class="p-3 font-semibold text-center bg-orange-50 text-orange-600" title="Prix Amazon après déduction des frais (point mort où profit = 0)">Breakeven</th>
+                                    <th class="p-3 font-semibold text-center bg-red-50 text-red-600" title="Coût/Gain total sur 10 unités pour ungating (négatif = profit)">Coût Ungating</th>
+                                    <th class="p-3 font-semibold text-center bg-yellow-50 text-yellow-600" title="Retour sur Investissement : (Profit / Prix Metro) × 100">ROI</th>
+                                    <th class="p-3 font-semibold text-center bg-green-50 text-green-600" title="Gain net par unité vendue : Prix Amazon - Fees - Prix Metro">Profit</th>
+                                    <th class="p-3 font-semibold text-center bg-gray-50 text-gray-600" title="Frais Amazon (commission FBA + stockage)">Fees</th>
+                                    <th class="p-3 font-semibold text-center" title="Classement des ventes (plus bas = mieux)">BSR</th>
                                     <th class="p-3 font-semibold text-center">Actions</th>
                                 </tr>
                             </thead>

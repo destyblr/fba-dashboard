@@ -90,7 +90,7 @@ function renderAnalysisTab() {
     if (!tbody) return;
 
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="15" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-gray-400">'
             + '<p class="font-medium">Aucun produit</p></td></tr>';
         return;
     }
@@ -242,6 +242,7 @@ function renderAnalysisTab() {
         html += '<td class="p-3 text-center"><span class="' + confidenceClass + ' font-semibold">' + confidenceText + '</span></td>';
         html += '<td class="p-3 text-center">' + statusBadge + '</td>';
         html += '<td class="p-3 text-center font-bold text-blue-600">' + (p.price_grossiste ? p.price_grossiste.toFixed(2) + '€' : '—') + '</td>';
+        html += '<td class="p-3 text-center font-bold text-indigo-600">' + (p.sale_price ? p.sale_price.toFixed(2) + '€' : '—') + '</td>';
         html += '<td class="p-3 text-center"><span class="' + maxCostClass + '">' + maxCostText + '</span></td>';
         html += '<td class="p-3 text-center"><span class="' + breakevenClass + '">' + breakevenText + '</span></td>';
         html += '<td class="p-3 text-center"><span class="' + coutUngatingClass + '">' + coutUngatingText + '</span></td>';
@@ -320,6 +321,50 @@ function _applyAnalysisFilters(data) {
 
             return coutTotal < 0 && Math.abs(coutTotal) <= 30;
         });
+    } else if (ungatingFilter && ungatingFilter.value === 'profit') {
+        // Filtre "Profit uniquement" - ROI positif
+        filtered = filtered.filter(function(p) {
+            var prixMetro = p.price_grossiste || 0;
+            var salePrice = p.sale_price || 0;
+            var fees = p.total_fees || 0;
+            if (salePrice === 0 || fees === 0 || prixMetro === 0) return false;
+
+            var profit = salePrice - fees - prixMetro;
+            return profit > 0;
+        });
+    }
+
+    // Tri
+    var sortFilter = document.getElementById('analysis-filter-sort');
+    if (sortFilter && sortFilter.value) {
+        var sortBy = sortFilter.value;
+
+        if (sortBy === 'price_asc') {
+            filtered.sort(function(a, b) {
+                return (a.price_grossiste || 0) - (b.price_grossiste || 0);
+            });
+        } else if (sortBy === 'price_desc') {
+            filtered.sort(function(a, b) {
+                return (b.price_grossiste || 0) - (a.price_grossiste || 0);
+            });
+        } else if (sortBy === 'roi_desc') {
+            filtered.sort(function(a, b) {
+                var roiA = a.sale_price && a.total_fees && a.price_grossiste ?
+                    ((a.sale_price - a.total_fees - a.price_grossiste) / a.price_grossiste) * 100 : -999;
+                var roiB = b.sale_price && b.total_fees && b.price_grossiste ?
+                    ((b.sale_price - b.total_fees - b.price_grossiste) / b.price_grossiste) * 100 : -999;
+                return roiB - roiA;
+            });
+        } else if (sortBy === 'profit_desc') {
+            filtered.sort(function(a, b) {
+                var profitA = a.sale_price && a.total_fees && a.price_grossiste ?
+                    a.sale_price - a.total_fees - a.price_grossiste : -999;
+                var profitB = b.sale_price && b.total_fees && b.price_grossiste ?
+                    b.sale_price - b.total_fees - b.price_grossiste : -999;
+                return profitB - profitA;
+            });
+        }
+        // 'date' = ordre par défaut (déjà trié par analyzed_at desc dans la requête)
     }
 
     return filtered;
@@ -350,7 +395,7 @@ function _updateAnalysisStats(data) {
 function _showAnalysisError(msg) {
     var tbody = document.getElementById('analysis-tbody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="15" class="p-10 text-center text-red-400">'
+        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-red-400">'
             + '<i class="fas fa-exclamation-triangle text-3xl mb-3 block"></i>'
             + '<p class="font-medium">' + msg + '</p></td></tr>';
     }
@@ -362,7 +407,7 @@ function _showAnalysisError(msg) {
 function _showAnalysisEmpty() {
     var tbody = document.getElementById('analysis-tbody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="15" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun produit analysé</p>'
             + '<p class="text-xs mt-2">Lance le worker pour matcher les ASINs</p>'
