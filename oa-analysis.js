@@ -90,7 +90,7 @@ function renderAnalysisTab() {
     if (!tbody) return;
 
     if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="20" class="p-10 text-center text-gray-400">'
             + '<p class="font-medium">Aucun produit</p></td></tr>';
         return;
     }
@@ -215,6 +215,38 @@ function renderAnalysisTab() {
         var bsrText = bsr > 0 ? bsr.toLocaleString('fr-FR') : '—';
         var bsrClass = bsr > 0 && bsr < 10000 ? 'text-green-600 font-bold' : bsr < 50000 ? 'text-blue-600' : 'text-gray-600';
 
+        // Prix FBA Min
+        var lowestFba = p.lowest_fba || 0;
+        var lowestFbaText = lowestFba > 0 ? lowestFba.toFixed(2) + '€' : '—';
+        var lowestFbaClass = '';
+        if (lowestFba > 0 && prixMetro > 0) {
+            lowestFbaClass = prixMetro < lowestFba ? 'text-green-600 font-bold' : 'text-red-600';
+        }
+
+        // Nb vendeurs FBA
+        var nbFba = p.nb_fba || 0;
+        var nbFbaText = nbFba > 0 ? nbFba.toString() : '—';
+        var nbFbaClass = nbFba === 0 ? 'text-gray-400' : nbFba <= 5 ? 'text-green-600 font-bold' : nbFba <= 8 ? 'text-blue-600' : 'text-red-600 font-bold';
+
+        // Amazon BB
+        var amazonBb = p.amazon_bb || '';
+        var amazonBbText = amazonBb ? amazonBb : '—';
+        var amazonBbClass = amazonBb && amazonBb.includes('%') && parseFloat(amazonBb) > 0 ? 'text-red-600 font-bold' : 'text-green-600';
+
+        // Risques (PL, IP, Meltable)
+        var risques = [];
+        if (p.private_label && (p.private_label.includes('Likely') || p.private_label.includes('Very Likely'))) {
+            risques.push('🔴 PL');
+        }
+        if (p.ip_risk === 'Yes') {
+            risques.push('⚠️ IP');
+        }
+        if (p.meltable === 'Yes') {
+            risques.push('🔥 Melt');
+        }
+        var risquesText = risques.length > 0 ? risques.join(' ') : '✅ OK';
+        var risquesClass = risques.length > 0 ? 'text-red-600 font-bold' : 'text-green-600';
+
         // Badge marque débloquée
         var brandText = p.brand || '—';
         if (p.brand && typeof estMarqueDebloquee === 'function' && estMarqueDebloquee(p.brand)) {
@@ -250,6 +282,10 @@ function renderAnalysisTab() {
         html += '<td class="p-3 text-center"><span class="' + profitClass + '">' + profitText + '</span></td>';
         html += '<td class="p-3 text-center text-xs text-gray-600">' + feesText + '</td>';
         html += '<td class="p-3 text-center text-xs"><span class="' + bsrClass + '">' + bsrText + '</span></td>';
+        html += '<td class="p-3 text-center text-sm"><span class="' + lowestFbaClass + '">' + lowestFbaText + '</span></td>';
+        html += '<td class="p-3 text-center text-sm"><span class="' + nbFbaClass + '">' + nbFbaText + '</span></td>';
+        html += '<td class="p-3 text-center text-xs"><span class="' + amazonBbClass + '">' + amazonBbText + '</span></td>';
+        html += '<td class="p-3 text-center text-xs"><span class="' + risquesClass + '">' + risquesText + '</span></td>';
         html += '<td class="p-3 text-center text-sm">' + actionsHtml + '</td>';
         html += '</tr>';
     });
@@ -334,6 +370,53 @@ function _applyAnalysisFilters(data) {
         });
     }
 
+    // Filtre "Produits OA sûrs"
+    var oaSafeFilter = document.getElementById('analysis-filter-oa-safe');
+    if (oaSafeFilter && oaSafeFilter.value === 'safe') {
+        filtered = filtered.filter(function(p) {
+            // Doit avoir profit positif
+            var prixMetro = p.price_grossiste || 0;
+            var salePrice = p.sale_price || 0;
+            var fees = p.total_fees || 0;
+            if (salePrice === 0 || fees === 0 || prixMetro === 0) return false;
+            var profit = salePrice - fees - prixMetro;
+            if (profit <= 0) return false;
+
+            // Exclure si Amazon vend (Amazon BB > 0%)
+            var amazonBb = p.amazon_bb || '';
+            if (amazonBb && amazonBb.includes('%') && parseFloat(amazonBb) > 0) return false;
+
+            // Exclure si > 8 vendeurs FBA
+            var nbFba = p.nb_fba || 0;
+            if (nbFba > 8) return false;
+
+            // Exclure Private Label
+            if (p.private_label && (p.private_label.includes('Likely') || p.private_label.includes('Very Likely'))) return false;
+
+            // Exclure IP Risk
+            if (p.ip_risk === 'Yes') return false;
+
+            // Exclure Meltable
+            if (p.meltable === 'Yes') return false;
+
+            // BSR < 50k recommandé
+            var bsr = p.bsr || 0;
+            if (bsr > 50000) return false;
+
+            return true;
+        });
+    }
+
+    // Filtre Max vendeurs FBA
+    var maxFbaFilter = document.getElementById('analysis-filter-max-fba');
+    if (maxFbaFilter && maxFbaFilter.value) {
+        var maxFba = parseInt(maxFbaFilter.value);
+        filtered = filtered.filter(function(p) {
+            var nbFba = p.nb_fba || 0;
+            return nbFba <= maxFba;
+        });
+    }
+
     // Tri
     var sortFilter = document.getElementById('analysis-filter-sort');
     if (sortFilter && sortFilter.value) {
@@ -395,7 +478,7 @@ function _updateAnalysisStats(data) {
 function _showAnalysisError(msg) {
     var tbody = document.getElementById('analysis-tbody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-red-400">'
+        tbody.innerHTML = '<tr><td colspan="20" class="p-10 text-center text-red-400">'
             + '<i class="fas fa-exclamation-triangle text-3xl mb-3 block"></i>'
             + '<p class="font-medium">' + msg + '</p></td></tr>';
     }
@@ -407,7 +490,7 @@ function _showAnalysisError(msg) {
 function _showAnalysisEmpty() {
     var tbody = document.getElementById('analysis-tbody');
     if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="16" class="p-10 text-center text-gray-400">'
+        tbody.innerHTML = '<tr><td colspan="20" class="p-10 text-center text-gray-400">'
             + '<i class="fas fa-search text-3xl mb-3 block text-gray-300"></i>'
             + '<p class="font-medium">Aucun produit analysé</p>'
             + '<p class="text-xs mt-2">Lance le worker pour matcher les ASINs</p>'

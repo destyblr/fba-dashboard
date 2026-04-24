@@ -3278,6 +3278,15 @@
                             <option value="profit">Profit uniquement</option>
                         </select>
 
+                        <label class="text-xs text-gray-600 ml-3">Filtres OA:</label>
+                        <select id="analysis-filter-oa-safe" class="border border-green-200 bg-green-50 rounded-lg px-3 py-1.5 text-sm font-semibold" onchange="renderAnalysisTab()">
+                            <option value="">Tous produits</option>
+                            <option value="safe">✅ Produits OA sûrs</option>
+                        </select>
+
+                        <label class="text-xs text-gray-600 ml-3">Max vendeurs FBA:</label>
+                        <input type="number" id="analysis-filter-max-fba" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-16" placeholder="8" onchange="renderAnalysisTab()">
+
                         <label class="text-xs text-gray-600 ml-3">Trier par:</label>
                         <select id="analysis-filter-sort" class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm" onchange="renderAnalysisTab()">
                             <option value="date">Plus récent</option>
@@ -3317,6 +3326,10 @@
 🔴 100k+ = Faible (ventes rares)
 
 Pour ungating: viser < 50k">BSR</th>
+                                    <th class="p-3 font-semibold text-center bg-blue-50 text-blue-600" title="Prix FBA concurrent le plus bas">Prix FBA Min</th>
+                                    <th class="p-3 font-semibold text-center bg-purple-50 text-purple-600" title="Nombre de vendeurs FBA (concurrence)">Nb FBA</th>
+                                    <th class="p-3 font-semibold text-center bg-orange-50 text-orange-600" title="Amazon vend ce produit (% Buy Box)">Amazon</th>
+                                    <th class="p-3 font-semibold text-center bg-red-50 text-red-600" title="Private Label / IP / Restrictions">Risques</th>
                                     <th class="p-3 font-semibold text-center">Actions</th>
                                 </tr>
                             </thead>
