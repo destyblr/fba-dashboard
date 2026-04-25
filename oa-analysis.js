@@ -417,12 +417,38 @@ function _applyAnalysisFilters(data) {
         });
     }
 
+    // Filtre Prix max Metro
+    var maxPriceFilter = document.getElementById('analysis-filter-max-price');
+    if (maxPriceFilter && maxPriceFilter.value) {
+        var maxPrice = parseFloat(maxPriceFilter.value);
+        filtered = filtered.filter(function(p) {
+            var prixMetro = p.price_grossiste || 0;
+            return prixMetro <= maxPrice;
+        });
+    }
+
+    // Filtre Exclure Private Label
+    var excludePlFilter = document.getElementById('analysis-filter-exclude-pl');
+    if (excludePlFilter && excludePlFilter.checked) {
+        filtered = filtered.filter(function(p) {
+            // Exclure si Private Label Likely ou Very Likely
+            if (p.private_label && (p.private_label.includes('Likely') || p.private_label.includes('Very Likely'))) {
+                return false;
+            }
+            return true;
+        });
+    }
+
     // Tri
     var sortFilter = document.getElementById('analysis-filter-sort');
     if (sortFilter && sortFilter.value) {
         var sortBy = sortFilter.value;
 
-        if (sortBy === 'price_asc') {
+        if (sortBy === 'confidence_desc') {
+            filtered.sort(function(a, b) {
+                return (b.matching_confidence || 0) - (a.matching_confidence || 0);
+            });
+        } else if (sortBy === 'price_asc') {
             filtered.sort(function(a, b) {
                 return (a.price_grossiste || 0) - (b.price_grossiste || 0);
             });
